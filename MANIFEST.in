@@ -1,0 +1,7 @@
+include README.md
+include cysecuretools/execute/programmer/pyocd_target_map.json
+include cysecuretools/execute/validators/policy_template.json
+include cysecuretools/execute/validators/schema.json_schema
+recursive-include cysecuretools/prebuild *
+recursive-include cysecuretools/prepare *
+global-exclude .DS_Store

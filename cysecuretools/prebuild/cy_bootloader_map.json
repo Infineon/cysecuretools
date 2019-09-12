@@ -1,0 +1,12 @@
+{
+    "CY8CPROTO-064S1-SB": {
+        "debug": {
+            "hex": "prebuild/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
+            "jwt": "prebuild/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
+        },
+        "release": {
+            "hex": "prebuild/CyBootloader_Release/CypressBootloader_CM0p.hex",
+            "jwt": "prebuild/CyBootloader_Release/CypressBootloader_CM0p.jwt"
+        }
+    }
+}

@@ -1,0 +1,10 @@
+# To install next python modules, please execute command:
+# python -m pip install -r requirements.txt
+
+setuptools>=40.0
+cryptography>=2.4.2
+click>=7.0
+intelhex>=2.2.1
+jwcrypto>=0.6.0
+jsonschema>=3.0.0
+pyocd>=0.22.0
