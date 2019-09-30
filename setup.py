@@ -11,7 +11,7 @@ with open('README.md', **open_args) as f:
 
 setup(
     name='cysecuretools',
-    version="1.0.0",
+    version="1.1.0",
     setup_requires=[
         'setuptools>=40.0'
         ],

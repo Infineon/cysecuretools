@@ -1,0 +1,22 @@
+{
+    "cy8cproto-064s1-sb": {
+        "debug": {
+            "hex": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
+        },
+        "release": {
+            "hex": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
+        }
+    },
+    "cy8cproto-064s2-sb": {
+        "debug": {
+            "hex": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_WithLogs_2M/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_WithLogs_2M/CypressBootloader_CM0p.jwt"
+        },
+        "release": {
+            "hex": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_Release_2M/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_Release_2M/CypressBootloader_CM0p.jwt"
+        }
+    }
+}

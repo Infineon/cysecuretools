@@ -51,7 +51,7 @@ class Pyocd(ProgrammerBase):
                     file_content = f.read()
                     json_data = json.loads(file_content)
                 for json_target in json_data:
-                    if target_name.upper().strip() == json_target.upper().strip():
+                    if target_name.lower().strip() == json_target.lower().strip():
                         target_name = json_data[json_target]
                         break
                 options = {
@@ -64,15 +64,7 @@ class Pyocd(ProgrammerBase):
             if self.session is None:
                 return False
             self.board = self.session.board
-            try:
-                self.session.open()
-            except exceptions.TransferFaultError as e:
-                if not self.board.target.is_locked():
-                    print(f"Transfer fault while initializing board: {e}")
-                    return False
-            except Exception as e:
-                print(f"Exception while initializing board: {e}")
-                return False
+            self.session.open()
 
             self.target = self.board.target
             self.probe = self.session.probe

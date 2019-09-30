@@ -13,5 +13,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from cysecuretools.main import CySecureTools
+from abc import ABC, abstractmethod
 
+
+class PolicyFilterBase(ABC):
+    """
+    Base class for policy filter.
+    Each device-specific policy filter class should implement its methods.
+    """
+    @abstractmethod
+    def filter_policy(self):
+        pass

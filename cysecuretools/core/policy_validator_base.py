@@ -13,5 +13,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from cysecuretools.main import CySecureTools
+from abc import ABC, abstractmethod
+
+
+class PolicyValidatorBase(ABC):
+    """
+    Base class for the classes that implement policy validator.
+    Each device-specific policy validator must implement its methods.
+    """
+    @abstractmethod
+    def validate(self): pass
 

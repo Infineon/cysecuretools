@@ -14,22 +14,26 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 from cysecuretools.execute.enums import ProtectionState
-from cysecuretools.execute.p6_reg import CYREG_CPUSS_PROTECTION, CYREG_IPC2_STRUCT_DATA, CYREG_EFUSE_SECURE_HASH
+from cysecuretools.execute.sys_call import read_lifecycle
 
 
-def check_mode(tool, expected_mode: ProtectionState):
+def check_mode(tool, reg_map, expected_mode: ProtectionState):
     """
     Checks device protection state and compares with the expected.
-    :return: The device protection state. The argument is for Cypress internal use only.
+    :param tool: Programming/debugging tool used for communication with device.
+    :param reg_map: Device register map.
+    :param expected_mode: The device protection state. The argument is for Cypress internal use only.
+    :return: True if device mode matches specified expected mode, otherwise False.
     """
     mode_name = expected_mode.name.upper()
-    if tool.read32(CYREG_CPUSS_PROTECTION) != int(expected_mode):
-        print(f'FAIL: Device is not in {mode_name} mode, error code: {hex(tool.read32(CYREG_IPC2_STRUCT_DATA))}')
+    lifecycle = read_lifecycle(tool, reg_map)
+    if lifecycle != int(expected_mode):
+        print(f'FAIL: Device is not in {mode_name} mode, error code: {hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_DATA))}')
         print('Read Secure Hash from eFUSEs:')  # 00 expected on virgin device
         got_factory_hash = ''
         i = 0
         while i < 24:
-            hash_byte_val = hex(tool.read8(CYREG_EFUSE_SECURE_HASH + i))
+            hash_byte_val = hex(tool.read8(reg_map.CYREG_EFUSE_SECURE_HASH + i))
             got_factory_hash += hash_byte_val + ' '
             i += 1
         print(f"Received SECURE_HASH: '{got_factory_hash}'")

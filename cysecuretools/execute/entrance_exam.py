@@ -17,45 +17,42 @@ import os
 from time import sleep
 from cysecuretools.execute.helper import check_mode
 from cysecuretools.execute.enums import ProtectionState, EntranceExamErrors
-from cysecuretools.execute.gen_data_from_json import ENTRANCE_EXAM_FW_STATUS_REG, ENTRANCE_EXAM_FW_STATUS_MASK, \
-    ENTRANCE_EXAM_FW_STATUS_VAL, ENTRANCE_EXAM_REGION_HASH_ADDR, ENTRANCE_EXAM_REGION_HASH_SIZE, \
-    ENTRANCE_EXAM_REGION_HASH_MODE, ENTRANCE_EXAM_REGION_HASH_EXPECTED_VAL
 from cysecuretools.execute.sys_call import region_hash
 
 
-def entrance_exam(tool):
+def entrance_exam(tool, reg_map):
     """
     Checks device life-cycle, Flashboot firmware and Flash state.
     :param tool: Programming/debugging tool used for communication with device.
+    :param reg_map: Device register map.
     :return: Error code.
     """
     # Check the device life-cycle stage
     print('Check device protection state:')
-    if not check_mode(tool, ProtectionState.secure):
+    if not check_mode(tool, reg_map, ProtectionState.secure):
         return EntranceExamErrors.INVALID_MODE
 
     # Check if any firmware is launched by FlashBoot and running on the device
     print(os.linesep + 'Read Flashboot firmware status:')
-    fb_firmware_status = tool.read32(ENTRANCE_EXAM_FW_STATUS_REG)
+    fb_firmware_status = tool.read32(reg_map.ENTRANCE_EXAM_FW_STATUS_REG)
     print(f'FB Firmware status = {hex(fb_firmware_status)}')
-    print(f'Received FB_FW_STATUS = {hex(fb_firmware_status & ENTRANCE_EXAM_FW_STATUS_MASK)}')
-    print(f'Expected FB_FW_STATUS = {hex(ENTRANCE_EXAM_FW_STATUS_VAL)}')
-    is_exam_pass = (fb_firmware_status & ENTRANCE_EXAM_FW_STATUS_MASK) == ENTRANCE_EXAM_FW_STATUS_VAL
+    print(f'Received FB_FW_STATUS = {hex(fb_firmware_status & reg_map.ENTRANCE_EXAM_FW_STATUS_MASK)}')
+    print(f'Expected FB_FW_STATUS = {hex(reg_map.ENTRANCE_EXAM_FW_STATUS_VAL)}')
+    is_exam_pass = (fb_firmware_status & reg_map.ENTRANCE_EXAM_FW_STATUS_MASK) == reg_map.ENTRANCE_EXAM_FW_STATUS_VAL
     if is_exam_pass:
         print('PASS: FB Firmware status is as expected')
     else:
         print('FAIL: FB Firmware status is not as expected')
-        if fb_firmware_status == 0xA1000100:
+        if fb_firmware_status == reg_map.FB_FW_STATUS_FIRMWARE_RUNNING_CM4:
             print('Test firmware exists and running on CM4 core. Device is in SECURE UNCLAIMED mode')
             return EntranceExamErrors.FIRMWARE_RUNNING_CM4
-        if fb_firmware_status == 0xA1000101:
+        if fb_firmware_status == reg_map.FB_FW_STATUS_FIRMWARE_RUNNING_CM0:
             print('Secure firmware exists and running on CM0p core. Device is in SECURE CLAIMED mode')
             return EntranceExamErrors.FIRMWARE_RUNNING_CM0
 
     # Check flash for malicious firmware
     print(os.linesep + 'Check if Main Flash of the device is empty:')
-    if region_hash(tool, ENTRANCE_EXAM_REGION_HASH_ADDR, ENTRANCE_EXAM_REGION_HASH_SIZE,
-                   ENTRANCE_EXAM_REGION_HASH_MODE, ENTRANCE_EXAM_REGION_HASH_EXPECTED_VAL):
+    if region_hash(tool, reg_map):
         print('PASS: Flash value is as expected')
         print()
         print('*****************************************')

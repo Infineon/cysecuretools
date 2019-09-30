@@ -13,5 +13,30 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from cysecuretools.main import CySecureTools
+from abc import ABC, abstractmethod
 
+
+class PolicyParserBase(ABC):
+    """
+    Base class for the classes that implement policy parser.
+    Each device-specific policy parser must implement its methods.
+    """
+    @abstractmethod
+    def get_keys(self, out=None):
+        pass
+
+    @abstractmethod
+    def get_image_data(self, image_id, image_type):
+        pass
+
+    @abstractmethod
+    def get_slot(self, slot_id):
+        pass
+
+    @abstractmethod
+    def get_cybootloader_mode(self):
+        pass
+
+    @abstractmethod
+    def get_provisioning_packet_dir(self):
+        pass

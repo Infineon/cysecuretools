@@ -1,4 +1,6 @@
 {
-  "CY8CPROTO-064S1-SB": "cy8c64xx_cm4_full",
-  "CY8CPROTO-064S1-SB_VIRGIN": "cy8c64xx_cm4_full_flash"
+  "cy8cproto-064s1-sb": "cy8c64xx_cm4_full",
+  "cy8cproto-064s1-sb_virgin": "cy8c64xx_cm4_full_flash",
+  "cy8cproto-064s2-sb": "cy8c64xa_cm4_full_flash",
+  "cy8cproto-064s2-sb_virgin": "cy8c64xa_cm4_full_flash"
 }
