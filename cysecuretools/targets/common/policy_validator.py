@@ -87,6 +87,11 @@ class PolicyValidator(PolicyValidatorBase):
         if not result:
             return result
 
+        logger.debug('Validating CyBootloader paths...')
+        result = self.validate_cybootloader_paths()
+        if not result:
+            return result
+
         logger.debug('Second stage validation success...')
         return True
 
@@ -225,6 +230,19 @@ class PolicyValidator(PolicyValidatorBase):
             if slot0['size'] != slot1['size']:
                 logger.warning('BOOT and UPGRADE slots sizes are not equal')
 
+        return True
+
+    def validate_cybootloader_paths(self):
+        """
+        Validates path to CyBootloader hex and jwt file.
+        :return: True if CyBootloader hex and jwt files specified in policy and exist, otherwise False.
+        """
+        node = self.parser.json['cy_bootloader']
+        if node['mode'] == 'custom':
+            if 'hex_path' not in node or 'jwt_path' not in node:
+                logger.error('Paths to CyBootloader hex and jwt files are required when '
+                             'CyBootloader mode is set to custom')
+                return False
         return True
 
     def get_policy_stage(self):

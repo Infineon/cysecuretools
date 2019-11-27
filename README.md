@@ -1,152 +1,188 @@
-This package contains security tools for creating keys, signing user application and device provisioning.
+This package contains security tools for creating keys, creating certificates, signing user application, and provisioning Cypress MCUs.
+
+# Features
+
+* Create keys - A key is a file used to authorize access to device data. There must be a common key pair between the secure device and user application. A device must be provisioned with a public key and user application must be signed with corresponding private key from same pair.
+
+* Provisioning a device - Provisioning is the act of configuring a device with an authorized set of keys, certificates, and policies.
+
+* Entrance exam - Before provisioning a device, there is an option to ensure that the device has a valid state by passing an entrance exam.
+
+* Sign a user application - To run a user application on a secure device, the application must be signed with the same keys that the device has been provisioned with.
+
+* Create a certificate - Create a certificate in the X.509 format with the device public key inside and signed with the private key. The certificate can be used when connecting to a cloud service.
 
 # Prerequisites
 
 * Python 3.7
 
-* Installed pyocd
-
-  From command line: `pip install --upgrade --force-reinstall git+http://git-ore.aus.cypress.com/repo/pyocd.git`
-
-* Installed libusb driver
+* Installed the libusb driver
 
    **Windows**
    - Download and unzip libusb-1.0.21.7z from https://github.com/libusb/libusb/releases/tag/v1.0.21
-   - Copy *libusb-1.0.dll* file into Python 3.7 folder (use 64-bit version of the DLL for 64-bit Python and 32-bit version of the DLL for 32-bit Python)
-   - Make sure Python path located at the begginning of Path environment variable
+   - Run following command to determine if a Python shell is executing in 32-bit or 64-bit mode on OS: `python -c "import struct; print(struct.calcsize('P') * 8)"`
+   - Copy *libusb-1.0.dll* file into Python 3.7 folder (use the 64-bit version of the DLL for the 64-bit Python and the 32-bit version of the DLL for the 32-bit Python)
+   - Make sure Python path is located at the beginning of the Path environment variable.
    
    **Linux/Mac OS**
-   - Use [homebrew] to install the driver from terminal: `homebrew install libusb`
+   - Use [homebrew] to install the driver from the terminal: `homebrew install libusb`
 
 # Installing Package
 
-From command line invoke `pip install`:
+Invoke `pip install` from the command line:
 
+```bash
+pip install cysecuretools
 ```
-pip install --upgrade --force-reinstall git+http://git-ore.aus.cypress.com/repo/cysecuretools.git
-```
-# Installing libusb
 
-# Preparing Secure Application
-
-The package has an APIs that should be sequentially called to make a device and a user application protected.
-
-## Basic Guide
-
-The basic guide provides several steps that allow to create key, provision device with a default policy and sign user application with the key.
-
-### 1. Create keys
-The key is a certificate file used to authorize access to a device data. There must be common key pair between secure device and user application. A device must be provisioned with a public key and user application must be signed with corresponding private key from same pair.
-
-**create_keys()** - creates keys specified in policy file for image signing and encryption.
-#### Arguments
-* _overwrite_ (optional) - Indicates whether overwrite keys in the output directory if they already exist. Available values: True, False, None. If the value is None, a prompt will ask whether to overwrite existing keys.
-* _out_ (optional) - Output directory for generated keys. By default, keys location will be as specified in the policy file.
-#### Usage example
-```
+# Quick Start
+```python
 from cysecuretools import CySecureTools
-tools = CySecureTools('cy8cproto-064s1-sb', 'targets/cy8cproto_064s1_sb/policy/policy_single_stage_CM4.json')
+
+tools = CySecureTools('CY8CPROTO-064B0S1-BLE')
+
+# Ensure that the device has a valid state by passing an entrance exam
+tools.entrance_exam()
+
+# Create a common key pair used by the secure device and user application
+tools.create_keys()
+
+# Create a JWT packet that contains the policy and keys to be provisioned to a device
+tools.create_provisioning_packet()
+
+# Execute device provisioning
+tools.provision_device()
+
+# Sign the user application with the keys
+tools.sign_image('example-blinky.hex')
+```
+
+To run the above code from the command line, use the `python -c` command:
+```bash
+python -c "from cysecuretools import CySecureTools; tools = CySecureTools('CY8CPROTO-064B0S1-BLE'); tools.entrance_exam(); tools.create_keys(); tools.create_provisioning_packet(); tools.provision_device(); tools.sign_image('example-blinky.hex')"
+```
+
+# API
+
+## **create_keys()**
+Creates keys specified in the policy file for the image signing and encryption.
+#### Parameters
+| Name          | Optional/Required  | Description   |
+| ------------- |:------------------:| ------------- |
+| overwrite     | optional           | Indicates whether overwrite the keys in the output directory if they already exist. The available values: True, False, None. If None, a prompt will ask whether to overwrite the existing keys. |
+| out           | optional           | The output directory for generated keys. By default, the keys location will be as specified in the policy file. |
+
+#### Usage example
+```python
+from cysecuretools import CySecureTools
+tools = CySecureTools('CY8CPROTO-064B0S1-BLE')
 tools.create_keys()
 ```
 
-### 2. Create provisioning packet
-The provisioning packet is a JWT file to program into device during provisioning procedure. In general, this is policy and keys in JWT format. Returns True if packet created successfully, otherwise False.
+## **create_provisioning_packet()**
+Creates a JWT packet (a file to be programmed into the device during the provisioning procedure). In general, this is a policy, keys, and certificates in the JWT format. Returns True if the packet is created successfully, otherwise - False.
 
-**create_provisioning_packet()** - creates JWT packet for provisioning device.
 #### Usage example
-```
+```python
 from cysecuretools import CySecureTools
-tools = CySecureTools('cy8cproto-064s1-sb', 'targets/cy8cproto_064s1_sb/policy/policy_single_stage_CM4.json')
+tools = CySecureTools('CY8CPROTO-064B0S1-BLE')
 tools.create_provisioning_packet()
 ```
 
-### 3. Provision device
-Provisioning is the act of configuring a device with an authorized set of keys (certificates), credentials and firmware images.
+## **provision_device()**
+Starts device provisioning process. Returns true if provisioning was success, otherwise False.
 
-**provision_device()** - executes device provisioning that is the process of attaching a certificate to the device identity. Returns true if provisioning was success, otherwise False.
-#### Arguments
-* _probe_id_ (optional) - Probe serial number. Can be used to specify probe if more than one device is connected to a computer.
+#### Parameters
+| Name          | Optional/Required  | Description   |
+| ------------- |:------------------:| ------------- |
+| probe_id      | optional           | Probe serial number. Can be used to specify probe if more than one device is connected to a computer. |
+
 #### Usage example
-```
+```python
 from cysecuretools import CySecureTools
-tools = CySecureTools('cy8cproto-064s1-sb', 'targets/cy8cproto_064s1_sb/policy/policy_single_stage_CM4.json')
+tools = CySecureTools('CY8CPROTO-064B0S1-BLE')
 tools.provision_device()
 ```
 
-### 4. Sign user application
-To run user application on a secure device, the application must be signed with the same keys that the device has been provisioned with.
+## **sign_image()**
+Signs the user application with the keys created by the _create_keys()_ API.
 
-**sign_image()** - signs user application with the certificates.
-#### Arguments
-* hex_file - Hex file with user application.
-* _image_id_ (optional) - The ID of the firmware image in the device. Default value is 4.
+#### Parameters
+| Name          | Optional/Required  | Description   |
+| ------------- |:------------------:| ------------- |
+| hex_file      | required           | The hex file with the user application. |
+| image_id      | optional           | The ID of the firmware image in the device. The default value is 4. |
+
 #### Usage example
-```
+```python
 from cysecuretools import CySecureTools
-tools = CySecureTools('cy8cproto-064s1-sb', 'targets/cy8cproto_064s1_sb/policy/policy_single_stage_CM4.json')
-tools.sign_image('mbed-os-example-blinky.hex')
+tools = CySecureTools('CY8CPROTO-064B0S1-BLE')
+tools.sign_image('example-blinky.hex')
 ```
 
-# Additional APIs
+## **entrance_exam()**
+Checks the device life-cycle, Flashboot firmware, and Flash memory state. Returns True if the device is ready for provisioning, otherwise - False.
 
-### 1. Entrance exam
-Before provisioning a device user can ensure that the device has valid state by passing an entrance exam.
-
-**entrance_exam()** - checks device life-cycle, Flashboot firmware and Flash memory state. Returns True if the device is ready for provisioning, otherwise False.
 #### Usage example
-```
+```python
 from cysecuretools import CySecureTools
-tools = CySecureTools('cy8cproto-064s1-sb', 'targets/cy8cproto_064s1_sb/policy/policy_single_stage_CM4.json')
+tools = CySecureTools('CY8CPROTO-064B0S1-BLE')
 tools.entrance_exam()
 ```
 
-### 2. Flash map
-The API provides an image address and size from the policy file.
+## **create_x509_certificate()**
+Creates a certificate in the X.509 format based on the device public key.
 
-**flash_map()** - extracts information about slots from given policy. Returns tuple with address and size for the specified image. If arguments not specified, the default will be used.
-#### Arguments
-* _image_id_ (optional) - The ID of the firmware image in the device. Default value is 4.
+#### Parameters
+| Name          | Optional/Required  | Description   |
+| ------------- |:------------------:| ------------- |
+| cert_name     | optional           | The certificate filename. |
+| cert_encoding | optional           | The certificate encoding. |
+| probe_id      | optional           | The probe ID. Used to read a public key and die ID from a device. Can be used to specify a probe if more than one device is connected to a computer. |
+| kwargs        | optional           | The dictionary with the certificate fields. |
+
 #### Usage example
-```
+```python
 from cysecuretools import CySecureTools
-tools = CySecureTools('cy8cproto-064s1-sb', 'targets/cy8cproto_064s1_sb/policy/policy_single_stage_CM4.json')
+tools = CySecureTools('CY8CPROTO-064B0S1-BLE')
+tools.create_x509_certificate()
+```
+
+## **flash_map()**
+The API provides an image address and size from the policy file. Returns a tuple with the address and size for a specified image.
+
+#### Parameters
+| Name          | Optional/Required  | Description   |
+| ------------- |:------------------:| ------------- |
+| image_id      | optional           | The ID of the firmware image in the device. The default value is 4. |
+
+#### Usage example
+```python
+from cysecuretools import CySecureTools
+tools = CySecureTools('CY8CPROTO-064B0S1-BLE')
 tools.flash_map()
 ```
 
-# Running Tools From Command Line
-To execute the tools APIs from command line use `python -c` command.
+# Policy and Keys
 
-Example:
-```
-python -c "from cysecuretools import CySecureTools;tools = CySecureTools('cy8cproto-064s1-sb', 'targets/cy8cproto_064s1_sb/policy/policy_single_stage_CM4.json');tools.create_keys();tools.create_provisioning_packet();tools.provision_device();tools.sign_image('mbed-os-example-blinky.hex')"
-```
-
-# Package Installation Directory
-Use `pip` command to get the package location:
-```
-pip show cysecuretools
-```
-
-# Advanced Guide
 ## Provisioning Policies
-Change the policy by specifying _policy_ argument. All available policy files are located in _policy_ directory inside the folder with target name in the package installation directory.
+Change the policy by specifying _policy_ argument. All available policy files are located in _policy_ directory inside the folder with the target name in the package installation directory.
 
 ## Policy Location
-By default, keys and policy files location is the package installation directory.
-To use policy file from different location, provide policy file location while creation CySecureTools object.
+By default, the keys and policy files location is the package installation directory.
+To use a policy file from a different location, provide the policy file location while creating a CySecureTools object.
 
 Example:
-```
+```python
 from cysecuretools import CySecureTools
-tools = CySecureTools('cy8cproto-064s1-sb', '/Users/example/policy_single_stage_CM4.json')
+tools = CySecureTools('CY8CPROTO-064B0S1-BLE', '/Users/example/policy_single_stage_CM4.json')
 ```
 
 ## Keys Location
-By default, keys location is _keys_ directory inside the package installation directory. Keys location can be changed in the policy file. Either absolute or relative path can be used. If use relative path it is related to the policy file location.
+By default, the keys location is the  _keys_ directory inside the package installation directory. The keys location can be changed in the policy file. Either an absolute or relative path can be used. If a relative path is used, it is related to the policy file location.
 
 Example:
-
-```
+```json
 {
     "boot_auth": [
         8
@@ -159,8 +195,9 @@ Example:
     "smif_id": 0,
     "upgrade": true,
     "version": "0.1",
+    "rollback_counter": 0,
     "encrypt": true,
-    "encrypt_key": "../keys/aes128.key",
+    "encrypt_key": "../keys/image-aes-128.key",
     "encrypt_key_id": 1,
     "encrypt_peer": "../keys/dev_pub_key.pem",
     "upgrade_auth": [
@@ -184,21 +221,29 @@ Example:
 }
 ```
 
-_boot_keys_ - keys for signing BOOT image.
+The policy file properties which represent the keys:
 
-_upgrade_keys_ - keys for signing UPGRADE image.
+| Property      | Description  |
+| ------------- |------------------|
+| boot_keys     | The keys for signing a BOOT image. |
+| upgrade_keys  | The keys for signing an UPGRADE image. |
+| encrypt_key   | The key used for the image encryption. |
+| encrypt_peer  | The public key read from the device during the provisioning procedure. The key is used for the image encryption. |
 
-_encrypt_key_ - key used for image encryption.
-
-_encrypt_peer_ - public key read from device during provisioning procedure. The key is used for image encryption.
 
 # CyBootloader
-By default, the tools use debug mode of CyBootloader. It allows to see CyBootloader logs using serial port with baud rate 115200. The release mode of CyBootloader does not have this feature, but it has smaller size. To change CyBootloader mode, change cy_bootloader field in the policy file:
-```
+By default, the tools use _debug_ mode of CyBootloader. This allows seeing CyBootloader logs using the serial port with the baud rate 115200. The _release_ mode of CyBootloader does not have this feature, but it has a smaller size. To change CyBootloader mode, change the  cy_bootloader field in the policy file:
+```json
 "cy_bootloader":
 {
     "mode": "debug"
 }
+```
+
+# Package Installation Directory
+Use the `pip` command to get the package location:
+```bash
+pip show cysecuretools
 ```
 
 # License and Contributions

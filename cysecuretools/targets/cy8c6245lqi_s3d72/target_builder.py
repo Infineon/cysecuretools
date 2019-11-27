@@ -17,19 +17,19 @@ import os
 from cysecuretools.core import TargetBuilder
 
 
-class CY8CPROTO_064S1_SB_Builder(TargetBuilder):
+class CY8C6245LQI_S3D72_Builder(TargetBuilder):
     def get_default_policy(self):
         target_dir = os.path.dirname(os.path.realpath(__file__))
         return os.path.join(target_dir, 'policy/policy_single_stage_CM4.json')
 
     def get_memory_map(self):
-        from cysecuretools.targets.cy8cproto_064s1_sb.maps.memory_map import MemoryMap_cy8cproto_064s1_sb
-        memory_map = MemoryMap_cy8cproto_064s1_sb()
+        from cysecuretools.targets.cy8c6245lqi_s3d72.maps.memory_map import MemoryMap_cy8c6245lqi_s3d72
+        memory_map = MemoryMap_cy8c6245lqi_s3d72()
         return memory_map
 
     def get_register_map(self):
-        from cysecuretools.targets.cy8cproto_064s1_sb.maps.register_map import RegisterMap_cy8cproto_064s1_sb
-        register_map = RegisterMap_cy8cproto_064s1_sb()
+        from cysecuretools.targets.cy8c6245lqi_s3d72.maps.register_map import RegisterMap_cy8c6245lqi_s3d72
+        register_map = RegisterMap_cy8c6245lqi_s3d72()
         return register_map
 
     def get_policy_parser(self, policy):

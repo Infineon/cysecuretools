@@ -23,9 +23,15 @@ class ProtectionState(IntEnum):
     unknown, virgin, normal, secure, dead = range(5)
 
 
-class EntranceExamErrors(IntEnum):
+class EntranceExamStatus(IntEnum):
     OK = 0
     INVALID_MODE = 1
     FIRMWARE_RUNNING_CM4 = 2
     FIRMWARE_RUNNING_CM0 = 3
     FLASH_NOT_EMPTY = 4
+
+
+class ProvisioningStatus(IntEnum):
+    OK = 0
+    FAIL = 1
+    TERMINATED = 2

@@ -2,12 +2,12 @@
     "debug" :
     {
         "m0p" : {
-            "permission" : "disabled",
+            "permission" : "enabled",
             "control" : "firmware",
             "key" : 5
         },
         "m4" : {
-            "permission" : "allowed",
+            "permission" : "enabled",
             "control" : "firmware",
             "key" : 5
         },
@@ -69,17 +69,17 @@
                 "resources": [
                     {
                         "type": "FLASH_PC1_SPM",
-                        "address": 270336000,
+                        "address": 268828672,
                         "size": 65536
                     },
                     {
                         "type": "SRAM_SPM_PRIV",
-                        "address": 135004160,
+                        "address": 134283264,
                         "size": 262144
                     },
                     {
                         "type": "SRAM_DAP",
-                        "address": 135184384,
+                        "address": 134397952,
                         "size": 16384
                     }
                 ]
@@ -111,12 +111,12 @@
                     {
                         "type": "BOOT",
                         "address": 268435456,
-                        "size": 327680
+                        "size": 196608
                     },
                     {
                         "type": "UPGRADE",
-                        "address": 268763136,
-                        "size": 327680
+                        "address": 268632064,
+                        "size": 196608
                     }
                 ]
             }

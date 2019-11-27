@@ -13,14 +13,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import os
 from cysecuretools.core import TargetBuilder
 
 
 class CY8CPROTO_064S2_SB_Builder(TargetBuilder):
-    def __init__(self, policy):
-        self.__policy = policy
-        self.__policy_parser = None
-        self.__memory_map = None
+    def get_default_policy(self):
+        target_dir = os.path.dirname(os.path.realpath(__file__))
+        return os.path.join(target_dir, 'policy/policy_single_stage_CM4.json')
 
     def get_memory_map(self):
         from cysecuretools.targets.cy8cproto_064s2_sb.maps.memory_map import MemoryMap_cy8cproto_064s2_sb
@@ -32,10 +32,9 @@ class CY8CPROTO_064S2_SB_Builder(TargetBuilder):
         register_map = RegisterMap_cy8cproto_064s2_sb()
         return register_map
 
-    def get_policy_parser(self):
+    def get_policy_parser(self, policy):
         from cysecuretools.targets.common.policy_parser import PolicyParser
-        policy_parser = PolicyParser(self.__policy)
-        self.__policy_parser = policy_parser
+        policy_parser = PolicyParser(policy)
         return policy_parser
 
     def get_policy_validator(self, policy_parser, memory_map):

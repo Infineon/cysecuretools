@@ -131,7 +131,7 @@ class OemEntity(Entity):
         oem_pub_key = self.state["oem_pub_key"]
         oem_priv_key = self.state["oem_priv_key"]
         
-        payload= {}
+        payload = {}
         payload["type"] = Types.OEM_ROT_AUTH
         payload["oem_pub_key"] = oem_pub_key
         payload["hsm_pub_key"] = hsm_pub_key

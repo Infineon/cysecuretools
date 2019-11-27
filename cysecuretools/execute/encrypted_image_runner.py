@@ -16,12 +16,14 @@ limitations under the License.
 import os
 import sys
 import click
+import logging
 import subprocess
 from pathlib import Path
 from intelhex import hex2bin, bin2hex
 
 HEADER_SIZE = 0x400
 AES_HEADER = 'aes_header.txt'   # near the script file
+logger = logging.getLogger(__name__)
 
 
 def check_file_exist(file):
@@ -31,7 +33,7 @@ def check_file_exist(file):
     :return: True if success, otherwise False.
     """
     if not Path(file).exists():
-        print("ERROR: File %s not found. Check script arguments." % file)
+        logger.error('File %s not found. Check script arguments.' % file)
         return False
     else:
         return True
@@ -59,8 +61,8 @@ def manage_output(process, input_f, output_f):
     rc = process.wait()
 
     if rc != 0:
-        print("ERROR: Encryption script ended with error!")
-        print("ERROR: " + stderr.decode("utf-8"))
+        logger.error('Encryption script ended with error!')
+        logger.error(stderr.decode("utf-8"))
         raise Exception("imgtool finished execution with errors!")
         
     if check_file_exist(output_f):
@@ -127,7 +129,7 @@ def main(sdk_path, hex_file, key_priv, key_pub, key_aes, version, img_id, rlb_co
     out_f = '{0}_{2}.bin'.format(*os.path.splitext(hex_file) + ('o',))
 
     hex_file_final = get_final_hex_name(hex_file)
-    print("Image UPGRADE:" + hex_file_final)
+    logger.info('Image UPGRADE:' + hex_file_final)
 
     hex2bin(hex_file, in_f)
 

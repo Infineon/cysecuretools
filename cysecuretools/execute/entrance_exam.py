@@ -14,10 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
+import logging
 from time import sleep
 from cysecuretools.execute.helper import check_mode
-from cysecuretools.execute.enums import ProtectionState, EntranceExamErrors
+from cysecuretools.execute.enums import ProtectionState, EntranceExamStatus
 from cysecuretools.execute.sys_call import region_hash
+
+logger = logging.getLogger(__name__)
 
 
 def entrance_exam(tool, reg_map):
@@ -28,39 +31,38 @@ def entrance_exam(tool, reg_map):
     :return: Error code.
     """
     # Check the device life-cycle stage
-    print('Check device protection state:')
+    logger.info('Check device protection state:')
     if not check_mode(tool, reg_map, ProtectionState.secure):
-        return EntranceExamErrors.INVALID_MODE
+        return EntranceExamStatus.INVALID_MODE
 
     # Check if any firmware is launched by FlashBoot and running on the device
-    print(os.linesep + 'Read Flashboot firmware status:')
+    logger.info('Read Flashboot firmware status:')
     fb_firmware_status = tool.read32(reg_map.ENTRANCE_EXAM_FW_STATUS_REG)
-    print(f'FB Firmware status = {hex(fb_firmware_status)}')
-    print(f'Received FB_FW_STATUS = {hex(fb_firmware_status & reg_map.ENTRANCE_EXAM_FW_STATUS_MASK)}')
-    print(f'Expected FB_FW_STATUS = {hex(reg_map.ENTRANCE_EXAM_FW_STATUS_VAL)}')
+    logger.info(f'FlashBoot firmware status = {hex(fb_firmware_status)}')
+    logger.info(f'Received FB_FW_STATUS = {hex(fb_firmware_status & reg_map.ENTRANCE_EXAM_FW_STATUS_MASK)}')
+    logger.info(f'Expected FB_FW_STATUS = {hex(reg_map.ENTRANCE_EXAM_FW_STATUS_VAL)}')
     is_exam_pass = (fb_firmware_status & reg_map.ENTRANCE_EXAM_FW_STATUS_MASK) == reg_map.ENTRANCE_EXAM_FW_STATUS_VAL
     if is_exam_pass:
-        print('PASS: FB Firmware status is as expected')
+        logger.info('PASS: FlashBoot firmware status is as expected\n')
     else:
-        print('FAIL: FB Firmware status is not as expected')
+        logger.error('FlashBoot firmware status is not as expected')
         if fb_firmware_status == reg_map.FB_FW_STATUS_FIRMWARE_RUNNING_CM4:
-            print('Test firmware exists and running on CM4 core. Device is in SECURE UNCLAIMED mode')
-            return EntranceExamErrors.FIRMWARE_RUNNING_CM4
+            logger.warning('Test firmware exists and running on CM4 core. Device is in SECURE UNCLAIMED mode\n')
+            return EntranceExamStatus.FIRMWARE_RUNNING_CM4
         if fb_firmware_status == reg_map.FB_FW_STATUS_FIRMWARE_RUNNING_CM0:
-            print('Secure firmware exists and running on CM0p core. Device is in SECURE CLAIMED mode')
-            return EntranceExamErrors.FIRMWARE_RUNNING_CM0
+            logger.warning('Secure firmware exists and running on CM0p core. Device is in SECURE CLAIMED mode\n')
+            return EntranceExamStatus.FIRMWARE_RUNNING_CM0
 
     # Check flash for malicious firmware
-    print(os.linesep + 'Check if Main Flash of the device is empty:')
+    logger.info('Check if Main Flash of the device is empty:')
     if region_hash(tool, reg_map):
-        print('PASS: Flash value is as expected')
-        print()
-        print('*****************************************')
-        print('       ENTRANCE EXAM TEST PASSED         ')
-        print('*****************************************')
+        logger.info('PASS: Flash value is as expected\n')
+        logger.info('*****************************************')
+        logger.info('       ENTRANCE EXAM TEST PASSED         ')
+        logger.info('*****************************************\n')
         tool.reset()
         sleep(0.2)
     else:
-        print('FAIL: Flash value is not as expected')
-        return EntranceExamErrors.FLASH_NOT_EMPTY
-    return EntranceExamErrors.OK
+        logger.warning('Flash value is not as expected\n')
+        return EntranceExamStatus.FLASH_NOT_EMPTY
+    return EntranceExamStatus.OK

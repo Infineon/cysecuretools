@@ -113,7 +113,7 @@ class SignTool:
              '--align', '8',
              '--version', slot['version'],
              '--image-id', str(slot['id']),
-             '--rollback_counter', str(slot['monotonic']),
+             '--rollback_counter', str(slot['rollback_counter']),
              '--slot-size', hex(size),
              '--overwrite-only',
              hex_in,
@@ -132,7 +132,7 @@ class SignTool:
             logger.error(f'Message from imgtool: {stderr.decode("utf-8")}')
             logger.error('imgtool finished execution with errors!')
         else:
-            logger.info(f'SUCCESS: Image for slot {image_type} signed successfully!')
+            logger.info(f'Image for slot {image_type} signed successfully!')
             return hex_out
 
     def encrypt_image(self, slot, image_type, hex_in):
@@ -161,7 +161,7 @@ class SignTool:
             '--key-aes', encrypt_key,
             '--ver', slot['version'],
             '--img-id', str(slot['id']),
-            '--rlb-count', str(slot['monotonic']),
+            '--rlb-count', str(slot['rollback_counter']),
             '--slot-size', hex(size),
             '--img-offset', address,
             '--pad', 1

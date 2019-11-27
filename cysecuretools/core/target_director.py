@@ -16,6 +16,7 @@ limitations under the License.
 
 
 class TargetBuilder:
+    def get_default_policy(self): pass
     def get_memory_map(self): pass
     def get_register_map(self): pass
     def get_policy_parser(self): pass
@@ -45,8 +46,10 @@ class TargetDirector:
         """
         self._builder = builder
 
-    def get_target(self):
+    def get_target(self, policy, name):
         target = Target()
+
+        target.name = name
 
         memory_map = self._builder.get_memory_map()
         target.memory_map = memory_map
@@ -54,7 +57,9 @@ class TargetDirector:
         register_map = self._builder.get_register_map()
         target.register_map = register_map
 
-        policy_parser = self._builder.get_policy_parser()
+        policy_file = self.builder.get_default_policy() if policy is None else policy
+        target.policy = policy_file
+        policy_parser = self._builder.get_policy_parser(policy_file)
         target.policy_parser = policy_parser
 
         policy_validator = self._builder.get_policy_validator(policy_parser, memory_map)
@@ -68,11 +73,29 @@ class TargetDirector:
 
 class Target:
     def __init__(self):
+        self._name = None
+        self._policy = None
         self._memory_map = None
         self._register_map = None
         self._policy_validator = None
         self._policy_parser = None
         self._policy_filter = None
+
+    @property
+    def name(self):
+        return self._name
+
+    @name.setter
+    def name(self, name):
+        self._name = name
+
+    @property
+    def policy(self):
+        return self._policy
+
+    @policy.setter
+    def policy(self, policy):
+        self._policy = policy
 
     @property
     def memory_map(self):

@@ -15,12 +15,17 @@ limitations under the License.
 """
 from cysecuretools.targets.cy8cproto_064s1_sb.target_builder import CY8CPROTO_064S1_SB_Builder
 from cysecuretools.targets.cy8cproto_064s2_sb.target_builder import CY8CPROTO_064S2_SB_Builder
+from cysecuretools.targets.cy8c6245lqi_s3d72.target_builder import CY8C6245LQI_S3D72_Builder
 
 target_map = {
     'cy8cproto-064s1-sb':        CY8CPROTO_064S1_SB_Builder,
     'cy8cproto-064s1-sb_virgin': CY8CPROTO_064S1_SB_Builder,
+    'cy8cproto-064b0s1-ble':     CY8CPROTO_064S1_SB_Builder,
 
     'cy8cproto-064s2-sb':        CY8CPROTO_064S2_SB_Builder,
     'cy8cproto-064s2-sb_virgin': CY8CPROTO_064S2_SB_Builder,
+
+    'cy8c6245lqi-s3d72':         CY8C6245LQI_S3D72_Builder,
+    'cy8c6245lqi-s3d72_virgin':  CY8C6245LQI_S3D72_Builder,
 }
 

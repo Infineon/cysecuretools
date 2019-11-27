@@ -14,11 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
+import logging
+import base64
 from cysecuretools.execute.provisioning_lib.cyprov_types import Types
 from cysecuretools.execute.provisioning_lib.cyprov_entity import Entity
 from cysecuretools.execute.provisioning_lib.cyprov_crypto import Crypto
 from datetime import datetime
 from datetime import timedelta
+from cryptography import x509
+from cryptography.hazmat.backends import default_backend
+
+logger = logging.getLogger(__name__)
 
 
 # HSM Entity
@@ -415,15 +421,23 @@ class HsmEntity(Entity):
 
     def pack_provision_cmd(self, **kwargs):
         payload = {}
-        print(kwargs)
+        logger.info(kwargs)
 
         if kwargs is not None:
             for k, v in kwargs.items():
                 if type(v) is tuple:
                     sequence = []
                     for cert_file in v:
-                        with open(cert_file) as cert:
-                            sequence.append(cert.read())
+                        try:
+                            with open(cert_file) as cert:
+                                sequence.append(cert.read())
+                            barr = bytearray(sequence[0], encoding='utf-8')
+                            try:
+                                x509.load_pem_x509_certificate(barr, default_backend())
+                            except ValueError as ex:
+                                raise ValueError(f'{ex} Invalid certificate \'{cert_file}\'')
+                        except UnicodeDecodeError:
+                            sequence.append(self.der_to_pem(cert_file))
                     payload[k] = sequence
                 else:
                     if os.path.isfile(v):
@@ -437,3 +451,14 @@ class HsmEntity(Entity):
         prov_cmd = Crypto.create_jwt(payload, hsm_priv_key)
 
         return prov_cmd
+
+    @staticmethod
+    def der_to_pem(cert_file):
+        with open(cert_file, "rb") as f:
+            sequence = f.read()
+        try:
+            x509.load_der_x509_certificate(sequence, default_backend())
+        except ValueError:
+            raise ValueError(f'Unable to load certificate \'{cert_file}\'')
+        sequence = base64.b64encode(sequence)
+        return f'-----BEGIN CERTIFICATE-----\n{sequence.decode()}\n-----END CERTIFICATE-----'

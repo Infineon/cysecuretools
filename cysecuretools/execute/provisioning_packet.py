@@ -16,6 +16,7 @@ limitations under the License.
 import os
 import json
 import click
+import logging
 from cysecuretools.execute.provisioning_lib import HsmEntity
 from cysecuretools.execute.provisioning_lib import OemEntity
 from cysecuretools.execute.provisioning_lib import CustomerEntity
@@ -30,6 +31,7 @@ PROV_JWT_FILE = 'prov_cmd.jwt'
 
 CUSTOMER_KEY_N = 5
 PROD_NAME = 'my_thing'
+logger = logging.getLogger(__name__)
 
 
 def process_customer_keys(paths):
@@ -118,9 +120,9 @@ def main(oem_state_path, hsm_state_path, image_cert, cy_auth_path,
         chain_of_trust=dev_cert)
     Crypto.dump_jwt(prov_cmd, prov_jwt_path)
 
-    print('#' * 80)
-    print('Provisioning packet is created')
-    print('#' * 80)
+    logger.info('#' * 80)
+    logger.info('Provisioning packet is created')
+    logger.info('#' * 80)
 
 
 if __name__ == "__main__":

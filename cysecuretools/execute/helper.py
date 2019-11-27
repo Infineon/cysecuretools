@@ -13,8 +13,11 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import logging
 from cysecuretools.execute.enums import ProtectionState
 from cysecuretools.execute.sys_call import read_lifecycle
+
+logger = logging.getLogger(__name__)
 
 
 def check_mode(tool, reg_map, expected_mode: ProtectionState):
@@ -28,15 +31,15 @@ def check_mode(tool, reg_map, expected_mode: ProtectionState):
     mode_name = expected_mode.name.upper()
     lifecycle = read_lifecycle(tool, reg_map)
     if lifecycle != int(expected_mode):
-        print(f'FAIL: Device is not in {mode_name} mode, error code: {hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_DATA))}')
-        print('Read Secure Hash from eFUSEs:')  # 00 expected on virgin device
+        logger.error(f'Device is not in {mode_name} mode, error code: {hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_DATA))}')
+        logger.info('Read Secure Hash from eFUSEs:')  # 00 expected on virgin device
         got_factory_hash = ''
         i = 0
         while i < 24:
             hash_byte_val = hex(tool.read8(reg_map.CYREG_EFUSE_SECURE_HASH + i))
             got_factory_hash += hash_byte_val + ' '
             i += 1
-        print(f"Received SECURE_HASH: '{got_factory_hash}'")
+        logger.info(f"Received SECURE_HASH: '{got_factory_hash}'\n")
         return False
-    print(f'PASS: Device is in {mode_name} mode')
+    logger.info(f'PASS: Device is in {mode_name} mode\n')
     return True

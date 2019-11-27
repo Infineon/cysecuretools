@@ -132,6 +132,26 @@ class PolicyParser(PolicyParserBase):
         """
         return self.json['cy_bootloader']['mode']
 
+    def get_cybootloader_hex(self):
+        """
+        Gets hex-file of CyBootloader specified in the policy file.
+        :return: release or debug
+        """
+        path = self.json['cy_bootloader']['hex_path']
+        if not os.path.isabs(path):
+            path = os.path.join(self.policy_dir, path)
+        return path
+
+    def get_cybootloader_jwt(self):
+        """
+        Gets jwt-file of CyBootloader specified in the policy file.
+        :return: release or debug
+        """
+        path = self.json['cy_bootloader']['jwt_path']
+        if not os.path.isabs(path):
+            path = os.path.join(self.policy_dir, path)
+        return path
+
     def get_provisioning_packet_dir(self):
         """
         Gets path of the provisioning packet specified in the policy file.
@@ -141,6 +161,18 @@ class PolicyParser(PolicyParserBase):
         if not os.path.isabs(packet_dir):
             packet_dir = os.path.join(self.policy_dir, packet_dir)
         return packet_dir
+
+    def get_chain_of_trust(self):
+        """
+        Gets certificates paths specified in the policy file.
+        :return: List of certificate paths.
+        """
+        try:
+            certs = self.json['provisioning']['chain_of_trust']
+            certs = [os.path.join(self.policy_dir, path) if not os.path.isabs(path) else path for path in certs]
+        except KeyError:
+            certs = []
+        return certs
 
 
 class KeyData:

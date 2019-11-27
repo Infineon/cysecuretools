@@ -13,8 +13,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from jwcrypto import jwk
 import json
+import logging
+from jose.backends import ECKey
+from jose.constants import ALGORITHMS
+
+logger = logging.getLogger(__name__)
 
 
 def pretty_search(dict_or_list, key_to_search, search_for_first_only=False):
@@ -24,10 +28,10 @@ def pretty_search(dict_or_list, key_to_search, search_for_first_only=False):
     for all values of dict key you gave, and will return you set of them
     unless you wont specify search_for_first_only=True
 
-    :param dict_or_list: 
-    :param key_to_search: 
-    :param search_for_first_only: 
-    :return: 
+    :param dict_or_list:
+    :param key_to_search:
+    :param search_for_first_only:
+    :return:
     """
     search_result = set()
     if isinstance(dict_or_list, dict):
@@ -63,18 +67,32 @@ class PemKey:
             with open(jwk_file) as f:
                 jwk_str = f.read()
                 self.jwk = json.loads(jwk_str)
-        
+
         if item is not None:
-            self.jwk = pretty_search(self.jwk, item, search_for_first_only=True)
-            
-    def save(self, file = None, private_key=False):
-        key = jwk.JWK(**self.jwk)
-        pem_str = key.export_to_pem(private_key, password=None)
+            self.jwk = pretty_search(
+                self.jwk,
+                item,
+                search_for_first_only=True
+            )
+
+    def save(self, file=None, private_key=False):
+        pem_str = self.to_str(private_key)
         if file is not None:
             with open(file, 'wb') as f:
                 f.write(pem_str)
         else:
-            print(pem_str)
-                
+            logger.info(pem_str)
+
+    def to_str(self, private_key=False):
+        key = ECKey(self.jwk, ALGORITHMS.ES256)
+        if private_key:
+            pem_str = key.to_pem().strip()
+        else:
+            pem_str = key.public_key().to_pem().strip()
+        return pem_str
+
     def load(self, jwk):
         self.jwk = jwk
+
+    def load_str(self, jwk_str):
+        self.jwk = json.loads(jwk_str)

@@ -96,8 +96,9 @@
                 "smif_id": 1,
                 "upgrade": true,
                 "version": "0.1",
+                "rollback_counter": 0,
                 "encrypt": false,
-                "encrypt_key": "../keys/aes128.key",
+                "encrypt_key": "../keys/image-aes-128.key",
                 "encrypt_key_id": 1,
                 "encrypt_peer": "../keys/dev_pub_key.pem",
                 "upgrade_auth": [
@@ -127,6 +128,7 @@
     },
     "provisioning":
     {
-        "packet_dir": "../packet"
+        "packet_dir": "../packet",
+        "chain_of_trust": []
     }
 }

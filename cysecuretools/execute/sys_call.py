@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
+import logging
 
 READ_SILICON_ID_OPCODE = 0x00
 READ_SILICON_ID_COMM = 0x01
@@ -22,6 +23,8 @@ GET_PROV_DETAILS_OPCODE = 0x37  # GetProvDetails() API opcode
 REGION_HASH_OPCODE = 0x31  # RegionHash() API opcode
 TRANSISION_TO_SECURE_OPCODE = 0x32  # TransitionToSecure() API code
 GET_OPCODE = 0x37
+
+logger = logging.getLogger(__name__)
 
 
 def region_hash(tool, reg_map):
@@ -63,15 +66,15 @@ def region_hash(tool, reg_map):
     response = tool.read32(sram_addr)
 
     if (response & 0xFF000000) == 0xa0000000:
-        print('Region compare complete')
+        logger.info('Region compare complete')
         return True
     else:
-        print('Region compare error response:')
-        print(hex(reg_map.CYREG_IPC2_STRUCT_DATA), hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_DATA)))
-        print(hex(sram_addr), hex(tool.read32(sram_addr)))
-        print(hex(sram_addr + 0x04), hex(tool.read32(sram_addr + 0x04)))
-        print(hex(sram_addr + 0x08), hex(tool.read32(sram_addr + 0x08)))
-        print(hex(sram_addr + 0x0C), hex(tool.read32(sram_addr + 0x0C)))
+        logger.error('Region compare error response:')
+        logger.info(f'{hex(reg_map.CYREG_IPC2_STRUCT_DATA)} {hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_DATA))}')
+        logger.info(f'{hex(sram_addr)} {hex(tool.read32(sram_addr))}')
+        logger.info(f'{hex(sram_addr + 0x04)} {hex(tool.read32(sram_addr + 0x04))}')
+        logger.info(f'{hex(sram_addr + 0x08)} {hex(tool.read32(sram_addr + 0x08))}')
+        logger.info(f'{hex(sram_addr + 0x0C)} {hex(tool.read32(sram_addr + 0x0C))}')
         return False
 
 
@@ -87,7 +90,7 @@ def get_prov_details(tool, key_id, reg_map):
 
     # Acquire IPC structure
     tool.write32(reg_map.CYREG_IPC2_STRUCT_ACQUIRE, 0x80000000)
-    print(hex(reg_map.CYREG_IPC2_STRUCT_ACQUIRE), hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_ACQUIRE)))
+    logger.info(f'{hex(reg_map.CYREG_IPC2_STRUCT_ACQUIRE)} {hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_ACQUIRE))}')
     ipc_acquire = 0
     while (ipc_acquire & 0x80000000) == 0:
         ipc_acquire = tool.read32(reg_map.CYREG_IPC2_STRUCT_ACQUIRE)
@@ -111,10 +114,10 @@ def get_prov_details(tool, key_id, reg_map):
         response = tool.read32(reg_map.CYREG_IPC2_STRUCT_LOCK_STATUS)
     response = tool.read32(sram_addr)
 
-    print(hex(reg_map.CYREG_IPC2_STRUCT_DATA), hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_DATA)))
-    print(hex(sram_addr), hex(tool.read32(sram_addr)))  # Expected MSB=0xA0
-    print(hex(sram_addr + 0x04), hex(tool.read32(sram_addr + 0x04)))
-    print(hex(sram_addr + 0x08), hex(tool.read32(sram_addr + 0x08)))
+    logger.info(f'{hex(reg_map.CYREG_IPC2_STRUCT_DATA)} {hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_DATA))}')
+    logger.info(f'{hex(sram_addr)} {hex(tool.read32(sram_addr))}')  # Expected MSB=0xA0
+    logger.info(f'{hex(sram_addr + 0x04)} {hex(tool.read32(sram_addr + 0x04))}')
+    logger.info(f'{hex(sram_addr + 0x08)} {hex(tool.read32(sram_addr + 0x08))}')
 
     is_exam_pass = (response & 0xFF000000) == 0xa0000000
     if is_exam_pass:
@@ -131,8 +134,8 @@ def get_prov_details(tool, key_id, reg_map):
             i += 1
         response = response.strip()
     else:
-        print(hex(reg_map.CYREG_IPC2_STRUCT_DATA), tool.read32(reg_map.CYREG_IPC2_STRUCT_DATA))
-        print(hex(sram_addr), tool.read32(sram_addr))
+        logger.info(f'{hex(reg_map.CYREG_IPC2_STRUCT_DATA)} {tool.read32(reg_map.CYREG_IPC2_STRUCT_DATA)}')
+        logger.info(f'{hex(sram_addr)} {tool.read32(sram_addr)}')
         response = None
 
     return is_exam_pass, response
@@ -151,11 +154,11 @@ def provision_keys_and_policies(tool, blow_secure_efuse, filename, reg_map):
     """
     file_size = os.path.getsize(filename)
     if file_size > reg_map.ENTRANCE_EXAM_SRAM_SIZE:
-        print('JWT packet too long')
+        logger.error('JWT packet too long')
         return False
 
-    print('UDS eFuses will be blown' if blow_secure_efuse == 1 else 'UDS eFuses will NOT be blown')
-    print(f'JWT packet size: {file_size}')
+    logger.info('UDS eFuses will be blown' if blow_secure_efuse == 1 else 'UDS eFuses will NOT be blown')
+    logger.info(f'JWT packet size: {file_size}')
     with open(filename, 'r+') as jwt_file:
         jwt_file.seek(0)
         content = jwt_file.read()
@@ -163,7 +166,7 @@ def provision_keys_and_policies(tool, blow_secure_efuse, filename, reg_map):
 
     # Acquires IPC structure.
     tool.write32(reg_map.CYREG_IPC2_STRUCT_ACQUIRE, 0x80000000)
-    print(hex(reg_map.CYREG_IPC2_STRUCT_ACQUIRE), hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_ACQUIRE)))
+    logger.info(f'{hex(reg_map.CYREG_IPC2_STRUCT_ACQUIRE)} {hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_ACQUIRE))}')
 
     ipc_acquire = 0
     while (ipc_acquire & 0x80000000) == 0:
@@ -184,25 +187,28 @@ def provision_keys_and_policies(tool, blow_secure_efuse, filename, reg_map):
 
     # IPC_STRUCT[ipc_id].IPC_NOTIFY -
     tool.write32(reg_map.CYREG_IPC2_STRUCT_NOTIFY, 0x00000001)
-    print(hex(reg_map.CYREG_IPC2_STRUCT_NOTIFY), hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_NOTIFY)))
+    logger.info(f'{hex(reg_map.CYREG_IPC2_STRUCT_NOTIFY)} {hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_NOTIFY))}')
     # Wait for response
     response = 0x80000000
     while (response & 0x80000000) != 0:
         response = tool.read32(reg_map.CYREG_IPC2_STRUCT_LOCK_STATUS)
 
     # Read response for test
-    print(hex(reg_map.CYREG_IPC2_STRUCT_DATA), hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_DATA)))
-    print(hex(reg_map.ENTRANCE_EXAM_SRAM_ADDR) + ': ', sep=' ', end='', flush=True)
+    logger.info(f'{hex(reg_map.CYREG_IPC2_STRUCT_DATA)} {hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_DATA))}')
     i = 0
+    addr_list = list()
     while i < 4 * 4:  # output 4 words
-        print(hex(tool.read32(reg_map.ENTRANCE_EXAM_SRAM_ADDR)) + ' ', sep=' ', end='', flush=True)
+        addr_list.append(hex(tool.read32(reg_map.ENTRANCE_EXAM_SRAM_ADDR)))
         i += 4
-    print(os.linesep)
+    logger.info(f'{hex(reg_map.ENTRANCE_EXAM_SRAM_ADDR)}: {" ".join(addr_list)}\n')
 
     response = tool.read32(reg_map.ENTRANCE_EXAM_SRAM_ADDR)
     result = (response & 0xFF000000) == 0xa0000000
 
-    print('ProvisionKeysAndPolicies', 'complete' if result else f'error response: {hex(response)}')
+    if result:
+        logger.info('ProvisionKeysAndPolicies complete')
+    else:
+        logger.error(f'ProvisionKeysAndPolicies error response: {hex(response)}')
     return result
 
 
@@ -214,8 +220,12 @@ def transition_to_secure(tool, blow_secure_efuse, reg_map):
     :param reg_map: Device register map.
     :return: True if success, otherwise False.
     """
-    blowing_secure_value = 0 if blow_secure_efuse else 1
-    print('Chip will be converted to SECURE mode' if blow_secure_efuse else 'Chip will NOT be converted to SECURE mode')
+    if blow_secure_efuse:
+        blowing_secure_value = 0
+        logger.info('Chip will be converted to SECURE mode')
+    else:
+        blowing_secure_value = 1
+        logger.info('Chip will NOT be converted to SECURE mode')
 
     # Acquires IPC structure.
     tool.write32(reg_map.CYREG_IPC2_STRUCT_ACQUIRE, 0x80000000)
@@ -226,7 +236,7 @@ def transition_to_secure(tool, blow_secure_efuse, reg_map):
 
     # Set RAM address and Opcode
     tool.write32(reg_map.CYREG_IPC2_STRUCT_DATA, reg_map.ENTRANCE_EXAM_SRAM_ADDR)
-    print('blowing_secure_value =', blowing_secure_value)
+    logger.debug(f'blowing_secure_value = {blowing_secure_value}')
     tool.write32(reg_map.ENTRANCE_EXAM_SRAM_ADDR, (TRANSISION_TO_SECURE_OPCODE << 24) + (blowing_secure_value << 16))
     scratch_addr = reg_map.ENTRANCE_EXAM_SRAM_ADDR + 0x08
     tool.write32(reg_map.ENTRANCE_EXAM_SRAM_ADDR + 0x04, scratch_addr)
@@ -254,13 +264,13 @@ def transition_to_secure(tool, blow_secure_efuse, reg_map):
             hash_byte_chr = chr(tool.read8(read_hash_addr + i))
             response += hash_byte_chr
             i += 1
-        print('response =', response.strip())
-        print('Transition to Secure complete')
+        logger.info(f'Response = {response.strip()}')
+        logger.info('Transition to Secure complete\n')
         return True
     else:
-        print('Transition to Secure Error response:')
-        print(hex(reg_map.CYREG_IPC2_STRUCT_DATA), hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_DATA)))
-        print(hex(reg_map.ENTRANCE_EXAM_SRAM_ADDR), hex(tool.read32(reg_map.ENTRANCE_EXAM_SRAM_ADDR)))
+        logger.error('Transition to Secure Error response:')
+        logger.info(f'{hex(reg_map.CYREG_IPC2_STRUCT_DATA)} {hex(tool.read32(reg_map.CYREG_IPC2_STRUCT_DATA))}')
+        logger.info(f'{hex(reg_map.ENTRANCE_EXAM_SRAM_ADDR)} {hex(tool.read32(reg_map.ENTRANCE_EXAM_SRAM_ADDR))}\n')
         return False
 
 

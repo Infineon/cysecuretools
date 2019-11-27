@@ -346,11 +346,32 @@
                 "mode": {
                     "enum": [
                         "debug",
-                        "release"
+                        "release",
+                        "custom"
                     ],
                     "id": "mode",
                     "required": true,
                     "type": "string"
+                }
+            }
+        },
+        "provisioning": {
+            "id": "provisioning",
+            "required": true,
+            "type": "object",
+            "properties": {
+                "packet_dir": {
+                    "id": "packet_dir",
+                    "required": true,
+                    "type": "string"
+                },
+                "chain_of_trust": {
+                    "id": "chain_of_trust",
+                    "required": false,
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
                 }
             }
         }
