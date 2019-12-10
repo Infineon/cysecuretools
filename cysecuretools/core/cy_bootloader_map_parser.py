@@ -46,7 +46,7 @@ class CyBootloaderMapParser:
         """
         data = CyBootloaderMapParser.get_json(CY_BOOTLOADER_MAP)
         for json_target in data:
-            if json_target.lower().strip() in target.lower().strip():
+            if json_target.lower().strip() == target.lower().strip():
                 for json_mode in data[json_target]:
                     if mode == json_mode:
                         return data[json_target][json_mode][file_type]

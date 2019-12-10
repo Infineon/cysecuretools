@@ -16,6 +16,7 @@ limitations under the License.
 import os
 import errno
 import json
+import copy
 from cysecuretools.core import PolicyFilterBase
 
 
@@ -44,6 +45,7 @@ class PolicyFilter(PolicyFilterBase):
             json_template = json.loads(file_content)
 
         self.parse_node(self.json_data, json_template)
+        json_template = self.filter_extra_fields(self.json_data, json_template)
         filtered_policy = os.path.join(sdk_path, 'json/filtered.json')
 
         if not os.path.exists(os.path.dirname(filtered_policy)):
@@ -60,6 +62,7 @@ class PolicyFilter(PolicyFilterBase):
     def parse_node(self, data, template):
         """
         Recursive function that copies JSON data from the data dictionary to the template dictionary.
+        Copies the fields only that exist in template.
         :param data: Dictionary that contains data to copy.
         :param template: Dictionary, which is template that contains placeholders where to copy the data.
         """
@@ -87,3 +90,20 @@ class PolicyFilter(PolicyFilterBase):
                         break
                     else:                                         # process dictionary
                         self.parse_node(d_value, t_value)
+
+    @staticmethod
+    def filter_extra_fields(data, template):
+        """
+        Filters fields that exist in template, but do not exist in policy.
+        :param data: Policy data.
+        :param template: Template data.
+        :return: Filtered dictionary.
+        """
+        tc = copy.deepcopy(template)
+        for i in range(len(data['boot_upgrade']['firmware'])):
+            dslot = data['boot_upgrade']['firmware'][i]
+            tslot = template['boot_upgrade']['firmware'][i]
+            for t_i in tslot:
+                if t_i not in dslot:
+                    del tc['boot_upgrade']['firmware'][i][t_i]
+        return tc

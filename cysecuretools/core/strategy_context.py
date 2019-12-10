@@ -55,7 +55,7 @@ class Context:
         """
         Delegates work to the Strategy object.
         """
-        self._strategy.create_certificate(cert_name, cert_encoding, **kwargs)
+        return self._strategy.create_certificate(cert_name, cert_encoding, **kwargs)
 
     def default_certificate_data(self, tool, target, protection_state, probe_id):
         """

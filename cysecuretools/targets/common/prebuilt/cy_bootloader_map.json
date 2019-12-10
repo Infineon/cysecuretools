@@ -9,6 +9,16 @@
             "jwt": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
         }
     },
+    "cy8cproto-064s1-sb_virgin": {
+        "debug": {
+            "hex": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
+        },
+        "release": {
+            "hex": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
+        }
+    },
     "cy8cproto-064b0s1-ble": {
         "debug": {
             "hex": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
@@ -20,18 +30,60 @@
         }
     },
 
+
     "cy8cproto-064s2-sb": {
         "debug": {
-            "hex": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_WithLogs_2M/CypressBootloader_CM0p.hex",
-            "jwt": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_WithLogs_2M/CypressBootloader_CM0p.jwt"
+            "hex": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
         },
         "release": {
-            "hex": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_Release_2M/CypressBootloader_CM0p.hex",
-            "jwt": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_Release_2M/CypressBootloader_CM0p.jwt"
+            "hex": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
+        }
+    },
+    "cy8cproto-064s2-sb_virgin": {
+        "debug": {
+            "hex": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
+        },
+        "release": {
+            "hex": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
+        }
+    },
+    "cy8ckit-064b0s2-4343w": {
+        "debug": {
+            "hex": "targets/cy8ckit_064x0s2_4343w/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8ckit_064x0s2_4343w/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
+        },
+        "release": {
+            "hex": "targets/cy8ckit_064x0s2_4343w/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8ckit_064x0s2_4343w/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
+        }
+    },
+    "cy8ckit-064s0s2-4343w": {
+        "debug": {
+            "hex": "targets/cy8ckit_064x0s2_4343w/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8ckit_064x0s2_4343w/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
+        },
+        "release": {
+            "hex": "targets/cy8ckit_064x0s2_4343w/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8ckit_064x0s2_4343w/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
         }
     },
 
+
     "cy8c6245lqi-s3d72": {
+        "debug": {
+            "hex": "targets/cy8c6245lqi_s3d72/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8c6245lqi_s3d72/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
+        },
+        "release": {
+            "hex": "targets/cy8c6245lqi_s3d72/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cy8c6245lqi_s3d72/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
+        }
+    },
+    "cy8c6245lqi-s3d72_virgin": {
         "debug": {
             "hex": "targets/cy8c6245lqi_s3d72/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
             "jwt": "targets/cy8c6245lqi_s3d72/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"

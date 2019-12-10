@@ -53,12 +53,13 @@ def provision_execution(tool, pub_key_json, prov_cmd_jwt, cy_bootloader_hex, mem
         else EntranceExamStatus.FLASH_NOT_EMPTY
 
     if status in [EntranceExamStatus.FLASH_NOT_EMPTY,
-                  EntranceExamStatus.FIRMWARE_RUNNING_CM4,
-                  EntranceExamStatus.FIRMWARE_RUNNING_CM0]:
+                  EntranceExamStatus.FIRMWARE_RUNNING_CM4]:
         if protection_state == ProtectionState.secure:
-            answer = input('Flash memory is not empty. Clear flash? (y/n): ')
+            answer = input('Erase user firmware running on chip? (y/n): ')
             if answer.lower() == 'y':
                 erase_flash(tool, memory_map, protection_state)
+                tool.reset_and_halt()
+                sleep(0.2)
             else:
                 return ProvisioningStatus.TERMINATED
         else:
@@ -121,20 +122,29 @@ def provision_execution(tool, pub_key_json, prov_cmd_jwt, cy_bootloader_hex, mem
 
 
 def read_silicon_data(tool, rot_cmd_jwt, reg_map, memory_map, protection_state=ProtectionState.secure):
+    """
+    Reads silicon data from device
+    :param tool: Programming/debugging tool used for communication with device.
+    :param rot_cmd_jwt: Root-of-trust JWT packet
+    :param reg_map: Device register map
+    :param memory_map: Device memory map
+    :param protection_state: Expected target protection state. The argument is for Cypress internal use only
+    :return: Device response
+    """
     logger.info('Read response packet:')
 
     status = entrance_exam(tool, reg_map) if protection_state == ProtectionState.secure else EntranceExamStatus.FLASH_NOT_EMPTY
     if status == EntranceExamStatus.FLASH_NOT_EMPTY:
         erase_flash(tool, memory_map, protection_state)
     elif status != EntranceExamStatus.OK:
-        return False
+        return None
 
     if protection_state != ProtectionState.secure:
         is_exam_pass = to_secure(tool, reg_map)
         sleep(1)
         if not is_exam_pass:
             logger.error('Unexpected TransitionToSecure syscall response\n')
-            return False
+            return None
 
     logger.info('Run provisioning syscall')
     complete = 0

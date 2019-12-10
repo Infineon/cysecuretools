@@ -59,10 +59,10 @@
                     3
                 ],
                 "id": 0,
-                "launch": 4,
+                "launch": 1,
                 "monotonic": 0,
-                "smif_id": 0,
                 "clock_flags": 2,
+                "smif_id": 0,
                 "upgrade": false,
                 "upgrade_auth": [
                     3
@@ -90,9 +90,10 @@
                     8
                 ],
                 "boot_keys": [
-                    { "kid": 8, "key": "../keys/USERAPP_CM4_KEY.json" }
+                    { "kid": 8, "key": "../keys/USERAPP_KEY.json" }
                 ],
-                "id": 4,
+                "id": 1,
+                "launch": 16,
                 "monotonic": 0,
                 "smif_id": 0,
                 "upgrade": true,
@@ -106,18 +107,54 @@
                     8
                 ],
                 "upgrade_keys": [
-                    { "kid": 8, "key": "../keys/USERAPP_CM4_KEY.json" }
+                    { "kid": 8, "key": "../keys/USERAPP_KEY.json" }
                 ],
                 "resources": [
                     {
                         "type": "BOOT",
                         "address": 268435456,
-                        "size": 196608
+                        "size": 65536
                     },
                     {
                         "type": "UPGRADE",
                         "address": 268697600,
-                        "size": 196608
+                        "size": 65536
+                    }
+                ]
+            },
+            {
+                "boot_auth": [
+                    8
+                ],
+                "boot_keys": [
+                    { "kid": 8, "key": "../keys/USERAPP_KEY.json" }
+                ],
+                "id": 16,
+                "monotonic": 0,
+                "smif_id": 0,
+                "upgrade": false,
+                "version": "0.1",
+                "rollback_counter": 0,
+                "encrypt": false,
+                "encrypt_key": "../keys/image-aes-128.key",
+                "encrypt_key_id": 1,
+                "encrypt_peer": "../keys/dev_pub_key.pem",
+                "upgrade_auth": [
+                    8
+                ],
+                "upgrade_keys": [
+                    { "kid": 8, "key": "../keys/USERAPP_KEY.json" }
+                ],
+                "resources": [
+                    {
+                        "type": "BOOT",
+                        "address": 268500992,
+                        "size": 131072
+                    },
+                    {
+                        "type": "UPGRADE",
+                        "address": 268763136,
+                        "size": 131072
                     }
                 ]
             }

@@ -50,7 +50,7 @@ def entrance_exam(tool, reg_map):
             logger.warning('Test firmware exists and running on CM4 core. Device is in SECURE UNCLAIMED mode\n')
             return EntranceExamStatus.FIRMWARE_RUNNING_CM4
         if fb_firmware_status == reg_map.FB_FW_STATUS_FIRMWARE_RUNNING_CM0:
-            logger.warning('Secure firmware exists and running on CM0p core. Device is in SECURE CLAIMED mode\n')
+            logger.error('Secure bootloader exists and running on CM0p core. Device is in SECURE CLAIMED mode\n')
             return EntranceExamStatus.FIRMWARE_RUNNING_CM0
 
     # Check flash for malicious firmware

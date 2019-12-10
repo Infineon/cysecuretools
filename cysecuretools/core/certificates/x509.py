@@ -90,6 +90,8 @@ class X509Strategy(Strategy):
         with open(cert_name, 'wb') as f:
             f.write(certificate.public_bytes(cert_encoding))
 
+        return certificate
+
     def default_certificate_data(self, tool, target, protection_state=ProtectionState.secure, probe_id=None):
         """
         Gets a dictionary with the default values.
@@ -104,11 +106,17 @@ class X509Strategy(Strategy):
         # Read silicon data
         if tool.connect(target.name, probe_id=probe_id):
             data = read_silicon_data(tool, ROT_CMD_JWT, target.register_map, target.memory_map, protection_state)
+            if data is None:
+                logger.error('Failed to read silicon data')
+                return None
+
             public_key = read_public_key(tool, target.register_map)
             tool.disconnect()
+            if public_key is None:
+                return None
         else:
             logger.error('Failed to connect to device')
-            return False
+            return None
 
         # Get serial number
         silicon_data = SiliconDataParser(data)

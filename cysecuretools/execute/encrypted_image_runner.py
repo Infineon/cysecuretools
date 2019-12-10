@@ -114,7 +114,12 @@ def manage_output(process, input_f, output_f):
               default=None,
               type=click.STRING,
               help='Offset of hex file for UPGRADE image')
-def main(sdk_path, hex_file, key_priv, key_pub, key_aes, version, img_id, rlb_count, slot_size, pad, img_offset):
+@click.option('--imgtool-path', 'imgtool_path',
+              default=Path('../imgtool/imgtool.py'),
+              type=click.STRING,
+              help='Path to the imgtool package')
+def main(sdk_path, hex_file, key_priv, key_pub, key_aes, version, img_id, rlb_count, slot_size, pad, img_offset,
+         imgtool_path):
     """
     Function consequentially performs operations with provided hex file
     and produces an encrypted and signed hex file for UPGRADE
@@ -134,7 +139,7 @@ def main(sdk_path, hex_file, key_priv, key_pub, key_aes, version, img_id, rlb_co
     hex2bin(hex_file, in_f)
 
     # call imgtool for signature
-    process = subprocess.Popen([sys.executable, os.path.join(sdk_path, "../imgtool/imgtool.py"), "sign",
+    process = subprocess.Popen([sys.executable, os.path.join(sdk_path, imgtool_path), "sign",
                                 "--key", key_priv,
                                 "--header-size", str(hex(HEADER_SIZE)),
                                 "--pad-header",
@@ -170,7 +175,7 @@ def main(sdk_path, hex_file, key_priv, key_pub, key_aes, version, img_id, rlb_co
 
     # second part - obtain signed image from encrypted file - with padding - for staging area
     # call imgtool for signature
-    process = subprocess.Popen([sys.executable, os.path.join(sdk_path, "../imgtool/imgtool.py"), "sign",
+    process = subprocess.Popen([sys.executable, os.path.join(sdk_path, imgtool_path), "sign",
                                 "--key", key_priv,
                                 "--header-size", str(hex(HEADER_SIZE)),
                                 "--pad-header",

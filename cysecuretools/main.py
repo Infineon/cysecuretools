@@ -111,8 +111,13 @@ class CySecureTools:
                     return
 
         # Generate keys
+        seen = []
         for pair in keys:
             if pair.key_type is KeyType.signing:
+                if {pair.key_id, pair.json_key_path} in seen:
+                    continue
+                else:
+                    seen.append({pair.key_id, pair.json_key_path})
                 args = [
                     '--kid', pair.key_id,
                     '--jwk', pair.json_key_path,
@@ -139,7 +144,7 @@ class CySecureTools:
         :param image_id: The ID of the firmware in policy file.
         :return: Signed (and encrypted if applicable) hex files path.
         """
-        sign_tool = SignTool(self.policy, self.memory_map)
+        sign_tool = SignTool(self.policy, self.memory_map, self.target_builder)
         result = sign_tool.sign_image(hex_file=hex_file, image_id=image_id)
         return result
 
@@ -248,6 +253,7 @@ class CySecureTools:
         :param probe_id: The probe ID. Used for default certificate generation
         :param protection_state: Device protection state. Used for default certificate generation
         :param kwargs: Dictionary with the certificate fields
+        :return The certificate object.
         """
         # Create certificate
         context = Context(X509Strategy())
@@ -264,7 +270,11 @@ class CySecureTools:
                     kwargs['serial_number'] = default['serial_number']
                 if not public_key:
                     kwargs['public_key'] = default['public_key']
-        context.create_certificate(cert_name, cert_encoding, **kwargs)
+
+        if kwargs is None:
+            return None
+        else:
+            return context.create_certificate(cert_name, cert_encoding, **kwargs)
 
     def entrance_exam(self):
         """
@@ -297,12 +307,12 @@ class CySecureTools:
 
         return address, size
 
-    @staticmethod
-    def _get_target(target_name, policy):
+    def _get_target(self, target_name, policy):
         director = TargetDirector()
 
         try:
             director.builder = target_map[target_name]()
+            self.target_builder = director.builder
         except KeyError:
             raise ValueError(f'Unknown target "{target_name}"')
 

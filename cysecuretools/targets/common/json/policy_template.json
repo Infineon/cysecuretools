@@ -61,6 +61,7 @@
                 "id": 0,
                 "launch": 0,
                 "smif_id": 0,
+                "clock_flags": 0,
                 "upgrade": false,
                 "upgrade_auth": [
                     0
@@ -90,6 +91,7 @@
                 "id": 0,
                 "monotonic": 0,
                 "smif_id": 0,
+                "multi_image" : 0,
                 "rollback_counter": 0,
                 "upgrade": false,
                 "encrypt": false,
@@ -118,6 +120,7 @@
                 "id": 0,
                 "monotonic": 0,
                 "smif_id": 0,
+                "multi_image" : 0,
                 "upgrade": false,
                 "upgrade_auth": [
                     0

@@ -7,7 +7,7 @@
             "key" : 5
         },
         "m4" : {
-            "permission" : "enabled",
+            "permission" : "allowed",
             "control" : "firmware",
             "key" : 5
         },
@@ -62,7 +62,6 @@
                 "launch": 4,
                 "monotonic": 0,
                 "smif_id": 0,
-                "clock_flags": 2,
                 "upgrade": false,
                 "upgrade_auth": [
                     3
@@ -70,17 +69,17 @@
                 "resources": [
                     {
                         "type": "FLASH_PC1_SPM",
-                        "address": 268632064,
+                        "address": 270336000,
                         "size": 65536
                     },
                     {
                         "type": "SRAM_SPM_PRIV",
-                        "address": 134348800,
-                        "size": 131072
+                        "address": 135004160,
+                        "size": 262144
                     },
                     {
                         "type": "SRAM_DAP",
-                        "address": 134397952,
+                        "address": 135184384,
                         "size": 16384
                     }
                 ]
@@ -112,12 +111,12 @@
                     {
                         "type": "BOOT",
                         "address": 268435456,
-                        "size": 196608
+                        "size": 327680
                     },
                     {
                         "type": "UPGRADE",
-                        "address": 268697600,
-                        "size": 196608
+                        "address": 268763136,
+                        "size": 327680
                     }
                 ]
             }

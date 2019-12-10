@@ -19,6 +19,7 @@ import json
 import os.path
 from cysecuretools.targets.common.policy_parser import ImageType
 from cysecuretools.core import PolicyValidatorBase
+from collections import namedtuple
 
 MODULE_PATH = os.path.dirname(os.path.realpath(__file__))
 POLICY_SCHEMA = os.path.join(MODULE_PATH, 'json', 'schema.json_schema')
@@ -39,14 +40,13 @@ class PolicyValidator(PolicyValidatorBase):
         self.parser = policy_parser
         self.memory_map = memory_map
         self.policy_dir = self.parser.policy_dir
+        self.stage = self.get_policy_stage()
 
     def validate(self):
         """
         Validation of policy.json.
         :return True if validation succeeds, otherwise False.
         """
-        stage = self.get_policy_stage()
-
         # First stage validation
         with open(POLICY_SCHEMA) as f:
             file_content = f.read()
@@ -61,6 +61,11 @@ class PolicyValidator(PolicyValidatorBase):
         logger.debug('First stage validation success...')
 
         # Second stage validation
+        logger.debug('Validating firmware slots overlapping...')
+        result = self.validate_address_overlap()
+        if not result:
+            return result
+
         for slot in self.parser.json['boot_upgrade']['firmware'][1:]:
             boot_auth = slot['boot_auth'][0]
             boot_keys = slot['boot_keys'][0]
@@ -68,6 +73,11 @@ class PolicyValidator(PolicyValidatorBase):
             result = self.key_id_validation(boot_auth, boot_keys)
             if not result:
                 return result
+
+        logger.debug('Validating there is no different JWKs with the same key ID...')
+        result = self.key_name_validation()
+        if not result:
+            return result
 
         for slot in self.parser.json['boot_upgrade']['firmware'][1:]:
             upgrade_auth = slot['upgrade_auth'][0]
@@ -77,13 +87,20 @@ class PolicyValidator(PolicyValidatorBase):
             if not result:
                 return result
 
-        logger.debug('Validating Image ID to corresponding to CyBootloader launch ID...')
-        result = self.image_launch_validation()
-        if not result:
-            return result
+        if self.stage == 'multi':
+            logger.debug('Validating multi-image IDs...')
+            result = self.validate_multi_image_id()
+            if not result:
+                return result
+
+        if self.stage != 'multi':
+            logger.debug('Validating Image ID to corresponding to CyBootloader launch ID...')
+            result = self.image_launch_validation()
+            if not result:
+                return result
 
         logger.debug('Validating policy for BOOT sections, encryption and SMIF...')
-        result = self.check_slots(stage)
+        result = self.check_slots()
         if not result:
             return result
 
@@ -121,6 +138,38 @@ class PolicyValidator(PolicyValidatorBase):
             logger.debug(f'Key file "{key_file}" does not exist')
         return True
 
+    def key_name_validation(self):
+        """
+        Validates whether there are no key entities with same ID, but different filename.
+        :return: True if no entities with same ID, but different filename found, otherwise False.
+        """
+        # Create dictionary with key ID and paths
+        keys = {}
+        for slot in self.parser.json['boot_upgrade']['firmware']:
+            for key_type in ['boot_keys', 'upgrade_keys']:
+                if key_type in slot:
+                    for item in slot[key_type]:
+                        try:
+                            keys[item['kid']].append(os.path.abspath(item['key']))
+                        except KeyError:
+                            keys[item['kid']] = [os.path.abspath(item['key'])]
+
+        # Check whether there is a key with same ID, but different path
+        for key_list in keys.values():
+            if len(set(key_list)) > 1:
+                logger.error('JWK entities with same key ID, but different file names found')
+                return False
+
+        # Check whether same key ID is not used for the different file name
+        for k1, v1 in keys.items():
+            for k2, v2 in keys.items():
+                if k1 != k2:
+                    if any(elem in v1 for elem in v2):
+                        logger.error('JWK entities with different key IDs, but same file name found')
+                        return False
+
+        return True
+
     def image_launch_validation(self):
         """
         Validates link from the first slot to the next to run image.
@@ -137,15 +186,14 @@ class PolicyValidator(PolicyValidatorBase):
                              f'It will be launched by SPE part.')
         return True
 
-    def check_slots(self, stage):
+    def check_slots(self):
         """
         Validates types of images, availability of UPGRADE image, availability of smif
-        :param stage: Policy stage.
         :return: True if validation passed, otherwise False.
         """
         slot1 = None
 
-        if stage == 'dual':
+        if self.stage == 'dual':
 
             cm4_slot = self.parser.json['boot_upgrade']['firmware'][2]
             cm0_slot = self.parser.json['boot_upgrade']['firmware'][1]
@@ -245,6 +293,43 @@ class PolicyValidator(PolicyValidatorBase):
                 return False
         return True
 
+    def validate_multi_image_id(self):
+        """
+        Validates multi-image IDs.
+        :return: True if multi-image ID matches requirements, otherwise false.
+        """
+        is_valid = True
+        for slot in self.parser.json['boot_upgrade']['firmware']:
+            if 'multi_image' in slot:
+                is_valid |= 1 <= slot['multi_image'] <= 2
+        return is_valid
+
+    def validate_address_overlap(self):
+        """
+        Validates whether used flash addresses do not overlap each other.
+        :return: True if there are no overlaps, otherwise False.
+        """
+        # Create list of used flash addresses
+        AddressSize = namedtuple("AddressSize", "address size")
+        addr_list = []
+        for slot in self.parser.json['boot_upgrade']['firmware']:
+            for res in slot['resources']:
+                if res['type'] in ['BOOT', 'UPGRADE']:
+                    addr_list.append(AddressSize(res['address'], res['size']))
+
+        # Find addresses overlaps
+        for i in range(len(addr_list)):
+            for k in range(len(addr_list)):
+                if i != k:
+                    x = range(addr_list[i].address, addr_list[i].address + addr_list[i].size)
+                    y = range(addr_list[k].address, addr_list[k].address + addr_list[k].size)
+                    xs = set(x)
+                    if len(xs.intersection(y)) > 0:
+                        logger.error(f'Address range \'{hex(x.start)}-{hex(x.stop)}\' '
+                                     f'overlaps address range \'{hex(y.start)}-{hex(y.stop)}\'')
+                        return False
+        return True
+
     def get_policy_stage(self):
         """
         Gets policy stage based on image count.
@@ -252,7 +337,11 @@ class PolicyValidator(PolicyValidatorBase):
         """
         # Dual-stage policy contains 3 firmware images (CyBootloader, M0p, M4)
         if len(self.parser.json['boot_upgrade']['firmware']) == 3:
-            return "dual"
+            multi_image = False
+            for slot in self.parser.json['boot_upgrade']['firmware']:
+                multi_image |= 'multi_image' in slot
+            return 'multi' if multi_image else 'dual'
+
         # Single-stage policy contains 2 firmware images (CyBootloader, M4)
         if len(self.parser.json['boot_upgrade']['firmware']) == 2:
             return "single"

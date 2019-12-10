@@ -39,7 +39,7 @@ def check_mode(tool, reg_map, expected_mode: ProtectionState):
             hash_byte_val = hex(tool.read8(reg_map.CYREG_EFUSE_SECURE_HASH + i))
             got_factory_hash += hash_byte_val + ' '
             i += 1
-        logger.info(f"Received SECURE_HASH: '{got_factory_hash}'\n")
+        logger.info(f'Received SECURE_HASH: \'{got_factory_hash}\'\n')
         return False
-    logger.info(f'PASS: Device is in {mode_name} mode\n')
+    logger.info(f'Device is in {mode_name} mode\n')
     return True

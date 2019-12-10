@@ -11,7 +11,7 @@ with open('README.md', **open_args) as f:
 
 setup(
     name='cysecuretools',
-    version="1.2.0",
+    version="1.3.0",
     setup_requires=[
         'setuptools>=40.0'
         ],
@@ -21,7 +21,7 @@ setup(
         'intelhex>=2.2.1',
         'python-jose>=3.0.1',
         'jsonschema>=3.0.0',
-        'pyocd>=0.22.0'
+        'pyocd>=0.23.0'
         ],
     description='Cypress secure tools for Python',
     long_description=readme,

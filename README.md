@@ -14,14 +14,14 @@ This package contains security tools for creating keys, creating certificates, s
 
 # Prerequisites
 
-* Python 3.7
+* Python 3.6 or later
 
 * Installed the libusb driver
 
    **Windows**
    - Download and unzip libusb-1.0.21.7z from https://github.com/libusb/libusb/releases/tag/v1.0.21
    - Run following command to determine if a Python shell is executing in 32-bit or 64-bit mode on OS: `python -c "import struct; print(struct.calcsize('P') * 8)"`
-   - Copy *libusb-1.0.dll* file into Python 3.7 folder (use the 64-bit version of the DLL for the 64-bit Python and the 32-bit version of the DLL for the 32-bit Python)
+   - Copy *libusb-1.0.dll* file into Python folder (use the 64-bit version of DLL for the 64-bit Python and the 32-bit version of DLL for the 32-bit Python)
    - Make sure Python path is located at the beginning of the Path environment variable.
    
    **Linux/Mac OS**

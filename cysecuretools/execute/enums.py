@@ -20,7 +20,11 @@ class ProtectionState(IntEnum):
     """
     Provides set of device life-cycle stages.
     """
-    unknown, virgin, normal, secure, dead = range(5)
+    unknown = 0
+    virgin = 1
+    normal = 2
+    secure = 3
+    dead = 4
 
 
 class EntranceExamStatus(IntEnum):

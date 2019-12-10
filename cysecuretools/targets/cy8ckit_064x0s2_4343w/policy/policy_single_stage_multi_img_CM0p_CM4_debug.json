@@ -7,7 +7,7 @@
             "key" : 5
         },
         "m4" : {
-            "permission" : "enabled",
+            "permission" : "allowed",
             "control" : "firmware",
             "key" : 5
         },
@@ -59,10 +59,9 @@
                     3
                 ],
                 "id": 0,
-                "launch": 4,
+                "launch": 1,
                 "monotonic": 0,
                 "smif_id": 0,
-                "clock_flags": 2,
                 "upgrade": false,
                 "upgrade_auth": [
                     3
@@ -70,17 +69,17 @@
                 "resources": [
                     {
                         "type": "FLASH_PC1_SPM",
-                        "address": 268632064,
+                        "address": 270336000,
                         "size": 65536
                     },
                     {
                         "type": "SRAM_SPM_PRIV",
-                        "address": 134348800,
-                        "size": 131072
+                        "address": 135004160,
+                        "size": 262144
                     },
                     {
                         "type": "SRAM_DAP",
-                        "address": 134397952,
+                        "address": 135184384,
                         "size": 16384
                     }
                 ]
@@ -92,9 +91,10 @@
                 "boot_keys": [
                     { "kid": 8, "key": "../keys/USERAPP_CM4_KEY.json" }
                 ],
-                "id": 4,
+                "id": 1,
                 "monotonic": 0,
                 "smif_id": 0,
+                "multi_image" : 1,
                 "upgrade": true,
                 "version": "0.1",
                 "rollback_counter": 0,
@@ -112,12 +112,49 @@
                     {
                         "type": "BOOT",
                         "address": 268435456,
-                        "size": 196608
+                        "size": 65536
                     },
                     {
                         "type": "UPGRADE",
-                        "address": 268697600,
-                        "size": 196608
+                        "address": 268500992,
+                        "size": 65536
+                    }
+                ]
+            },
+            {
+                "boot_auth": [
+                    8
+                ],
+                "boot_keys": [
+                    { "kid": 8, "key": "../keys/USERAPP_CM4_KEY.json" }
+                ],
+                "id": 16,
+                "monotonic": 0,
+                "smif_id": 0,
+                "multi_image" : 2,
+                "upgrade": true,
+                "version": "0.1",
+                "rollback_counter": 0,
+                "encrypt": false,
+                "encrypt_key": "../keys/image-aes-128.key",
+                "encrypt_key_id": 1,
+                "encrypt_peer": "../keys/dev_pub_key.pem",
+                "upgrade_auth": [
+                    8
+                ],
+                "upgrade_keys": [
+                    { "kid": 8, "key": "../keys/USERAPP_CM4_KEY.json" }
+                ],
+                "resources": [
+                    {
+                        "type": "BOOT",
+                        "address": 268566528,
+                        "size": 65536
+                    },
+                    {
+                        "type": "UPGRADE",
+                        "address": 268632064,
+                        "size": 65536
                     }
                 ]
             }
