@@ -21,7 +21,7 @@ setup(
         'intelhex>=2.2.1',
         'python-jose>=3.0.1',
         'jsonschema>=3.0.0',
-        'pyocd>=0.23.0'
+        'pyocd==0.23.0'
         ],
     description='Cypress secure tools for Python',
     long_description=readme,
