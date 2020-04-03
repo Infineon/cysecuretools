@@ -16,7 +16,7 @@ limitations under the License.
 from cysecuretools.core import MemoryMapBase
 
 
-class MemoryMap_cy8c6245lqi_s3d72(MemoryMapBase):
+class MemoryMap_cyb06xx5(MemoryMapBase):
     @property
     def FLASH_ADDRESS(self):
         return 0x10000000

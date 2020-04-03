@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright (c) 2019-2020 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -136,10 +136,13 @@ class CySecureTools:
             except SystemExit as e:
                 if e.code != 0:
                     logger.error(f'An error occurred while running keygen with arguments: {args}')
+                    return False
+                else:
+                    return True
 
     def sign_image(self, hex_file, image_id=4):
         """
-        Signs firmware image with the certificates.
+        Signs firmware image with the key specified in the policy file.
         :param hex_file: User application hex file.
         :param image_id: The ID of the firmware in policy file.
         :return: Signed (and encrypted if applicable) hex files path.
@@ -255,26 +258,27 @@ class CySecureTools:
         :param kwargs: Dictionary with the certificate fields
         :return The certificate object.
         """
-        # Create certificate
         context = Context(X509Strategy())
-        if not kwargs:
-            tool = ProgrammingTool.create(self.PROGRAMMING_TOOL)
-            kwargs = context.default_certificate_data(tool, self.target, protection_state, probe_id)
-        else:
-            serial = kwargs.get('serial_number')
-            public_key = kwargs.get('public_key')
-            if not serial or not public_key:
-                tool = ProgrammingTool.create(self.PROGRAMMING_TOOL)
-                default = context.default_certificate_data(tool, self.target, protection_state, probe_id)
-                if not serial:
-                    kwargs['serial_number'] = default['serial_number']
-                if not public_key:
-                    kwargs['public_key'] = default['public_key']
 
-        if kwargs is None:
-            return None
-        else:
-            return context.create_certificate(cert_name, cert_encoding, **kwargs)
+        expected_fields = ['subject_name', 'country', 'state', 'organization', 'issuer_name', 'private_key']
+        all_fields_present = all(k in kwargs and kwargs[k] is not None for k in expected_fields)
+        serial = kwargs.get('serial_number')
+        public_key = kwargs.get('public_key')
+
+        if not all_fields_present or not serial or not public_key:
+            tool = ProgrammingTool.create(self.PROGRAMMING_TOOL)
+            default = context.default_certificate_data(tool, self.target, protection_state, probe_id)
+
+        for field in expected_fields:
+            if field not in kwargs or kwargs[field] is None:
+                kwargs[field] = default[field]
+
+        if not serial:
+            kwargs['serial_number'] = default['serial_number']
+        if not public_key:
+            kwargs['public_key'] = default['public_key']
+
+        return context.create_certificate(cert_name, cert_encoding, **kwargs)
 
     def entrance_exam(self):
         """

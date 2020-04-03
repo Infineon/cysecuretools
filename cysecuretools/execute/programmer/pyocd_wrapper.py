@@ -18,8 +18,8 @@ import json
 from cysecuretools.execute.programmer.base import ProgrammerBase, ResetType
 from pyocd.core.helpers import ConnectHelper
 from pyocd.core import exceptions
-from pyocd.flash import loader
-from pyocd.flash.loader import FlashEraser
+from pyocd.flash.file_programmer import FileProgrammer
+from pyocd.flash.eraser import FlashEraser
 from pyocd import coresight
 from cysecuretools.execute.programmer.exceptions import ExtendedTransferFaultError
 
@@ -273,5 +273,5 @@ class Pyocd(ProgrammerBase):
         """
         if self.session is None:
             raise ValueError('Debug session is not initialized.')
-        programmer = loader.FileProgrammer(self.session, chip_erase='sector')
+        programmer = FileProgrammer(self.session, chip_erase='sector')
         programmer.program(filename, base_address=address, file_format=file_format)

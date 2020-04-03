@@ -15,12 +15,7 @@
             "permission" : "",
             "control" : "",
             "key" : 0,
-            "syscall": false,
-            "mmio": false,
-            "flash": false,
-            "workflash": false,
-            "sflash": false,
-            "sram": false
+            "flash": false
         },
         "rma" : {
             "permission" : "",

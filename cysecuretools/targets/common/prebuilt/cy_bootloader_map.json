@@ -9,16 +9,6 @@
             "jwt": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
         }
     },
-    "cy8cproto-064s1-sb_virgin": {
-        "debug": {
-            "hex": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
-            "jwt": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
-        },
-        "release": {
-            "hex": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.hex",
-            "jwt": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
-        }
-    },
     "cy8cproto-064b0s1-ble": {
         "debug": {
             "hex": "targets/cy8cproto_064s1_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
@@ -32,16 +22,6 @@
 
 
     "cy8cproto-064s2-sb": {
-        "debug": {
-            "hex": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
-            "jwt": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
-        },
-        "release": {
-            "hex": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.hex",
-            "jwt": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
-        }
-    },
-    "cy8cproto-064s2-sb_virgin": {
         "debug": {
             "hex": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
             "jwt": "targets/cy8cproto_064s2_sb/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
@@ -73,24 +53,34 @@
     },
 
 
-    "cy8c6245lqi-s3d72": {
+    "cyb06445lqi-s3d42": {
         "debug": {
-            "hex": "targets/cy8c6245lqi_s3d72/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
-            "jwt": "targets/cy8c6245lqi_s3d72/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
+            "hex": "targets/cyb06xx5/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cyb06xx5/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
         },
         "release": {
-            "hex": "targets/cy8c6245lqi_s3d72/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.hex",
-            "jwt": "targets/cy8c6245lqi_s3d72/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
+            "hex": "targets/cyb06xx5/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cyb06xx5/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
         }
     },
-    "cy8c6245lqi-s3d72_virgin": {
+    "cy8cproto-064b0s3": {
         "debug": {
-            "hex": "targets/cy8c6245lqi_s3d72/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
-            "jwt": "targets/cy8c6245lqi_s3d72/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
+            "hex": "targets/cyb06xx5/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cyb06xx5/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
         },
         "release": {
-            "hex": "targets/cy8c6245lqi_s3d72/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.hex",
-            "jwt": "targets/cy8c6245lqi_s3d72/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
+            "hex": "targets/cyb06xx5/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cyb06xx5/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
+        }
+    },
+    "cyb06xx5": {
+        "debug": {
+            "hex": "targets/cyb06xx5/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cyb06xx5/prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt"
+        },
+        "release": {
+            "hex": "targets/cyb06xx5/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.hex",
+            "jwt": "targets/cyb06xx5/prebuilt/CyBootloader_Release/CypressBootloader_CM0p.jwt"
         }
     }
 }

@@ -24,6 +24,7 @@ from pathlib import Path
 from intelhex import hex2bin, bin2hex
 from cysecuretools.targets.common.policy_parser import PolicyParser, ImageType, KeyType
 from cysecuretools.targets.cy8ckit_064x0s2_4343w.target_builder import CY8CKIT_064X0S2_4343W_Builder
+from cysecuretools.targets.cyb06xx5.target_builder import CYB06xx5_Builder
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,8 @@ class SignTool:
         self.memory_map = memory_map
 
         # Temporary solution to use different version of imgtool for specific device
-        self.use_default_imgtool = type(target_builder) is not CY8CKIT_064X0S2_4343W_Builder
+        self.use_default_imgtool = type(target_builder) is not CY8CKIT_064X0S2_4343W_Builder and \
+                                   type(target_builder) is not CYB06xx5_Builder
         if not self.use_default_imgtool:
             self.IMG_TOOL_PATH = os.path.join(self.PKG_PATH, '../imgtool_1_4_0/main.py')
 
@@ -83,7 +85,6 @@ class SignTool:
                     hex2bin(hex_out, bin_out)
                     bin2hex(bin_out, output_name, offset=int(image['address']))
                     os.remove(bin_out)
-                    logger.info(f'Image UPGRADE: {hex_out}\n')
 
                 # Replace input hex file with the
             result.append(hex_out)
@@ -163,7 +164,7 @@ class SignTool:
             logger.error(f'Message from imgtool: {stderr.decode("utf-8")}')
             logger.error('imgtool finished execution with errors!')
         else:
-            logger.info(f'Image for slot {image_type} signed successfully!')
+            logger.info(f'Image for slot {image_type} signed successfully! ({hex_out})')
             return hex_out
 
     def encrypt_image(self, slot, image_type, hex_in):

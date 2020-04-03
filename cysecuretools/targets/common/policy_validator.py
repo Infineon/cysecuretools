@@ -191,6 +191,7 @@ class PolicyValidator(PolicyValidatorBase):
         Validates types of images, availability of UPGRADE image, availability of smif
         :return: True if validation passed, otherwise False.
         """
+        slot0 = None
         slot1 = None
 
         if self.stage == 'dual':
@@ -263,7 +264,7 @@ class PolicyValidator(PolicyValidatorBase):
                 logger.debug('SMIF is enabled. UPGRADE slot can be placed in external flash.')
 
                 if int(smif_id) > self.memory_map.SMIF_ID:
-                    logger.warning('SMIF ID is out of range [1, 2] supported by CypressBootloder.',
+                    logger.warning('SMIF ID is out of range [1, 2] supported by CypressBootloder. '
                                    'Either change it to 1, to 2 or make sure cycfg_qspi_memslot.c is updated respectively '
                                    'in SPE for second-stage bootloading.')
 
@@ -300,8 +301,11 @@ class PolicyValidator(PolicyValidatorBase):
         """
         is_valid = True
         for slot in self.parser.json['boot_upgrade']['firmware']:
-            if 'multi_image' in slot:
-                is_valid |= 1 <= slot['multi_image'] <= 2
+            if slot['id'] != 0:
+                if 'multi_image' in slot:
+                    is_valid &= 1 <= slot['multi_image'] <= 2
+                else:
+                    is_valid = False
         return is_valid
 
     def validate_address_overlap(self):

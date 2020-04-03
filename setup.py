@@ -11,17 +11,18 @@ with open('README.md', **open_args) as f:
 
 setup(
     name='cysecuretools',
-    version="1.3.3",
+    version="1.4.0",
     setup_requires=[
-        'setuptools>=40.0'
+        'setuptools>=40.0,<46',
+        'pip>=19,!=20.0,!=20.0.1,<21'
         ],
     install_requires=[
-        'cryptography>=2.4.2',
-        'click>=7.0',
-        'intelhex>=2.2.1',
-        'python-jose>=3.0.1',
-        'jsonschema>=3.0.0',
-        'pyocd==0.23.0'
+        'cryptography>=2.4.2,<3',
+        'click>=7.0,<8',
+        'intelhex>=2.2.1,<3',
+        'python-jose>=3.0.1,<4',
+        'jsonschema>=3.0.0,<4',
+        'pyocd==0.25.0'
         ],
     description='Cypress secure tools for Python',
     long_description=readme,
@@ -37,6 +38,11 @@ setup(
         'Operating System :: OS Independent',
         'Topic :: Software Development :: Embedded Systems',
     ],
+    entry_points={
+        'console_scripts': [
+            'cysecuretools = cysecuretools.__main__:main',
+        ],
+    },
     packages=find_packages(),
     options={
         'bdist_wheel': {

@@ -15,12 +15,7 @@
             "permission" : "enabled",
             "control" : "firmware",
             "key" : 5,
-            "syscall": true,
-            "mmio": true,
-            "flash": true,
-            "workflash": true,
-            "sflash": true,
-            "sram": true
+            "flash": true
         },
         "rma" : {
             "permission" : "allowed",

@@ -144,8 +144,16 @@ Creates a certificate in the X.509 format based on the device public key.
 #### Usage example
 ```python
 from cysecuretools import CySecureTools
-tools = CySecureTools('CY8CPROTO-064B0S1-BLE')
-tools.create_x509_certificate()
+tool = CySecureTools('CY8CPROTO-064B0S1-BLE')
+cert_fields = {
+    'subject_name': 'Example Certificate',
+    'country': 'US',
+    'state': 'San Jose',
+    'organization': 'Cypress Semiconductor',
+    'issuer_name': 'Example Issuer Name',
+    'private_key': 'cysecuretools/targets/common/prebuilt/hsm_private_key.json'
+}
+tool.create_x509_certificate(cert_name='example_cert.pem', **cert_fields)
 ```
 
 ## **flash_map()**

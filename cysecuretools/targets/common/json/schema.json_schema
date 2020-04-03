@@ -103,33 +103,8 @@
                             "required": true,
                             "type": "number"
                         },
-                        "syscall": {
-                            "id": "syscall",
-                            "required": true,
-                            "type": "boolean"
-                        },
-                        "mmio": {
-                            "id": "mmio",
-                            "required": true,
-                            "type": "boolean"
-                        },
                         "flash": {
                             "id": "flash",
-                            "required": true,
-                            "type": "boolean"
-                        },
-                        "workflash": {
-                            "id": "workflash",
-                            "required": true,
-                            "type": "boolean"
-                        },
-                        "sflash": {
-                            "id": "sflash",
-                            "required": true,
-                            "type": "boolean"
-                        },
-                        "sram": {
-                            "id": "sram",
                             "required": true,
                             "type": "boolean"
                         }

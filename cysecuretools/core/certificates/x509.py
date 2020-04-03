@@ -33,7 +33,8 @@ logger = logging.getLogger(__name__)
 
 
 class X509Strategy(Strategy):
-    def create_certificate(self, cert_name, cert_encoding, subject_name,
+    def create_certificate(self, cert_name, cert_encoding,
+                           subject_name,
                            issuer_name,
                            country,
                            state,

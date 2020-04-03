@@ -16,7 +16,7 @@ limitations under the License.
 from cysecuretools.core import RegisterMapBase
 
 
-class RegisterMap_cy8c6245lqi_s3d72(RegisterMapBase):
+class RegisterMap_cyb06xx5(RegisterMapBase):
 
     #
     #  Entrance exam registers and constants

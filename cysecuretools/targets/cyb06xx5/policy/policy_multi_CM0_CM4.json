@@ -7,7 +7,7 @@
             "key" : 5
         },
         "m4" : {
-            "permission" : "allowed",
+            "permission" : "enabled",
             "control" : "firmware",
             "key" : 5
         },
@@ -15,12 +15,7 @@
             "permission" : "enabled",
             "control" : "firmware",
             "key" : 5,
-            "syscall": true,
-            "mmio": true,
-            "flash": true,
-            "workflash": true,
-            "sflash": true,
-            "sram": true
+            "flash": true
         },
         "rma" : {
             "permission" : "allowed",
@@ -62,6 +57,7 @@
                 "launch": 1,
                 "monotonic": 0,
                 "smif_id": 0,
+                "clock_flags": 2,
                 "upgrade": false,
                 "upgrade_auth": [
                     3
@@ -69,17 +65,17 @@
                 "resources": [
                     {
                         "type": "FLASH_PC1_SPM",
-                        "address": 270336000,
+                        "address": 268632064,
                         "size": 65536
                     },
                     {
                         "type": "SRAM_SPM_PRIV",
-                        "address": 135004160,
-                        "size": 262144
+                        "address": 134283264,
+                        "size": 65536
                     },
                     {
                         "type": "SRAM_DAP",
-                        "address": 135184384,
+                        "address": 134397952,
                         "size": 16384
                     }
                 ]
@@ -148,12 +144,12 @@
                 "resources": [
                     {
                         "type": "BOOT",
-                        "address": 268566528,
+                        "address": 268697600,
                         "size": 65536
                     },
                     {
                         "type": "UPGRADE",
-                        "address": 268632064,
+                        "address": 268763136,
                         "size": 65536
                     }
                 ]

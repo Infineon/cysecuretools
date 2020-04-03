@@ -1,13 +1,12 @@
 {
-  "cy8cproto-064s1-sb": "cy8c64xx_cm4_full",
-  "cy8cproto-064s1-sb_virgin": "cy8c64xx_cm4_full_flash",
-  "cy8cproto-064b0s1-ble": "cy8c64xx_cm4_full",
+  "cy8cproto-064s1-sb": "cy8c64xx_cm4_full_flash",
+  "cy8cproto-064b0s1-ble": "cy8c64xx_cm4_full_flash",
 
   "cy8cproto-064s2-sb": "cy8c64xa_cm4_full_flash",
-  "cy8cproto-064s2-sb_virgin": "cy8c64xa_cm4_full_flash",
   "cy8ckit-064b0s2-4343w": "cy8c64xa_cm4_full_flash",
   "cy8ckit-064s0s2-4343w": "cy8c64xa_cm4_full_flash",
 
-  "cy8c6245lqi-s3d72": "cy8c64x5_cm4_full_flash",
-  "cy8c6245lqi-s3d72_virgin": "cy8c64x5_cm4_full_flash"
+  "cyb06445lqi-s3d42": "cy8c64x5_cm4_full_flash",
+  "cy8cproto-064b0s3": "cy8c64x5_cm4_full_flash",
+  "cyb06xx5": "cy8c64x5_cm4_full_flash"
 }
