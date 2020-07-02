@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright (c) 2019-2020 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,38 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
-import sys
 import logging
-import subprocess
-import cysecuretools.imgtool_1_4_0.main as imgtool
-import cysecuretools.execute.encrypted_image_runner as encryptor
+import cysecuretools.imgtool.main as imgtool
 from shutil import copy2
-from pathlib import Path
 from intelhex import hex2bin, bin2hex
-from cysecuretools.targets.common.policy_parser import PolicyParser, ImageType, KeyType
-from cysecuretools.targets.cy8ckit_064x0s2_4343w.target_builder import CY8CKIT_064X0S2_4343W_Builder
-from cysecuretools.targets.cyb06xx5.target_builder import CYB06xx5_Builder
+from cysecuretools.execute.enums import ImageType
+from cysecuretools.targets.common.policy_parser import PolicyParser
 
 logger = logging.getLogger(__name__)
 
 
 class SignTool:
-    def __init__(self, policy_file, memory_map, target_builder):
+    def __init__(self, policy_file, memory_map):
         # Resolve paths
-        self.policy_dir = os.path.dirname(Path(policy_file).absolute())
         self.PKG_PATH = os.path.dirname(os.path.realpath(__file__))
-        self.IMG_TOOL_PATH = os.path.join(self.PKG_PATH, '../imgtool/imgtool.py')
+        self.IMG_TOOL_PATH = os.path.join(self.PKG_PATH, '../imgtool/main.py')
         self.parser = PolicyParser(policy_file)
         self.policy = PolicyParser.get_json(policy_file)
         self.memory_map = memory_map
+        self.policy_file = policy_file
 
-        # Temporary solution to use different version of imgtool for specific device
-        self.use_default_imgtool = type(target_builder) is not CY8CKIT_064X0S2_4343W_Builder and \
-                                   type(target_builder) is not CYB06xx5_Builder
-        if not self.use_default_imgtool:
-            self.IMG_TOOL_PATH = os.path.join(self.PKG_PATH, '../imgtool_1_4_0/main.py')
-
-    def sign_image(self, hex_file, image_id):
+    def sign_image(self, hex_file, image_id, image_type, encrypt_key=None):
         """
         Signs hex file with the key specified in the policy file.
         Converts binary file of the signed image.
@@ -53,57 +42,79 @@ class SignTool:
         Encrypts UPGRADE image if the policy file contains encryption key
         :param hex_file: The hex file to sign.
         :param image_id: The ID of the firmware in policy file.
+        :param image_type: The image type.
+        :param encrypt_key: path to public key file for the image encryption
         :return: Path to the signed files. One file per slot.
         """
         result = []
         slot = self.parser.get_slot(image_id)
+        if slot is None:
+            logger.error(f'Image with ID {image_id} not found in \'{self.policy_file}\'')
+            return None
+        unsigned_hex = '{0}_{2}{1}'.format(*os.path.splitext(hex_file) + ('unsigned',))
+        copy2(hex_file, unsigned_hex)
+
         for image in slot['resources']:
-            # Sign BOOT image and encrypt+sign UPGRADE image
-            if 'encrypt' in slot and slot['encrypt'] and image['type'] == ImageType.UPGRADE.name:
-                hex_out = self.encrypt_image(slot, image['type'], unsigned_boot_hex)
+            if image_type:
+                if image['type'] != image_type.upper():
+                    continue # skip generating hex file if sign type defined and not same as current image type
+            if image['type'] == ImageType.UPGRADE.name:
+                if 'upgrade' not in slot or not slot['upgrade']:
+                    continue  # skip generating hex file for UPGRADE slot if it is disabled
+
+            if image['type'] == ImageType.BOOT.name:
+                hex_out = self.sign_single_hex(slot, image['type'], unsigned_hex, hex_file)
             else:
-                if image['type'] == ImageType.UPGRADE.name:
-                    if 'upgrade' not in slot or not slot['upgrade']:
-                        continue  # skip generating hex file for UPGRADE slot if it is disabled
+                if 'encrypt' in slot and slot['encrypt']:
+                    if encrypt_key is None:
+                        if 'encrypt_peer' in slot and slot['encrypt_peer']:
+                            encrypt_key = slot['encrypt_peer']
+                            if not os.path.isabs(encrypt_key):
+                                encrypt_key = os.path.join(self.parser.policy_dir, encrypt_key)
+                        else:
+                            logger.error('Image must be encrypted! Specify encrypt_key_file path.')
+                            return None
+                else:
+                    if encrypt_key is not None:
+                        encrypt_key = None
 
-                # Preserve hex file for cm4 image
-                if slot['id'] == self.memory_map.NSPE_IMAGE_ID:
-                    out_cm4_hex = '{0}_{2}{1}'.format(*os.path.splitext(hex_file) + ('cm4',))
-                    copy2(hex_file, out_cm4_hex)
-
-                # Sign image
-                if image['type'] == ImageType.BOOT.name:
-                    unsigned_boot_hex = '{0}_{2}{1}'.format(*os.path.splitext(hex_file) + ('unsigned',))
-                    copy2(hex_file, unsigned_boot_hex)
-                    hex_out = self.sign_single_hex(slot, image['type'], hex_file, hex_file)
-
-                # Produce hex file for slot1
-                if image['type'] == ImageType.UPGRADE.name:
-                    output_name = '{0}_{2}{1}'.format(*os.path.splitext(hex_file) + ('upgrade',))
-                    hex_out = self.sign_single_hex(slot, image['type'], unsigned_boot_hex, output_name)
-                    bin_out = '{0}.bin'.format(os.path.splitext(hex_out)[0])
-                    hex2bin(hex_out, bin_out)
-                    bin2hex(bin_out, output_name, offset=int(image['address']))
-                    os.remove(bin_out)
-
-                # Replace input hex file with the
+                output_name = '{0}_{2}{1}'.format(*os.path.splitext(hex_file) + ('upgrade',))
+                hex_out = self.sign_single_hex(slot, image['type'], unsigned_hex, output_name, encrypt_key)
+                bin_out = '{0}.bin'.format(os.path.splitext(hex_out)[0])
+                hex2bin(hex_out, bin_out)
+                bin2hex(bin_out, output_name, offset=int(image['address']))
+                os.remove(bin_out)
             result.append(hex_out)
+
+        if image_type:
+            if ImageType.UPGRADE.name == image_type.upper():
+                os.remove(hex_file)
         result = tuple(result) if len(result) > 0 else None
         return result
 
-    def sign_single_hex(self, slot, image_type, hex_in, hex_out=None):
+    def sign_single_hex(self, slot, image_type, hex_in, hex_out=None, encrypt_key=None):
         """
         Signs single hex file with a single key using imgtool.
         :param slot: Slot data from policy file.
         :param image_type: The type of the image.
         :param hex_in: The hex file to sign.
-        :param hex_out: The name of the output file. If not specified, the default name will be used.
+        :param hex_out: The name of the output file. If not specified,
+                        the default name will be used.
+        :param encrypt_key: path to public key file for the image encryption
         :return: The name of the signed hex file.
         """
         # Find in policy data necessary for image signing
-        address, size = self.parser.get_image_data(slot['id'], image_type)
+        data = self.parser.get_image_data(image_type, slot['id'])
+        if len(data) > 0:
+            address, size = data[0]
+        else:
+            raise ValueError('Invalid image ID.')
+
         for key_pair in self.parser.get_keys():
-            if key_pair.image_type.name == image_type:
+            if key_pair.image_type is not None and \
+               key_pair.image_type.name in ('BOOT', 'UPGRADE') and \
+               key_pair.key_id in slot["boot_auth"]:
+
                 key = key_pair
                 break
 
@@ -111,101 +122,42 @@ class SignTool:
         if hex_out is None:
             hex_out = '{0}_{2}{1}'.format(*os.path.splitext(hex_in) + ('signed',))
 
-        if self.use_default_imgtool:
-            args = [
-                 sys.executable, self.IMG_TOOL_PATH,
-                 'sign',
-                 '--key', key.pem_key_path,
-                 '--header-size', hex(self.memory_map.MCUBOOT_HEADER_SIZE),
-                 '--pad-header',
-                 '--align', '8',
-                 '--version', slot['version'],
-                 '--image-id', str(slot['id']),
-                 '--rollback_counter', str(slot['rollback_counter']),
-                 '--slot-size', hex(size),
-                 '--overwrite-only',
-                 hex_in,
-                 hex_out
-            ]
-        else:
-            args = [
-                '--key', key.pem_key_path,
-                '--header-size', hex(self.memory_map.MCUBOOT_HEADER_SIZE),
-                '--pad-header',
-                '--align', '8',
-                '--version', slot['version'],
-                '--slot-size', hex(size),
-                '--overwrite-only',
-                '--erased-val', '0',
-                hex_in,
-                hex_out,
+        is_smif = image_type == 'UPGRADE' and slot['smif_id'] > 0
+        erased_val = '0xff' if is_smif else '0'
 
-                # Add Cypress TLV
-                '--imageid', 'B', str(slot['id']),
-                '--rollbackcounter', 'B', str(slot['rollback_counter']),
-            ]
+        args = [
+            '--key', key.pem_key_path,
+            '--header-size', hex(self.memory_map.MCUBOOT_HEADER_SIZE),
+            '--pad-header',
+            '--align', '8',
+            '--version', slot['version'],
+            '--slot-size', hex(size),
+            '--overwrite-only',
+            '--erased-val', erased_val,
+            '--security-counter', str(slot['rollback_counter']),
+            hex_in,
+            hex_out,
+
+            # Add Cypress TLV
+            '--custom-tlv', '0x81', 'B', str(slot['id']),
+        ]
+
+        if encrypt_key is not None:
+            args.append('--encrypt')
+            args.append(encrypt_key)
 
         if image_type != ImageType.BOOT.name:
             args.append('--pad')
         logger.debug(f'Run imgtool with arguments: {args}')
 
-        if self.use_default_imgtool:
-            process = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-            stderr = process.communicate()[1]  # catch stderr outputs
-            rc = process.wait()
-        else:
-            try:
-                imgtool.sign(args)
-            except SystemExit as e:
-                rc = e.code
+        try:
+            imgtool.sign(args)
+        except SystemExit as e:
+            rc = e.code
 
         if rc != 0:
             logger.error('Signature is not added!')
-            logger.error(f'Message from imgtool: {stderr.decode("utf-8")}')
             logger.error('imgtool finished execution with errors!')
         else:
             logger.info(f'Image for slot {image_type} signed successfully! ({hex_out})')
             return hex_out
-
-    def encrypt_image(self, slot, image_type, hex_in):
-        """
-        Signs image, encrypts image and signs it again.
-        :param slot: Slot data from policy file.
-        :param image_type: The type of the image.
-        :param hex_in: The hex file to encrypt and sign.
-        :return: Encrypted and signed file path.
-        """
-        # Find in policy data necessary for image signing
-        address, size = self.parser.get_image_data(slot['id'], image_type)
-        for key_pair in self.parser.get_keys():
-            if key_pair.key_type == KeyType.signing and key_pair.image_type.name == image_type:
-                sign_key = key_pair.pem_key_path
-            elif key_pair.key_type == KeyType.encryption:
-                encrypt_key = key_pair.json_key_path
-            elif key_pair.key_type == KeyType.device_public:
-                pub_key = key_pair.pem_key_path
-
-        args = [
-            '--sdk-path', self.PKG_PATH,
-            '--hex-file', hex_in,
-            '--key-priv', sign_key,
-            '--key-pub', pub_key,
-            '--key-aes', encrypt_key,
-            '--ver', slot['version'],
-            '--img-id', str(slot['id']),
-            '--rlb-count', str(slot['rollback_counter']),
-            '--slot-size', hex(size),
-            '--img-offset', address,
-            '--pad', 1,
-            '--imgtool-path', self.IMG_TOOL_PATH
-        ]
-
-        logger.debug(f'Run encryption with arguments: {args}')
-        try:
-            encryptor.main(args)
-        except SystemExit as e:
-            if e.code != 0:
-                logger.error('Image encryption failed.')
-            else:
-                hex_out = encryptor.get_final_hex_name(hex_in)
-                return hex_out

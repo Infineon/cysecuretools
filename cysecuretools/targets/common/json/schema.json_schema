@@ -103,7 +103,12 @@
                             "required": true,
                             "type": "number"
                         },
-                        "flash": {
+                        "flashw": {
+                            "id": "flash",
+                            "required": true,
+                            "type": "boolean"
+                        },
+                        "flashr": {
                             "id": "flash",
                             "required": true,
                             "type": "boolean"
@@ -182,11 +187,6 @@
                 }
             }
         },
-        "wounding": {
-            "id": "wounding",
-            "required": true,
-            "type": "object"
-        },
         "boot_upgrade": {
             "id": "boot_upgrade",
             "required": true,
@@ -234,23 +234,13 @@
                             },
                             "smif_id": {
                                 "id": "smif_id",
-                                "required": true,
+                                "required": false,
                                 "type": "number"
                             },
                             "upgrade": {
                                 "id": "upgrade",
                                 "required": true,
                                 "type": "boolean"
-                            },
-                            "upgrade_auth": {
-                                "id": "upgrade_auth",
-                                "required": true,
-                                "type": "array",
-                                "items": {
-                                    "id": "0",
-                                    "required": true,
-                                    "type": "number"
-                                }
                             },
                             "resources": {
                                 "id": "resources",

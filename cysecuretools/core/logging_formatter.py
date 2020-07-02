@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright (c) 2019-2020 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,10 +17,10 @@ import logging
 
 
 class CustomFormatter(logging.Formatter):
-    error_fmt = 'ERROR: %(name)s: %(msg)s'
-    debug_fmt = 'DEBUG: %(name)s, line %(lineno)d: %(msg)s'
-    warning_fmt = 'WARNING: %(name)s: %(msg)s'
-    info_fmt = '%(msg)s'
+    error_fmt = '%(asctime)s : ##_package_## : ERROR : %(message)s'
+    debug_fmt = '%(asctime)s : ##_package_## : DEBUG : %(name)s, line %(lineno)d: %(message)s'
+    warning_fmt = '%(asctime)s : ##_package_## : WARN  : %(message)s'
+    info_fmt = '%(asctime)s : ##_package_## : INFO  : %(message)s'
 
     def __init__(self):
         super().__init__(fmt="%(levelno)d: %(msg)s", datefmt=None, style='%')
@@ -41,6 +41,18 @@ class CustomFormatter(logging.Formatter):
 
         elif record.levelno == logging.ERROR:
             self._style._fmt = CustomFormatter.error_fmt
+
+        if record.name.startswith('pyocd'):
+            package = 'P'
+        elif record.name.startswith('cysecuretools'):
+            package = 'C'
+            if record.levelno == logging.ERROR:
+                self._style._fmt += \
+                    '. Check the log for details'
+        else:
+            package = ' '
+
+        self._style._fmt = self._style._fmt.replace('##_package_##', package)
 
         result = logging.Formatter.format(self, record)
 

@@ -37,6 +37,11 @@ class RegisterMapBase(abc.ABC):
 
     @property
     @abc.abstractmethod
+    def ENTRANCE_EXAM_FW_STATUS_RE_VAL(self):
+        raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
     def ENTRANCE_EXAM_FW_STATUS_MASK(self):
         raise NotImplementedError
 
@@ -81,6 +86,20 @@ class RegisterMapBase(abc.ABC):
         raise NotImplementedError
 
     #
+    # LVD registers
+    #
+
+    @property
+    @abc.abstractmethod
+    def PWR_LVD_CTL(self):
+        raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def PWR_LVD_STATUS(self):
+        raise NotImplementedError
+
+    #
     # PSoC 6 BLE register addresses
     #
 
@@ -106,15 +125,5 @@ class RegisterMapBase(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def CYREG_CPUSS_PROTECTION(self):
-        raise NotImplementedError
-
-    @property
-    @abc.abstractmethod
     def CYREG_EFUSE_SECURE_HASH(self):
-        raise NotImplementedError
-
-    @property
-    @abc.abstractmethod
-    def NVSTORE_AREA_1_ADDRESS(self):
         raise NotImplementedError

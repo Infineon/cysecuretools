@@ -1,4 +1,5 @@
 include README.md
 include cysecuretools/execute/programmer/pyocd_target_map.json
 recursive-include cysecuretools/targets *
+recursive-include cysecuretools/data *
 global-exclude .DS_Store

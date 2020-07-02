@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright (c) 2019-2020 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,15 +17,10 @@ from cysecuretools.execute.provisioning_lib.cyprov_entity import Entity
 from cysecuretools.execute.provisioning_lib.cyprov_crypto import Crypto
 
 
-# Customer Entity
 class CustomerEntity(Entity):
     def __init__(self, state_name, audit_name):
         Entity.__init__(self, state_name, audit_name)
-        if "custom_priv_key" not in self.state:
-            d = dict()
-            d["custom_priv_key"] = self.state
-            self.state = d
-        
+
     def create_entity(self, kid):
         """
         Creates the Customer entity.
@@ -45,6 +40,3 @@ class CustomerEntity(Entity):
         else:
             key = self.state["custom_pub_key"]
         return key
-    
-    def get_priv_key(self):
-        return self.state["custom_priv_key"]

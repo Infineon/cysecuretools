@@ -27,16 +27,24 @@ class Interface(Enum):
     JTAG = 2
 
 
+class AP(Enum):
+    SYS = 'sys'
+    CM0 = 'cm0'
+    CM4 = 'cm4'
+    CMx = 'cmx'
+
+
 class ProgrammerBase(metaclass=ABCMeta):
     def __init__(self):
         pass
 
     @abstractmethod
-    def connect(self, target_name=None, interface=None):
+    def connect(self, target_name=None, interface=None, ap=None):
         """
         Connects to target.
         :param target_name: The target name.
         :param interface: Debug interface.
+        :param ap: The access port used for communication.
         :return: True if connected successfully, otherwise False.
         """
         raise NotImplementedError()
@@ -45,6 +53,21 @@ class ProgrammerBase(metaclass=ABCMeta):
     def disconnect(self):
         """
         Disconnects from target.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_ap(self):
+        """
+        Gets access port.
+        :return: Selected AP.
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def set_ap(self):
+        """
+        Sets access port.
         """
         raise NotImplementedError()
 
@@ -177,3 +200,21 @@ class ProgrammerBase(metaclass=ABCMeta):
         :return: True if programmed successfully, otherwise False.
         """
         raise NotImplementedError()
+
+    @abstractmethod
+    def read(self, address, length):
+        """
+        Reads specified number of bytes from memory
+        :param address: The memory address where start reading
+        :param length: Number of bytes to read
+        :return: Values array
+        """
+        raise NotImplementedError()
+
+    def set_skip_reset_and_halt(self, value):
+        """
+        Sets skip_reset_and_halt property value. This is applicable
+        for pyOCD and likely should not be implemented for other tools
+        :param value: Indicates whether to skip or not
+        """
+        pass

@@ -64,9 +64,12 @@ def pretty_search(dict_or_list, key_to_search, search_for_first_only=False):
 class PemKey:
     def __init__(self, jwk_file=None, item=None):
         if jwk_file is not None:
-            with open(jwk_file) as f:
-                jwk_str = f.read()
-                self.jwk = json.loads(jwk_str)
+            if isinstance(jwk_file, dict):
+                self.jwk = jwk_file
+            else:
+                with open(jwk_file) as f:
+                    jwk_str = f.read()
+                    self.jwk = json.loads(jwk_str)
 
         if item is not None:
             self.jwk = pretty_search(

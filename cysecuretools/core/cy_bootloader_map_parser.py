@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright (c) 2019-2020 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,7 +16,8 @@ limitations under the License.
 import os
 import json
 
-CY_BOOTLOADER_MAP = os.path.join(os.path.dirname(__file__), '../targets/common/prebuilt/cy_bootloader_map.json')
+CY_BOOTLOADER_MAP = os.path.abspath(os.path.join(
+    os.path.dirname(__file__), '../data/cy_bootloader_map.json'))
 
 
 class CyBootloaderMapParser:
@@ -38,7 +39,8 @@ class CyBootloaderMapParser:
     @staticmethod
     def get_filename(target, mode, file_type):
         """
-        Gets the name of CyBootloader hex, or jwt file based on target, mode and file type.
+        Gets the name of CyBootloader hex, or jwt file based on
+        target, mode and file type.
         :param target: Device name.
         :param mode: CyBootloader mode (debug or release).
         :param file_type: The type of the file (hex or jwt).

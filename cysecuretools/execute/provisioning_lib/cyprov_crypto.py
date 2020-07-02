@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright (c) 2019-2020 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,6 @@ import logging
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
 from jose import jws, jwt
-from jose.backends import ECKey
 from jose.constants import ALGORITHMS
 from jose.utils import long_to_base64
 from datetime import datetime
@@ -52,14 +51,14 @@ class Crypto:
                             size=32
                         ).decode('utf-8')
 
-        logger.info("create_jwk()= " + json.dumps(pub_key, indent=4))
+        logger.debug("create_jwk()= " + json.dumps(pub_key, indent=4))
         return priv_key, pub_key
 
     @staticmethod
     def create_jwt(payload, ec_private_key):
         txt = jws.sign(payload, ec_private_key, algorithm=ALGORITHMS.ES256)
 
-        logger.info("create_jwt()= " + txt)
+        logger.debug("create_jwt()= " + txt)
         return txt
 
     @staticmethod
@@ -89,7 +88,6 @@ class Crypto:
                 t = datetime.fromtimestamp(t).isoformat(' ')
                 payload["exp"] = t
 
-        logger.info(json.dumps(readable, indent=4, sort_keys=False))
         return readable
 
     @staticmethod
@@ -129,16 +127,24 @@ class Crypto:
         """
         try:
             jws.verify(txt, ec_public_key, ALGORITHMS.ES256, verify=True)
-            logger.info('  JWT signature is valid')
             return True
-        except Exception:
-            logger.error('  JWT signature is not valid')
+        except jws.JWSError:
             return False
 
     @staticmethod
-    def create_x509_cert(pub_key, priv_key, prod_id, die_id=None, dev_id=None):
+    def read_json(filename):
         """
-        TODO: create a X.509 certificate here certifying pub_key, signed with private_key
+        Reads dictionary object from a JSON file
         """
-        cert = "CertificateToBeDone(die_id={},dev_id={},prod_id={})".format(die_id, dev_id, prod_id)
-        return cert
+        with open(filename) as f:
+            json_str = f.read()
+            d = json.loads(json_str)
+        return d
+
+    @staticmethod
+    def dump_json(data, filename):
+        """
+        Saves dictionary object to a JSON file
+        """
+        with open(filename, 'w') as f:
+            json.dump(data, f)

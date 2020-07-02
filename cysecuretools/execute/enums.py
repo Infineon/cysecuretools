@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+from enum import Enum
 from enum import IntEnum
 
 
@@ -29,13 +30,34 @@ class ProtectionState(IntEnum):
 
 class EntranceExamStatus(IntEnum):
     OK = 0
-    INVALID_MODE = 1
-    FIRMWARE_RUNNING_CM4 = 2
-    FIRMWARE_RUNNING_CM0 = 3
-    FLASH_NOT_EMPTY = 4
+    FAIL = 1
+    FLASH_NOT_EMPTY = 2
 
 
 class ProvisioningStatus(IntEnum):
     OK = 0
     FAIL = 1
     TERMINATED = 2
+
+
+class KeyId(IntEnum):
+    HSM = 4
+    OEM = 5
+    DEVICE = 1
+    GROUP = 12
+
+
+class KeyType(Enum):
+    """
+    Available key types.
+    """
+    user, encryption, device_public, group_public = range(4)
+
+
+class ImageType(Enum):
+    """
+    Available image types.
+    """
+    BOOT = 'BOOT'
+    UPGRADE = 'UPGRADE'
+    BOOTLOADER = 'BOOTLOADER'

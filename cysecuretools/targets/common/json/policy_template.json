@@ -15,7 +15,8 @@
             "permission" : "",
             "control" : "",
             "key" : 0,
-            "flash": false
+            "flashw": false,
+            "flashr": false
         },
         "rma" : {
             "permission" : "",
@@ -55,12 +56,10 @@
                 ],
                 "id": 0,
                 "launch": 0,
-                "smif_id": 0,
+                "acq_win": 0,
                 "clock_flags": 0,
+                "protect_flags": 0,
                 "upgrade": false,
-                "upgrade_auth": [
-                    0
-                ],
                 "resources": [
                     {
                         "type": "FLASH_PC1_SPM",
@@ -84,17 +83,15 @@
                     0
                 ],
                 "id": 0,
+                "launch": 0,
                 "monotonic": 0,
                 "smif_id": 0,
+                "acq_win": 0,
                 "multi_image" : 0,
                 "rollback_counter": 0,
                 "upgrade": false,
                 "encrypt": false,
                 "encrypt_key_id": 0,
-                "upgrade_auth": [
-                    0
-                ],
-
                 "resources": [
                     {
                         "type": "BOOT",
@@ -117,10 +114,8 @@
                 "smif_id": 0,
                 "multi_image" : 0,
                 "upgrade": false,
-                "upgrade_auth": [
-                    0
-                ],
-
+                "encrypt": false,
+                "encrypt_key_id": 0,
                 "resources": [
                     {
                         "type": "BOOT",
@@ -134,6 +129,20 @@
                     }
                 ]
             }
-        ]
+        ],
+        "reprogram": [
+            {
+                "start": 0,
+                "size": 0
+            },
+            {
+                "start": 0,
+                "size": 0
+            }
+        ],
+        "reprovision": {
+            "boot_loader": false,
+            "keys_and_policies": false
+        }
     }
 }

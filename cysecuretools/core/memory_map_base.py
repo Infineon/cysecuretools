@@ -57,11 +57,6 @@ class MemoryMapBase(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def SMIF_ID(self):
-        raise NotImplementedError
-
-    @property
-    @abc.abstractmethod
     def SMIF_MEM_MAP_START(self):
         raise NotImplementedError
 

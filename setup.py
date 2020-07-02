@@ -9,11 +9,15 @@ if sys.version_info[0] > 3:
 with open('README.md', **open_args) as f:
     readme = f.read()
 
+version = {}
+with open("cysecuretools/version.py") as f:
+    exec(f.read(), version)
+
 setup(
     name='cysecuretools',
-    version="1.4.0",
+    version=version['__version__'],
     setup_requires=[
-        'setuptools>=40.0,<46',
+        'setuptools>=40.0,!=46.0,<48',
         'pip>=19,!=20.0,!=20.0.1,<21'
         ],
     install_requires=[
@@ -22,7 +26,8 @@ setup(
         'intelhex>=2.2.1,<3',
         'python-jose>=3.0.1,<4',
         'jsonschema>=3.0.0,<4',
-        'pyocd==0.25.0'
+        'pyocd==0.27.0',
+        'cbor==1.0.0'
         ],
     description='Cypress secure tools for Python',
     long_description=readme,
@@ -50,4 +55,3 @@ setup(
         }
     }
 )
-

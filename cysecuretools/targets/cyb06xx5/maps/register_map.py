@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright (c) 2019-2020 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -29,6 +29,10 @@ class RegisterMap_cyb06xx5(RegisterMapBase):
     @property
     def ENTRANCE_EXAM_FW_STATUS_VAL(self):
         return 0xF0000000
+
+    @property
+    def ENTRANCE_EXAM_FW_STATUS_RE_VAL(self):
+        return 0xA0000000
 
     @property
     def ENTRANCE_EXAM_FW_STATUS_MASK(self):
@@ -67,6 +71,18 @@ class RegisterMap_cyb06xx5(RegisterMapBase):
         return 0xA1000101
 
     #
+    # LVD registers
+    #
+
+    @property
+    def PWR_LVD_CTL(self):
+        return 0x40260008
+
+    @property
+    def PWR_LVD_STATUS(self):
+        return 0x4026001C
+
+    #
     # PSoC 6 BLE register addresses
     #
 
@@ -87,13 +103,5 @@ class RegisterMap_cyb06xx5(RegisterMapBase):
         return 0x4022005C
 
     @property
-    def CYREG_CPUSS_PROTECTION(self):
-        return 0x402020C4
-
-    @property
     def CYREG_EFUSE_SECURE_HASH(self):
         return 0x402c0814
-
-    @property
-    def NVSTORE_AREA_1_ADDRESS(self):
-        return 0x101FB600

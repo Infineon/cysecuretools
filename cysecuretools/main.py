@@ -13,62 +13,92 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import json
+import logging
 import os
 import sys
-import logging
+from datetime import datetime
+
 from cryptography.hazmat.primitives import serialization
 
+import cysecuretools.execute.jwt as jwt
 import cysecuretools.execute.keygen as keygen
-import cysecuretools.execute.provisioning_packet as provisioning_packet
-from cysecuretools.execute.signtool import SignTool
-from cysecuretools.targets.common.policy_parser import KeyType, ImageType
+from cysecuretools.version import __version__
 from cysecuretools.core.bootloader_provider import BootloaderProvider
-from cysecuretools.execute.enums import ProtectionState, EntranceExamStatus, ProvisioningStatus
-from cysecuretools.execute.programmer.programmer import ProgrammingTool
-from cysecuretools.execute.entrance_exam import entrance_exam
-from cysecuretools.execute.provision_device import provision_execution
-from cysecuretools.execute.provisioning_lib.cyprov_pem import PemKey
-from cysecuretools.core.target_director import TargetDirector
-from cysecuretools.targets import target_map
+from cysecuretools.core.certificates.x509 import X509CertificateStrategy
 from cysecuretools.core.logging_formatter import CustomFormatter
-from cysecuretools.core.strategy_context import Context
-from cysecuretools.core.certificates.x509 import X509Strategy
+from cysecuretools.core.strategy_context.cert_strategy_ctx \
+    import CertificateContext
+from cysecuretools.core.strategy_context.encrypted_programming_strategy_ctx \
+    import EncryptedProgrammingContext
+from cysecuretools.core.strategy_context.prov_packet_strategy_ctx \
+    import ProvisioningPacketContext
+from cysecuretools.core.strategy_context.provisioning_strategy_ctx \
+    import ProvisioningContext
+from cysecuretools.core.target_director import TargetDirector
+from cysecuretools.core.project import ProjectInitializer
+from cysecuretools.execute.encrypted_programming.aes_header_strategy \
+    import AesHeaderStrategy
+from cysecuretools.execute.enums import (EntranceExamStatus,
+                                         ProvisioningStatus,
+                                         ImageType, KeyType, KeyId)
+from cysecuretools.execute.image_cert import ImageCertificate
+from cysecuretools.execute.key_reader import get_aes_key
+from cysecuretools.execute.programmer.programmer import ProgrammingTool
+from cysecuretools.execute.signtool import SignTool
+from cysecuretools.targets import print_targets
+from cysecuretools.targets import target_map
+from pyocd.core.exceptions import TransferFaultError, TransferError
 
+# Initialize logger
+logging.root.setLevel(logging.DEBUG)
 fmt = CustomFormatter()
-handler = logging.StreamHandler(sys.stdout)
-handler.setFormatter(fmt)
+console_handler = logging.StreamHandler(sys.stdout)
+console_handler.setFormatter(fmt)
+console_handler.setLevel(logging.INFO)
 logger = logging.getLogger(__name__)
-logger.root.addHandler(handler)
-logger.root.setLevel(logging.INFO)
-logging.getLogger('pyocd').setLevel(logging.WARNING)
+logger.root.addHandler(console_handler)
 
 
 class CySecureTools:
     """
-    Class provides methods for creating keys, signing user application and device provisioning.
+    Class provides methods for creating keys, signing user
+    application and device provisioning.
     """
     TOOLS_PATH = os.path.dirname(os.path.realpath(__file__))
-    CY_AUTH_JWT = os.path.join(TOOLS_PATH, 'targets/common/prebuilt/cy_auth.jwt')
-    OEM_STATE_JSON = os.path.join(TOOLS_PATH, 'targets/common/prebuilt/oem_state.json')
-    HSM_STATE_JSON = os.path.join(TOOLS_PATH, 'targets/common/prebuilt/hsm_state.json')
-    PROV_CMD_JWT = 'prov_cmd.jwt'
     PROGRAMMING_TOOL = 'pyocd'
 
-    def __init__(self, target, policy=None):
+    def __init__(self, target=None, policy=None, log_file=True):
         """
         Creates instance of the class
         :param target: Device manufacturing part number.
         :param policy: Provisioning policy file.
         """
+        if log_file:
+            add_file_logging()
+
+        self.inited = True
+        if not target:
+            print_targets()
+            self.inited = False
+            return
 
         self.target_name = target.lower().strip()
 
+        cwd = None
+        self.policy = None
         if policy is not None:
             self.policy = os.path.abspath(policy)
-            if not os.path.exists(self.policy):
-                raise ValueError(f'Cannot find file "{self.policy}"')
+        else:
+            if ProjectInitializer.is_project():
+                self.policy = ProjectInitializer.get_default_policy()
+                self.policy = os.path.abspath(self.policy)
+                cwd = os.getcwd()
 
-        self.target = self._get_target(self.target_name, policy)
+        if self.policy and not os.path.isfile(self.policy):
+            raise ValueError(f'Cannot find file "{self.policy}"')
+
+        self.target = self._get_target(self.target_name, self.policy, cwd)
 
         self.policy = self.target.policy
         self.memory_map = self.target.memory_map
@@ -76,19 +106,33 @@ class CySecureTools:
         self.policy_parser = self.target.policy_parser
         self.policy_validator = self.target.policy_validator
         self.policy_filter = self.target.policy_filter
+        self.target_dir = self.target.target_dir
 
         # Validate policy file
-        if not self.policy_validator.validate():
+        if not self.policy_validator.validate(skip=['pre_build']):
             raise RuntimeError('Policy validation failed')
 
-        self.bootloader_provider = BootloaderProvider(self.policy_parser, self.target_name)
+        self.target.key_reader = self.target.key_reader(self.target)
+        self.key_reader = self.target.key_reader
+        self.bootloader_provider = BootloaderProvider(self.target)
+        self.entr_exam = self.target.entrance_exam(self.target)
+        self.project_initializer = self.target.project_initializer(self.target)
+        self.tool = ProgrammingTool.create(self.PROGRAMMING_TOOL)
 
-    def create_keys(self, overwrite=None, out=None):
+    def create_keys(self, overwrite=None, out=None, kid=None,
+                    user_key_alg='ec'):
         """
-        Creates keys specified in policy file for image signing and encryption.
-        :param overwrite: Indicates whether overwrite keys in the output directory if they already exist.
-        If the value is None, a prompt will ask whether to overwrite existing keys.
-        :param out: Output directory for generated keys. By default keys location is as specified in the policy file.
+        Creates keys specified in policy file for image signing
+        :param overwrite: Indicates whether overwrite keys in the
+               output directory if they already exist. If the value
+               is None, a prompt will ask whether to overwrite
+               existing keys.
+        :param out: Output directory for generated keys. By default
+               keys location is as specified in the policy file.
+        :param kid: Key ID. Specified to generate the key with
+               specific ID only.
+        :param user_key_alg: User key algorithm
+        :return: True if key(s) created successfully, otherwise False.
         """
         # Find keys that have to be generated
         keys = self.policy_parser.get_keys(out)
@@ -97,14 +141,17 @@ class CySecureTools:
         if not overwrite:
             keys_exist = False
             for pair in keys:
-                if pair.key_type is KeyType.signing:
-                    keys_exist = keys_exist | os.path.isfile(pair.json_key_path)
-                    keys_exist = keys_exist | os.path.isfile(pair.pem_key_path)
-                elif pair.key_type is KeyType.encryption:
-                    keys_exist = keys_exist | os.path.isfile(pair.json_key_path)
+                if pair.key_type is KeyType.user:
+                    if pair.image_type == ImageType.BOOTLOADER:
+                        continue
+                    keys_exist = keys_exist | os.path.isfile(
+                        pair.json_key_path)
+                    keys_exist = keys_exist | os.path.isfile(
+                        pair.pem_key_path)
             if keys_exist:
                 if overwrite is None:
-                    answer = input('Keys directory is not empty. Overwrite? (y/n): ')
+                    answer = input(
+                        'Keys directory is not empty. Overwrite? (y/n): ')
                     if answer.lower() != 'y':
                         return
                 elif overwrite is False:
@@ -113,42 +160,41 @@ class CySecureTools:
         # Generate keys
         seen = []
         for pair in keys:
-            if pair.key_type is KeyType.signing:
-                if {pair.key_id, pair.json_key_path} in seen:
+            if pair.image_type == ImageType.BOOTLOADER:
+                continue
+            if pair.key_type is KeyType.user:
+                if {pair.key_id, pair.json_key_path} in seen or \
+                        (kid is not None and pair.key_id != kid):
                     continue
                 else:
                     seen.append({pair.key_id, pair.json_key_path})
-                args = [
-                    '--kid', pair.key_id,
-                    '--jwk', pair.json_key_path,
-                    '--pem-priv', pair.pem_key_path
-                ]
-            elif pair.key_type is KeyType.encryption:
-                args = [
-                    '--aes', pair.json_key_path
-                ]
+
+                if user_key_alg == 'ec':
+                    keygen.generate_ecdsa_key(pair.key_id, pair.json_key_path,
+                                              pair.pem_key_path)
+                else:
+                    raise ValueError(f'Invalid key algorithm {user_key_alg}.')
             else:
                 continue
 
-            logger.debug(f'Starting key generation with arguments: {args}')
-            try:
-                keygen.main(args)
-            except SystemExit as e:
-                if e.code != 0:
-                    logger.error(f'An error occurred while running keygen with arguments: {args}')
-                    return False
-                else:
-                    return True
+        return True
 
-    def sign_image(self, hex_file, image_id=4):
+    def sign_image(self, hex_file, image_id=4, image_type=None,
+                   encrypt_key=None):
         """
         Signs firmware image with the key specified in the policy file.
         :param hex_file: User application hex file.
         :param image_id: The ID of the firmware in policy file.
+        :param image_type: Image type (BOOT or UPGRADE).
+        :param encrypt_key: Path to public key file
+               for the image encryption
         :return: Signed (and encrypted if applicable) hex files path.
         """
-        sign_tool = SignTool(self.policy, self.memory_map, self.target_builder)
-        result = sign_tool.sign_image(hex_file=hex_file, image_id=image_id)
+        sign_tool = SignTool(self.policy, self.memory_map)
+        result = sign_tool.sign_image(hex_file=hex_file,
+                                      image_id=image_id,
+                                      image_type=image_type,
+                                      encrypt_key=encrypt_key)
         return result
 
     def create_provisioning_packet(self):
@@ -156,168 +202,499 @@ class CySecureTools:
         Creates JWT packet for provisioning device.
         :return: True if packet created successfully, otherwise False.
         """
+        if not self.policy_validator.validate():
+            logger.error('Policy validation failed')
+            return False
+
         filtered_policy = self.policy_filter.filter_policy()
 
-        # Get CyBootloader jwt
-        cy_bootloader_jwt = self.bootloader_provider.get_jwt_path()
-        if not os.path.isfile(cy_bootloader_jwt):
-            logger.error(f'Cannot find bootloader file \'{cy_bootloader_jwt}\'')
+        # Get bootloader image certificate
+        image_cert = self.bootloader_provider.get_jwt_path()
+        if not os.path.isfile(image_cert):
+            logger.error(f'Cannot find bootloader file \'{image_cert}\'')
             return False
 
-        # Get certificates
+        # Get user certificates
         certs = self.policy_parser.get_chain_of_trust()
-
-        # Get a key
-        key = [x for x in self.policy_parser.get_keys() if x.image_type == ImageType.BOOT]
-        if not key:
-            logger.error('FAIL: Failed to create provisioning packet. Key not found')
-            return False
-        json_key_path = key[0].json_key_path
-        if not os.path.isfile(json_key_path):
-            logger.error(f'Cannot find the key \'{json_key_path}\'')
-            return False
-
-        packet_dir = self.policy_parser.get_provisioning_packet_dir()
-
-        args = [
-            '--policy', filtered_policy,
-            '--cyboot', cy_bootloader_jwt,
-            '--cyauth', self.CY_AUTH_JWT,
-            '--out', packet_dir,
-            '--ckey', json_key_path,
-            '--oem', self.OEM_STATE_JSON,
-            '--hsm', self.HSM_STATE_JSON,
-        ]
-
+        dev_certs = ()
         for cert in certs:
-            args.append('--devcert')
-            args.append(cert)
+            dev_certs = dev_certs + (cert,)
 
-        logger.debug(f'Starting provisioning packet generation with the arguments: {args}')
-        try:
-            provisioning_packet.main(args)
-        except SystemExit as e:
-            if e.code != 0:
-                logger.error(f'An error occurred while running provisioning packet generator with arguments: {args}')
-            return e.code == 0
+        context = ProvisioningPacketContext(
+            self.target.provisioning_packet_strategy)
+        return context.create(filtered_policy=filtered_policy,
+                              image_cert=image_cert, dev_cert=dev_certs)
 
-    def provision_device(self, probe_id=None, protection_state=ProtectionState.secure):
+    def provision_device(self, probe_id=None, ap='cm4'):
         """
-        Executes device provisioning - the process of attaching a certificate to the device identity.
+        Executes device provisioning - the process of creating device
+        identity, attaching policy and bootloader.
         :param probe_id: Probe serial number.
-        :param protection_state: Expected target protection state. The argument is for Cypress internal use only.
+        :param ap: The access port used for provisioning
         :return: Provisioning result. True if success, otherwise False.
         """
-        pub_key = [x for x in self.policy_parser.get_keys() if x.key_type == KeyType.device_public]
-        if not pub_key:
-            logger.error('Failed to provision device. Device public key path not found')
-            return False
-        pub_key_json = pub_key[0].json_key_path
-        pub_key_pem = pub_key[0].pem_key_path
-
-        # Get CyBootloader hex
-        cy_bootloader_hex = self.bootloader_provider.get_hex_path()
-        if not os.path.isfile(cy_bootloader_hex):
-            logger.error(f'Cannot find bootloader file \'{cy_bootloader_hex}\'')
+        # Get bootloader program file
+        if not self.policy_validator.validate():
+            logger.error('Policy validation failed')
             return False
 
-        packet_dir = self.policy_parser.get_provisioning_packet_dir()
-        prov_cmd = os.path.join(packet_dir, self.PROV_CMD_JWT)
-
-        if not os.path.isfile(prov_cmd):
-            logger.error(f'Cannot find provisioning packet file \'{prov_cmd}\'')
+        bootloader = self.bootloader_provider.get_hex_path()
+        if not os.path.isfile(bootloader):
+            logger.error(f'Cannot find bootloader file \'{bootloader}\'')
             return False
 
-        tool = ProgrammingTool.create(self.PROGRAMMING_TOOL)
-        if tool.connect(self.target_name, probe_id=probe_id):
-            status = provision_execution(tool, pub_key_json, prov_cmd, cy_bootloader_hex, self.memory_map,
-                                         self.register_map, ProtectionState(protection_state))
-            tool.disconnect()
+        context = ProvisioningContext(self.target.provisioning_strategy)
 
-        if status == ProvisioningStatus.OK:
-            # Read device public key from response file and save the key in pem format
-            if os.path.exists(pub_key_json) and os.stat(pub_key_json).st_size > 0:
-                pem = PemKey(pub_key_json)
-                pem.save(pub_key_pem, private_key=False)
-                return True
+        try:
+            if self.tool.connect(self.target_name, probe_id=probe_id, ap=ap):
+                status = context.provision(self.tool, self.target,
+                                           self.entr_exam, bootloader,
+                                           probe_id=probe_id, ap=ap)
+                self.tool.disconnect()
             else:
-                logger.error('Failed to read device public key')
-        elif status == ProvisioningStatus.FAIL:
+                status = ProvisioningStatus.FAIL
+        except (TransferFaultError, TransferError) as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
+            status = ProvisioningStatus.FAIL
+
+        if status == ProvisioningStatus.FAIL:
+            logger.error('Error occurred while provisioning device')
+            return False
+
+        return True
+
+    def re_provision_device(self, probe_id=None, ap='sysap', erase_boot=False,
+                            control_dap_cert=None):
+        """
+        Executes device re-provisioning
+        :param probe_id: Probe serial number.
+        :param ap: The access port used for re-provisioning
+        :param erase_boot: Indicates whether erase BOOT slot
+        :param control_dap_cert: The certificate that provides the
+               access to control DAP
+        :return: Provisioning result. True if success, otherwise False.
+        """
+        # Get bootloader program file
+        if not self.policy_validator.validate():
+            logger.error('Policy validation failed')
+            return False
+
+        btldr = self.bootloader_provider.get_hex_path()
+        if not os.path.isfile(btldr):
+            logger.error(f'Cannot find bootloader file \'{btldr}\'')
+            return False
+
+        context = ProvisioningContext(self.target.provisioning_strategy)
+
+        try:
+            if self.tool.connect(self.target_name, probe_id=probe_id, ap=ap):
+                status = context.re_provision(
+                    self.tool, self.target, btldr, erase_boot=erase_boot,
+                    control_dap_cert=control_dap_cert, ap=ap,
+                    probe_id=probe_id)
+                self.tool.disconnect()
+            else:
+                status = ProvisioningStatus.FAIL
+        except (TransferFaultError, TransferError) as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
+            status = ProvisioningStatus.FAIL
+
+        if status == ProvisioningStatus.FAIL:
             logger.error('Error occurred while provisioning device')
 
-        return False
+        return status == ProvisioningStatus.OK
 
-    def create_x509_certificate(self, cert_name='psoc_cert.pem', cert_encoding=serialization.Encoding.PEM,
-                                probe_id=None, protection_state=ProtectionState.secure, **kwargs):
+    def create_x509_certificate(self, cert_name='psoc_cert.pem',
+                                cert_encoding=serialization.Encoding.PEM,
+                                probe_id=None, **kwargs):
         """
         Creates certificate in X.509 format.
         :param cert_name: Filename
         :param cert_encoding: Certificate encoding
         :param probe_id: The probe ID. Used for default certificate generation
-        :param protection_state: Device protection state. Used for default certificate generation
         :param kwargs: Dictionary with the certificate fields
         :return The certificate object.
         """
-        context = Context(X509Strategy())
+        context = CertificateContext(X509CertificateStrategy())
 
-        expected_fields = ['subject_name', 'country', 'state', 'organization', 'issuer_name', 'private_key']
-        all_fields_present = all(k in kwargs and kwargs[k] is not None for k in expected_fields)
+        expected_fields = ['subject_name', 'country', 'state', 'organization',
+                           'issuer_name', 'private_key']
+        all_fields_present = all(
+            k in kwargs and kwargs[k] is not None for k in expected_fields)
         serial = kwargs.get('serial_number')
         public_key = kwargs.get('public_key')
 
         if not all_fields_present or not serial or not public_key:
-            tool = ProgrammingTool.create(self.PROGRAMMING_TOOL)
-            default = context.default_certificate_data(tool, self.target, protection_state, probe_id)
+            logger.info('Get default certificate data')
+            try:
+                default = context.default_certificate_data(
+                    self.tool, self.target, self.entr_exam, probe_id)
+                if not default:
+                    logger.error('Failed to get data for the certificate')
+                    return None
+            except (TransferFaultError, TransferError) as e:
+                logger.error(e)
+                logger.debug(e, exc_info=True)
+                return None
 
-        for field in expected_fields:
-            if field not in kwargs or kwargs[field] is None:
-                kwargs[field] = default[field]
+            for field in expected_fields:
+                if field not in kwargs or kwargs[field] is None:
+                    kwargs[field] = default[field]
 
-        if not serial:
-            kwargs['serial_number'] = default['serial_number']
-        if not public_key:
-            kwargs['public_key'] = default['public_key']
+            if not serial:
+                kwargs['serial_number'] = default['serial_number']
+            if not public_key:
+                kwargs['public_key'] = default['public_key']
 
+        logger.info('Create certificate')
         return context.create_certificate(cert_name, cert_encoding, **kwargs)
 
-    def entrance_exam(self):
+    def entrance_exam(self, probe_id=None, ap='cm4'):
         """
         Checks device life-cycle, Flashboot firmware and Flash state.
-        :return True if the device is ready for provisioning, otherwise False.
+        :param probe_id: Probe serial number.
+        :param ap: The access port used for entrance exam
+        :return True if the device is ready for provisioning,
+                otherwise False.
         """
         status = False
-        tool = ProgrammingTool.create(self.PROGRAMMING_TOOL)
-        if tool.connect(self.target_name):
-            status = entrance_exam(tool, self.register_map)
-            tool.disconnect()
+        try:
+            if self.tool.connect(self.target_name, probe_id=probe_id, ap=ap):
+                status = self.entr_exam.execute(self.tool)
+                if status == EntranceExamStatus.FLASH_NOT_EMPTY:
+                    answer = input(
+                        'Erase user firmware running on chip? (y/n): ')
+                    if answer.lower() == 'y':
+                        context = ProvisioningContext(
+                            self.target.provisioning_strategy)
+                        context.erase_flash(self.tool, self.target)
+                self.tool.disconnect()
+        except (TransferFaultError, TransferError) as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
+            status = EntranceExamStatus.FAIL
 
         return status == EntranceExamStatus.OK
 
-    def flash_map(self, image_id=4):
+    def flash_map(self, image_id=4, image_type=ImageType.BOOT.name):
         """
         Extracts information about slots from given policy.
         :param image_id: The ID of the firmware in policy file.
+        :param image_type: The image type - BOOT or UPGRADE.
         :return: Address for specified image, size for specified image.
         """
         # Find keys that have to be generated
-        address, size = self.policy_parser.get_image_data(image_id, ImageType.BOOT.name)
-
-        if address is None or size is None:
-            logger.error('Cannot find image address in the policy file')
-            return None, None
-
-        address = address + self.memory_map.MCUBOOT_HEADER_SIZE
-        size = size - self.memory_map.MCUBOOT_HEADER_SIZE - self.memory_map.trailer_size()
+        data = self.policy_parser.get_image_data(image_type.upper(), image_id)
+        if len(data) > 0:
+            address, size = data[0]
+        else:
+            logger.error(f'Cannot find image with id {image_id} and type '
+                         f'\'{image_type}\' in the policy file')
+            address, size = None, None
 
         return address, size
 
-    def _get_target(self, target_name, policy):
-        director = TargetDirector()
+    def create_image_certificate(self, image, key, output, version, image_id=0,
+                                 exp_date_str='Jan 1 2031'):
+        """
+        Creates Bootloader image certificate.
+        :param image: Image path.
+        :param key: Key path.
+        :param output: Output certificate file path.
+        :param version: Image version.
+        :param image_id: Image ID.
+        :param exp_date_str: Certificate expiration date.
+        :return: True if certificate created successfully, otherwise False.
+        """
+        if key is None:
+            policy_keys = self.policy_parser.get_keys(
+                image_type=ImageType.BOOTLOADER)
+            if not policy_keys:
+                logger.error('Failed to create image certificate. Key not '
+                             'specified neither in policy nor as an argument')
+                return False
+            key = os.path.abspath(policy_keys[0].json_key_path)
 
+        if not os.path.isfile(key):
+            logger.error(f'Cannot find the key \'{key}\'')
+            return False
+
+        image = os.path.abspath(image)
+        output = os.path.abspath(output)
+        image_cert = ImageCertificate(image, key, output, version, image_id,
+                                      exp_date_str)
+        image_cert.create()
+        logger.info(f'Image certificate was created successfully')
+        logger.info(f'Image version: {version}')
+        logger.info(f'Certificate: {output}')
+        return True
+
+    def encrypt_image(self,
+                      image,
+                      host_key_id: KeyId,
+                      dev_key_id: KeyId,
+                      algorithm='ECC',
+                      key_length=16,
+                      encrypted_image='encrypted_image.txt',
+                      padding_value=0,
+                      probe_id=None):
+        """
+        Creates encrypted image for encrypted programming.
+        :param image: The image to encrypt.
+        :param host_key_id: Host private key ID (4 - HSM, 5 - OEM).
+        :param dev_key_id: Device public key ID (1 - device, 12 - group).
+        :param algorithm: Asymmetric algorithm for key derivation function.
+        :param key_length: Derived key length.
+        :param encrypted_image: Output file of encrypted image for
+               encrypted programming.
+        :param padding_value: Value for image padding.
+        :param probe_id: Probe serial number.
+               Used to read device public key from device.
+        """
+        # Get host private key
+        if not self.policy_validator.validate():
+            logger.error('Policy validation failed')
+            return False
+
+        logger.debug(f'Host key id = {host_key_id}')
         try:
-            director.builder = target_map[target_name]()
-            self.target_builder = director.builder
+            _, host_key_pem = self.policy_parser.get_private_key(host_key_id)
+        except ValueError as ex:
+            logger.error(ex)
+            return False
+
+        # Get public key
+        pub_key_pem = None
+        logger.debug(f'Device key id = {dev_key_id}')
+        try:
+            connected = self.tool.connect(self.target_name, probe_id=probe_id,
+                                          blocking=False, ap='sysap')
+            if connected:
+                logger.info('Read device public key from device')
+                pub_key_pem = self.key_reader.read_public_key(
+                    self.tool, dev_key_id, 'pem')
+                self.tool.disconnect()
+        except (TransferFaultError, TransferError) as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
+            return False
+
+        if not connected or not pub_key_pem:
+            logger.info(f'Read public key {dev_key_id} from file')
+            try:
+                _, pub_key_pem = self.policy_parser.get_public_key(
+                    dev_key_id, pre_build=True)
+            except ValueError as ex:
+                logger.error(ex)
+                return False
+
+        # Create AES key
+        key_to_encrypt = get_aes_key(key_length)
+
+        # Create encrypted image
+        context = EncryptedProgrammingContext(AesHeaderStrategy)
+        aes_header = context.create_header(
+            host_key_pem, pub_key_pem, key_to_encrypt, algorithm, key_length)
+        context.create_encrypted_image(
+            image, key_to_encrypt, aes_header, host_key_id, dev_key_id,
+            encrypted_image, padding_value)
+        return True
+
+    def encrypted_programming(self, encrypted_image, probe_id=None):
+        """
+        Programs encrypted image.
+        :param encrypted_image: The encrypted image to program.
+        :param probe_id: Probe serial number.
+        :return: True if the image programmed successfully, otherwise False.
+        """
+        context = EncryptedProgrammingContext(AesHeaderStrategy)
+        try:
+            self.tool.connect(self.target_name, probe_id=probe_id, ap='sysap')
+            result = context.program(self.tool, self.target, encrypted_image)
+            self.tool.disconnect()
+        except (TransferFaultError, TransferError) as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
+            result = False
+        return result
+
+    def read_public_key(self, key_id, key_fmt, out_file=None, probe_id=None):
+        """
+        Reads public key from device and saves it to the file
+        :param key_id: Key ID to read
+        :param key_fmt: Key format (jwk or pem)
+        :param out_file: Filename where to save the key
+        :param probe_id: Probe serial number
+        :return: Key if it read successfully, otherwise None
+        """
+        try:
+            self.tool.connect(self.target_name, probe_id=probe_id, ap='sysap')
+            key = self.key_reader.read_public_key(self.tool, key_id, key_fmt)
+            if out_file:
+                out_file = os.path.abspath(out_file)
+                with open(out_file, 'w') as fp:
+                    if key_fmt == 'jwk':
+                        json.dump(key, fp, indent=4)
+                    elif key_fmt == 'pem':
+                        fp.write(key.decode("utf-8"))
+                    else:
+                        fp.write(str(key))
+                logger.info(f'Key saved: {out_file}')
+            self.tool.disconnect()
+        except (ValueError, FileNotFoundError) as e:
+            logger.error(e)
+            key = None
+        except (TransferFaultError, TransferError) as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
+            key = None
+        return key
+
+    def sign_json(self, json_file, priv_key_id, output_file):
+        """
+        Signs JSON file with the private key
+        :param json_file: JSON file to be signed
+        :param priv_key_id: Private Key ID to sign the file
+               with (1 - DEVICE, 4 - HSM, 5 - OEM, 12 - GROUP
+        :param output_file: Filename where to save the JWT. If not
+               specified, the input file name with "jwt" extension
+               will be used
+        :return: The JWT
+        """
+        logger.info(f'Signing file {os.path.abspath(json_file)}')
+        if not self.policy_validator.validate():
+            logger.error('Policy validation failed')
+            return None
+
+        logger.debug(f'Private key id = {priv_key_id}')
+        try:
+            jwk, _ = self.policy_parser.get_private_key(priv_key_id)
+        except ValueError as ex:
+            logger.error(ex)
+            return None
+
+        if not output_file:
+            output_file = '{0}.jwt'.format(os.path.splitext(json_file)[0])
+        output_file = os.path.abspath(output_file)
+        jwt_text = jwt.json_to_jwt(json_file, jwk, output_file)
+        logger.info(f'Created file {output_file}')
+        return jwt_text
+
+    def print_version(self, probe_id=None, ap='sysap'):
+        """
+        Outputs CyBootloader version bundled with the package. If
+        device is connected outputs CyBootloader and Secure Flash
+        Boot version programmed into device
+        :param probe_id: Probe serial number
+        :param ap: The access port used for to read CyBootloader and
+               Secure Flash Boot version from device
+        """
+        context = ProvisioningContext(self.target.provisioning_strategy)
+        sfb_version = 'unknown'
+        connected = False
+        cert = None
+        try:
+            connected = self.tool.connect(self.target_name, probe_id=probe_id,
+                                          blocking=False, ap=ap)
+            if connected:
+                sfb_version = self.entr_exam.read_sfb_version(self.tool)
+                cert = context.read_image_certificate(self.tool, self.target)
+                self.tool.disconnect()
+        except (TransferFaultError, TransferError) as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
+            cert = None
+
+        print_version([self.target_name])
+        if connected:
+            if cert:
+                bootloader_version = ImageCertificate.get_version(cert)
+            else:
+                bootloader_version = 'unknown'
+            print('Device:')
+            print(f'\tCyBootloader: {bootloader_version}')
+            print(f'\tSecure Flash Boot: {sfb_version}')
+
+    def init(self):
+        """
+        Initializes new project
+        """
+        cwd = os.getcwd()
+        self.project_initializer.init(cwd)
+
+    @staticmethod
+    def get_target_builder(director, target_name):
+        try:
+            director.builder = target_map[target_name]['class']()
+            return director.builder
         except KeyError:
             raise ValueError(f'Unknown target "{target_name}"')
 
-        return director.get_target(policy, target_name)
+    def _get_target(self, target_name, policy, cwd):
+        director = TargetDirector()
+        self.target_builder = self.get_target_builder(director, target_name)
+        return director.get_target(policy, target_name, cwd)
+
+    @staticmethod
+    def device_list():
+        print_targets()
+        return True
+
+
+def print_version(targets):
+    """
+    Prints the package version and CyBootloader version bundled with
+    the package for the specified targets
+    :param targets: The list of targets
+    """
+    versions = []
+    for target_name in targets:
+        director = TargetDirector()
+        CySecureTools.get_target_builder(director, target_name)
+        target = director.get_target(None, target_name, None)
+        policy_path = target.policy
+        tools = CySecureTools(target.name, policy_path, log_file=False)
+        jwt_filename = tools.bootloader_provider.get_jwt_path(mode='release')
+        if not os.path.isfile(jwt_filename):
+            logger.error(f'File {jwt_filename} not found')
+            continue
+        version = ImageCertificate.get_version(jwt_filename)
+        if len(targets) == 1:
+            versions.append(f'{version}')
+        else:
+            target_name = target_map[target.name]["display_name"]
+            versions.append(f'\t\t{target_name}: {version}')
+
+    print('\nPackage:')
+    print(f'\tCySecureTools: {__version__}')
+    end_str = '' if len(targets) == 1 or not versions else '\n'
+    print('\tCyBootloader: ', end=end_str)
+    if versions:
+        for item in versions:
+            print(item)
+    else:
+        print('unknown')
+
+
+def set_logger_level(level):
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    for handler in root_logger.handlers:
+        if isinstance(handler, type(logging.StreamHandler())):
+            handler.setLevel(level)
+
+
+def add_file_logging():
+    if ProjectInitializer.is_project():
+        cwd = os.getcwd()
+    else:
+        cwd = os.path.dirname(os.path.abspath(__file__))
+    log_filename = datetime.now().strftime(
+        os.path.join(cwd, 'logs/cysecuretools_%Y-%m-%d_%H-%M-%S.log'))
+    os.makedirs(os.path.dirname(log_filename), exist_ok=True)
+    file_handler = logging.FileHandler(log_filename, mode='w+')
+    file_handler.setLevel(logging.DEBUG)
+    file_handler.setFormatter(fmt)
+    logger.root.addHandler(file_handler)

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright (c) 2019-2020 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,18 +15,18 @@ limitations under the License.
 """
 import os
 import logging
-import cysecuretools
+from cysecuretools.core.project import ProjectInitializer
 from cysecuretools.core.cy_bootloader_map_parser import CyBootloaderMapParser
 
 logger = logging.getLogger(__name__)
 
 
 class BootloaderProvider:
-    def __init__(self, policy_parser, target):
-        self.policy_parser = policy_parser
+    def __init__(self, target):
         self.target = target
+        self.policy_parser = target.policy_parser
         self.mode = self.policy_parser.get_cybootloader_mode()
-        self.pkg_path = os.path.dirname(os.path.abspath(cysecuretools.__file__))
+        self.cb_dir = ProjectInitializer.prebuilt_dir_name
 
     def get_hex_path(self):
         """
@@ -34,26 +34,43 @@ class BootloaderProvider:
         :return: File path.
         """
         if self.mode == 'custom':
-            path = self.policy_parser.get_cybootloader_hex()
+            filename = self.policy_parser.get_cybootloader_hex()
         else:
-            filename = CyBootloaderMapParser.get_filename(self.target, self.mode, 'hex')
+            filename = CyBootloaderMapParser.get_filename(
+                self.target.name, self.mode, 'hex')
             if filename is None:
-                logger.error(f'CyBootloader data not found for target {self.target}, mode \'{self.mode}\'')
+                logger.error(f'CyBootloader data not found for target '
+                             f'{self.target.name}, mode \'{self.mode}\'')
                 return ''
-            path = os.path.join(self.pkg_path, filename)
-        return path
+            if self.target.cwd:
+                filename = os.path.join(self.target.cwd, self.cb_dir, filename)
+            else:
+                filename = os.path.join(self.target.target_dir, self.cb_dir,
+                                        filename)
+        return os.path.abspath(filename)
 
-    def get_jwt_path(self):
+    def get_jwt_path(self, mode=None):
         """
         Gets CyBootloader jwt-file path.
+        :param mode: CyBootloader mode (release or debug). If not
+               specified, the mode specified in policy will be used
         :return: File path.
         """
-        if self.mode == 'custom':
-            path = self.policy_parser.get_cybootloader_jwt()
+        if not mode:
+            mode = self.mode
+        if mode == 'custom':
+            filename = self.policy_parser.get_cybootloader_jwt()
         else:
-            filename = CyBootloaderMapParser.get_filename(self.target, self.mode, 'jwt')
+            filename = CyBootloaderMapParser.get_filename(
+                self.target.name, mode, 'jwt')
             if filename is None:
-                logger.error(f'CyBootloader data not found for target {self.target}, mode \'{self.mode}\'')
+                logger.error(f'CyBootloader data not found for target '
+                             f'{self.target.name}, mode \'{mode}\'')
                 return ''
-            path = os.path.join(self.pkg_path, filename)
-        return path
+
+            if self.target.cwd:
+                filename = os.path.join(self.target.cwd, self.cb_dir, filename)
+            else:
+                filename = os.path.join(self.target.target_dir, self.cb_dir,
+                                        filename)
+        return os.path.abspath(filename)

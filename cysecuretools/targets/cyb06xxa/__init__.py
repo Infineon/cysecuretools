@@ -1,0 +1,1 @@
+from cysecuretools.targets.cyb06xxa.target_builder import CYB06xxA_Builder

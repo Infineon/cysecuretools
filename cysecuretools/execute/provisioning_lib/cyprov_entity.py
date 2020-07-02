@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import json
+import os
+from cysecuretools.execute.key_reader import load_key
 
 
 # Cypress Entity
@@ -24,25 +26,26 @@ class Entity:
         self.state_loaded = False
         self.audit_name = audit_name
         Entity.load_state(self)
-        
+
     def load_state(self):
-        try:
-            with open(self.state_name, "r+") as f:
-                self.state = json.loads(f.read())
-                f.close()
-                self.state_loaded = True
-        except FileNotFoundError:
+        if os.path.exists(self.state_name):
+            priv_key, pub_key = load_key(self.state_name)
+            if priv_key:
+                self.state['custom_priv_key'] = priv_key
+            if pub_key:
+                self.state['custom_pub_key'] = pub_key
+        else:
             self.state = {}
             self.state_loaded = False
-            
+
     def save_state(self):
-        if not self.state_loaded :
+        if not self.state_loaded:
             raise Exception("Internal error - state not loaded")
         with open(self.state_name, "w") as f:
             f.write(json.dumps(self.state, indent=4))
             f.close()
-        
+
     def append_audit_record(self, record):
         with open(self.audit_name, "a") as f:
-            f.write( json.dumps(record, indent=4) + "\n")
+            f.write(json.dumps(record, indent=4) + "\n")
             f.close()

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright (c) 2019-2020 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,8 +17,10 @@ import os
 import errno
 import json
 import copy
+import logging
 from cysecuretools.core import PolicyFilterBase
 
+logger = logging.getLogger(__name__)
 
 class PolicyFilter(PolicyFilterBase):
     def __init__(self, policy_parser, policy_template='json/policy_template.json'):
@@ -37,15 +39,20 @@ class PolicyFilter(PolicyFilterBase):
         """
         sdk_path = os.path.dirname(os.path.realpath(__file__))
 
-        if not os.path.isabs(self.policy_template):
-            policy_template = os.path.join(sdk_path, self.policy_template)
-
+        policy_template = self.policy_template if os.path.isabs(self.policy_template) \
+            else os.path.join(sdk_path, self.policy_template)
         with open(policy_template) as f:
             file_content = f.read()
             json_template = json.loads(file_content)
 
         self.parse_node(self.json_data, json_template)
         json_template = self.filter_extra_fields(self.json_data, json_template)
+
+        custom_data_list = 'custom_data_sections'
+        if custom_data_list in self.json_data:
+            for field in self.json_data[custom_data_list]:
+                json_template = self.add_custom_nodes(self.json_data, json_template, field)
+
         filtered_policy = os.path.join(sdk_path, 'json/filtered.json')
 
         if not os.path.exists(os.path.dirname(filtered_policy)):
@@ -78,7 +85,6 @@ class PolicyFilter(PolicyFilterBase):
                                 if not isinstance(d_elem, dict):  # process values in the list
                                     if t_i == d_i:
                                         t_value[t_i] = d_elem
-                                        break
                                 else:                             # process dictionary in the list
                                     self.parse_node(d_elem, t_elem)
                             else:
@@ -106,4 +112,21 @@ class PolicyFilter(PolicyFilterBase):
             for t_i in tslot:
                 if t_i not in dslot:
                     del tc['boot_upgrade']['firmware'][i][t_i]
+        return tc
+
+    @staticmethod
+    def add_custom_nodes(data, template, obj):
+        """
+        Copies custom JSON data from the data dictionary to the template dictionary.
+        :param data: Dictionary that contains data to copy.
+        :param template: Dictionary, which is template that contains placeholders where to copy the data.
+        :param obj: data key to copy
+        :return: Updated dictionary.
+        """
+
+        tc = copy.deepcopy(template)
+        for item in data:
+            if item == obj:
+                logger.debug("Copying custom section '{}': {}".format(item, data[item]))
+                tc[obj] = data[item]
         return tc

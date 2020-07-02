@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright (c) 2019-2020 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
+import json
 import logging
 import datetime
 from cryptography import x509
@@ -21,18 +22,19 @@ from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
-from cysecuretools.execute.enums import ProtectionState
-from cysecuretools.core.strategy_context import Strategy
+from cysecuretools.execute.key_reader import load_key
+from cysecuretools.execute.enums import KeyId
+from cysecuretools.core.strategy_context.cert_strategy_ctx import CertificateStrategy
+from cysecuretools.core.target_director import Target
+from cysecuretools.execute.entrance_exam.exam_mxs40v1 import EntranceExamMXS40v1
 from cysecuretools.execute.provisioning_lib.cyprov_pem import PemKey
 from cysecuretools.targets.common.silicon_data_parser import SiliconDataParser
-from cysecuretools.execute.provision_device import read_silicon_data, read_public_key
+from cysecuretools.execute.provision_device_mxs40v1 import read_silicon_data
 
-HSM = os.path.join(os.path.dirname(__file__), '../../targets/common/prebuilt/hsm_private_key.json')
-ROT_CMD_JWT = os.path.join(os.path.dirname(__file__), '../../targets/common/prebuilt/rot_cmd.jwt')
 logger = logging.getLogger(__name__)
 
 
-class X509Strategy(Strategy):
+class X509CertificateStrategy(CertificateStrategy):
     def create_certificate(self, cert_name, cert_encoding,
                            subject_name,
                            issuer_name,
@@ -48,18 +50,21 @@ class X509Strategy(Strategy):
         Creates certificate in X.509 format.
         """
         # Check public key exists and convert to PEM if JWK passed
-        if os.path.isfile(public_key):
+        if os.path.isfile(str(public_key)):
             if public_key.lower().endswith('.json'):
-                serialized_public = self.jwk_file_to_pem(public_key, private_key=False)
+                serialized_public = self.jwk_file_to_pem(public_key,
+                                                         private_key=False)
             else:
                 serialized_public = self.load_pem(public_key)
         else:
             serialized_public = self.jwk_to_pem(public_key)
 
         # Check private key exists and convert to PEM if JWK passed
-        if os.path.isfile(private_key):
+        if os.path.isfile(str(private_key)):
             if private_key.lower().endswith('.json'):
-                serialized_private = self.jwk_file_to_pem(private_key, private_key=True)
+                private_key, _ = load_key(private_key)
+                serialized_private = self.jwk_file_to_pem(private_key,
+                                                          private_key=True)
             else:
                 serialized_private = self.load_pem(private_key)
         else:
@@ -91,37 +96,48 @@ class X509Strategy(Strategy):
         with open(cert_name, 'wb') as f:
             f.write(certificate.public_bytes(cert_encoding))
 
+        if certificate:
+            logger.info(f'Certificate created: {os.path.abspath(cert_name)}')
         return certificate
 
-    def default_certificate_data(self, tool, target, protection_state=ProtectionState.secure, probe_id=None):
+    def default_certificate_data(self, tool, target: Target, entrance_exam: EntranceExamMXS40v1, probe_id=None):
         """
         Gets a dictionary with the default values.
         Default certificate requires device to be connected to read device public key and die ID,
         which are used as a certificate fields.
         :param tool: Programming tool to connect to device
         :param target: Target object
-        :param protection_state: Device protection state
+        :param entrance_exam: The object used to execute entrance exam before provisioning.
         :param probe_id: Probe ID. Need to be used if more than one device is connected to the computer.
         :return: Dictionary with the certificate fields.
         """
         # Read silicon data
-        if tool.connect(target.name, probe_id=probe_id):
-            data = read_silicon_data(tool, ROT_CMD_JWT, target.register_map, target.memory_map, protection_state)
+        if tool.connect(target.name, probe_id=probe_id, ap='sysap'):
+            data = read_silicon_data(tool, target)
             if data is None:
                 logger.error('Failed to read silicon data')
                 return None
 
-            public_key = read_public_key(tool, target.register_map)
+            dev_pub_key = target.key_reader.read_public_key(tool, KeyId.DEVICE)
             tool.disconnect()
-            if public_key is None:
+            if dev_pub_key is None:
                 return None
         else:
             logger.error('Failed to connect to device')
             return None
 
+        # Get HSM private key
+        hsm_priv_key, hsm_pub_key = target.policy_parser.hsm_private_key()
+
         # Get serial number
         silicon_data = SiliconDataParser(data)
-        serial = silicon_data.get_serial()
+        serial = int(silicon_data.get_serial())
+        if serial <= 0:
+            max_serial = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
+            logger.warning(f'Serial number created from die ID is {serial}, '
+                           f'setting serial number to maximum available value '
+                           f'{max_serial}')
+            serial = max_serial
 
         data = {
             'subject_name': 'Example Certificate',
@@ -129,10 +145,11 @@ class X509Strategy(Strategy):
             'state': 'San Jose',
             'organization': 'Cypress Semiconductor',
             'issuer_name': 'Cypress Semiconductor',
-            'public_key': public_key,
-            'private_key': HSM,
-            'serial_number': int(serial),
+            'public_key': dev_pub_key,
+            'private_key': hsm_priv_key,
+            'serial_number': serial,
         }
+        logger.debug(json.dumps(data))
         return data
 
     @staticmethod
@@ -161,6 +178,8 @@ class X509Strategy(Strategy):
         Converts JWK string to PEM format string.
         """
         pem = PemKey()
+        if type(jwk) is dict:
+            jwk = json.dumps(jwk)
         pem.load_str(jwk)
         pem_str = pem.to_str(private_key=private_key)
         return pem_str

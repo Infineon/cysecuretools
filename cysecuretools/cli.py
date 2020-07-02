@@ -14,74 +14,178 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import sys
+import json
 import click
 import logging
+from intelhex import HexRecordError
+from json.decoder import JSONDecodeError
 from cryptography.hazmat.primitives import serialization
+import cysecuretools.main as main_module
 from cysecuretools import CySecureTools
-from cysecuretools.execute.enums import ProtectionState
+from cysecuretools.execute.image_cert import ImageCertificate
+from cysecuretools.targets import print_targets
+from cysecuretools.core.target_director import TargetDirector
 
 logger = logging.getLogger(__name__)
 
 
-def is_help():
-    return '--help' in sys.argv
+def require_target():
+    return not (('--help' in sys.argv)
+                or ('device-list' in sys.argv)
+                or ('version' in sys.argv))
 
 
 @click.group(chain=True)
 @click.pass_context
-@click.option('-t', '--target', 'target', type=click.STRING, required=not is_help(),
+@click.option('-t', '--target', type=click.STRING, required=require_target(),
               help='Device manufacturing part number')
-@click.option('-p', '--policy', 'policy', type=click.File(), required=False,
+@click.option('-p', '--policy', type=click.File(), required=False,
               help='Provisioning policy file')
 @click.option('-v', '--verbose', is_flag=True, help='Provides debug-level log')
-def main(ctx, target, policy, verbose):
+@click.option('--logfile-off', is_flag=True, help='Avoids logging into file')
+def main(ctx, target, policy, verbose, logfile_off):
+    """
+    Common options (e.g. -t, -p, -v) are common for all commands and must
+    precede them:
+
+    \b
+    cysecuretools -t <TARGET> -p <POLICY> <COMMAND> --<COMMAND_OPTION>
+
+    \b
+    For detailed help for command use:
+
+    \b
+    cysecuretools <COMMAND> --help
+
+    \b
+    For detailed description of using CySecureTools please refer to readme.md
+    """
     if verbose:
-        logger.root.setLevel(logging.DEBUG)
+        main_module.set_logger_level(logging.DEBUG)
     ctx.ensure_object(dict)
 
-    if not is_help():
-        ctx.obj['TOOL'] = CySecureTools(target, policy.name if policy else None)
+    if require_target():
+        if 'init' in sys.argv:
+            validate_init_cmd_args()
+            policy_path = default_policy(target)
+        else:
+            policy_path = policy.name if policy else None
+        try:
+            ctx.obj['TOOL'] = CySecureTools(target, policy_path,
+                                            not logfile_off)
+        except Exception as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
+    else:
+        if 'version' in sys.argv:
+            if '--target' in sys.argv or '-t' in sys.argv:
+                ctx.obj['TOOL'] = CySecureTools(target,
+                                                log_file=not logfile_off)
 
 
 @main.resultcallback()
-def process_pipeline(processors, target, policy, verbose):
+def process_pipeline(processors, target, policy, verbose, logfile_off):
     for func in processors:
         res = func()
         if not res:
             raise click.ClickException('Failed processing!')
 
 
+def default_policy(target_name):
+    director = TargetDirector()
+    target_name = target_name.lower()
+    CySecureTools.get_target_builder(director, target_name)
+    target = director.get_target(None, target_name, None)
+    return target.policy
+
+
+def validate_init_cmd_args():
+    if '--policy' in sys.argv:
+        sys.stderr.write('Error: invalid argument used with "init" '
+                         'command: --policy')
+        exit(1)
+    if '-p' in sys.argv:
+        sys.stderr.write('Error: invalid argument used with "init" '
+                         'command: -p')
+        exit(1)
+
+
 @main.command('create-keys', help='Creates keys specified in policy file')
 @click.pass_context
-@click.option('--overwrite/--no-overwrite', 'overwrite', is_flag=True, default=None, required=False,
-              help='Indicates whether overwrite keys in the output directory if they already exist')
-@click.option('-o', '--out', 'out', type=click.Path(), default=None, required=False,
-              help='Output directory for generated keys. By default keys location is as specified in the policy file')
-def cmd_create_keys(ctx, overwrite, out):
+@click.option('--overwrite/--no-overwrite', 'overwrite', is_flag=True,
+              default=None, required=False,
+              help='Indicates whether overwrite keys in the output directory '
+                   'if they already exist')
+@click.option('-o', '--out', type=click.Path(), default=None, required=False,
+              help='Output directory for generated keys. By default keys '
+                   'location is as specified in the policy file')
+@click.option('--kid', type=click.INT, default=None, required=False,
+              help='The ID of the key to create. If not specified, all the '
+                   'keys found in the policy will be generated')
+def cmd_create_keys(ctx, overwrite, out, kid):
     def process():
-        result = ctx.obj['TOOL'].create_keys(overwrite=overwrite, out=out)
+        if 'TOOL' not in ctx.obj:
+            return False
+        result = ctx.obj['TOOL'].create_keys(overwrite, out, kid)
         return result is not False
 
     return process
 
 
-@main.command('sign-image', short_help='Signs firmware image with the key specified in the policy file')
+@main.command('version', short_help='Show CyBootloader and Secure Flash Boot '
+                                    'version')
+@click.option('--probe-id', 'probe_id', type=click.STRING, default=None,
+              help='Probe serial number')
+@click.option('--ap', hidden=True, type=click.Choice(['cm0', 'cm4', 'sysap']),
+              default='sysap',
+              help='The access port used to read CyBootloader and '
+                   'Secure Flash Boot version from device')
 @click.pass_context
-@click.option('-h', '--hex', 'hex_file', type=click.Path(), required=True, help='User application hex file')
-@click.option('-i', '--image-id', 'image_id', type=click.INT, default=4, required=False,
-              help='The ID of the firmware image in the policy file')
-def cmd_sign_image(ctx, hex_file, image_id):
+def cmd_version(ctx, probe_id, ap):
     def process():
-        result = ctx.obj['TOOL'].sign_image(hex_file, image_id)
+        if ctx.obj:
+            if 'TOOL' not in ctx.obj:
+                return False
+            ctx.obj['TOOL'].print_version(probe_id, ap)
+        else:
+            main_module.print_version(['cyb06xxa', 'cyb06xx5'])
+        return True
+
+    return process
+
+
+@main.command('sign-image', short_help='Signs firmware image with the key '
+                                       'specified in the policy file')
+@click.pass_context
+@click.option('-h', '--hex', 'hex_file', type=click.Path(), required=True,
+              help='User application hex file')
+@click.option('-i', '--image-id', type=click.INT, default=4, required=False,
+              help='The ID of the firmware image in the policy file')
+@click.option('--image-type', default=None,
+              type=click.Choice(['BOOT', 'UPGRADE'], case_sensitive=False),
+              help='Indicates which type of image is signed - boot or '
+                   'upgrade. If omitted, both types will be generated')
+@click.option('-e', '--encrypt', 'encrypt_key', type=click.Path(),
+              default=None,
+              help='Public key PEM-file for the image encryption')
+def cmd_sign_image(ctx, hex_file, image_id, image_type, encrypt_key):
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        result = ctx.obj['TOOL'].sign_image(hex_file, image_id, image_type,
+                                            encrypt_key)
         return result is not None
 
     return process
 
 
-@main.command('create-provisioning-packet', help='Creates JWT packet for device provisioning')
+@main.command('create-provisioning-packet',
+              help='Creates JWT packet for device provisioning')
 @click.pass_context
 def cmd_create_provisioning_packet(ctx):
     def process():
+        if 'TOOL' not in ctx.obj:
+            return False
         result = ctx.obj['TOOL'].create_provisioning_packet()
         return result
 
@@ -90,52 +194,83 @@ def cmd_create_provisioning_packet(ctx):
 
 @main.command('provision-device', help='Executes device provisioning')
 @click.pass_context
-@click.option('--probe-id', 'probe_id', type=click.STRING, required=False, default=None,
+@click.option('--probe-id', 'probe_id', type=click.STRING, default=None,
               help='Probe serial number')
-@click.option('--protection-state', 'protection_state', type=click.INT, required=False, default=ProtectionState.secure,
-              hidden=True)
 @click.option('--existing-packet', 'use_existing_packet', is_flag=True,
               help='Skip provisioning packet creation and use existing one')
-def cmd_provision_device(ctx, probe_id, protection_state, use_existing_packet):
+@click.option('--ap', hidden=True, type=click.Choice(['cm0', 'cm4', 'sysap']),
+              default='cm4', help='The access port used for provisioning')
+def cmd_provision_device(ctx, probe_id, use_existing_packet, ap):
     def process():
-        result = True if use_existing_packet else ctx.obj['TOOL'].create_provisioning_packet()
+        if 'TOOL' not in ctx.obj:
+            return False
+        if use_existing_packet:
+            result = True
+        else:
+            result = ctx.obj['TOOL'].create_provisioning_packet()
         if result:
-            result = ctx.obj['TOOL'].provision_device(probe_id, protection_state)
+            result = ctx.obj['TOOL'].provision_device(probe_id, ap)
         return result
 
     return process
 
 
-@main.command('create-certificate', help='Creates certificate in a x509 format')
+@main.command('re-provision-device', help='Executes device re-provisioning')
 @click.pass_context
-@click.option('-t', '--type', 'cert_type', type=click.STRING, required=False, default='x509', hidden=True,
-              help='Certificate type (x509)')
-@click.option('-n', '--name', 'cert_name', type=click.File(mode='wb'), required=False, default='psoc_cert.pem',
-              help='Certificate filename')
-@click.option('-e', '--encoding', 'encoding', type=click.STRING, required=False, default='PEM',
-              help='Certificate encoding (PEM, DER)')
-@click.option('--probe-id', 'probe_id', type=click.STRING, required=False, default=None,
+@click.option('--probe-id', type=click.STRING, required=False, default=None,
               help='Probe serial number')
-@click.option('--protection-state', 'protection_state', type=click.INT, required=False, default=ProtectionState.secure,
-              hidden=True)
-@click.option('--subject-name', 'subject_name', type=click.STRING, required=False, default=None,
-              help='Certificate subject name')
-@click.option('--country', 'country', type=click.STRING, required=False, default=None,
-              help='Certificate country code')
-@click.option('--state', 'state', type=click.STRING, required=False, default=None,
-              help='Certificate issuer state')
-@click.option('--organization', 'organization', type=click.STRING, required=False, default=None,
-              help='Certificate issuer organization')
-@click.option('--issuer-name', 'issuer_name', type=click.STRING, required=False, default=None,
-              help='Certificate issuer name')
-@click.option('--private-key', 'private_key', type=click.File(), required=False, default=None,
-              help='Private key to sign the certificate')
-def cmd_create_certificate(ctx, cert_type, cert_name, encoding, probe_id, protection_state,
-                           subject_name, country, state, organization, issuer_name, private_key):
+@click.option('--existing-packet', is_flag=True,
+              help='Skip provisioning packet creation and use existing one')
+@click.option('--ap', hidden=True, type=click.Choice(['cm0', 'cm4', 'sysap']),
+              default='sysap', help='The access port used for re-provisioning')
+@click.option('--erase-boot', is_flag=True,
+              help='Indicates whether erase BOOT slot')
+@click.option('--control-dap-cert', default=None,
+              help='The certificate that provides the access to control DAP')
+def cmd_re_provision_device(ctx, probe_id, existing_packet, ap, erase_boot,
+                            control_dap_cert):
     def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        if existing_packet:
+            result = True
+        else:
+            result = ctx.obj['TOOL'].create_provisioning_packet()
+        if result:
+            result = ctx.obj['TOOL'].re_provision_device(probe_id, ap,
+                                                         erase_boot,
+                                                         control_dap_cert)
+        return result
+
+    return process
+
+
+@main.command('create-certificate', help='Creates certificate in x509 format')
+@click.pass_context
+@click.option('-t', '--type', 'cert_type', default='x509', hidden=True,
+              help='Certificate type (x509)')
+@click.option('-n', '--name', 'cert_name', type=click.File(mode='wb'),
+              default='psoc_cert.pem', help='Certificate filename')
+@click.option('-e', '--encoding', default='PEM',
+              help='Certificate encoding (PEM, DER)')
+@click.option('--probe-id', default=None, help='Probe serial number')
+@click.option('--subject-name', default=None, help='Certificate subject name')
+@click.option('--country', default=None, help='Certificate country code')
+@click.option('--state', default=None, help='Certificate issuer state')
+@click.option('--organization', default=None,
+              help='Certificate issuer organization')
+@click.option('--issuer-name', default=None, help='Certificate issuer name')
+@click.option('--private-key', type=click.File(), default=None,
+              help='Private key to sign the certificate')
+def cmd_create_certificate(ctx, cert_type, cert_name, encoding, probe_id,
+                           subject_name, country, state, organization,
+                           issuer_name, private_key):
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
         if encoding.upper() == 'PEM':
             enc = serialization.Encoding.PEM
-        elif encoding.upper == 'DER':
+        elif encoding.upper() == 'DER':
             enc = serialization.Encoding.DER
         else:
             logger.error(f'Invalid certificate encoding \'{encoding}\'')
@@ -151,7 +286,9 @@ def cmd_create_certificate(ctx, cert_type, cert_name, encoding, probe_id, protec
         }
 
         if cert_type == 'x509':
-            result = ctx.obj['TOOL'].create_x509_certificate(cert_name.name, enc, probe_id, protection_state, **d)
+            cert = ctx.obj['TOOL'].create_x509_certificate(
+                cert_name.name, enc, probe_id, **d)
+            result = cert is not None
         else:
             logger.error(f'Invalid certificate type \'{cert_type}\'')
             result = False
@@ -160,11 +297,218 @@ def cmd_create_certificate(ctx, cert_type, cert_name, encoding, probe_id, protec
     return process
 
 
-@main.command('entrance-exam', short_help='Checks device life-cycle, FlashBoot firmware and Flash state')
+@main.command('image-certificate', help='Creates Bootloader image certificate')
 @click.pass_context
-def cmd_entrance_exam(ctx):
+@click.option('-i', '--image', type=click.File('r'), required=True,
+              help='Image in the Intel HEX format')
+@click.option('-k', '--key', type=click.File('r'), default=None, required=True,
+              help='Private key in the JWK format to sign certificate')
+@click.option('-o', '--cert', type=click.File('w'),
+              default='image_certificate.jwt',
+              help='The output file - image certificate in the JWT format')
+@click.option('-v', '--version', callback=ImageCertificate.validate_version,
+              help='Image version')
+@click.option('--image-id', type=click.INT, default=0, help='Image ID')
+@click.option('-d', '--exp-date', default='Jan 1 2031',
+              callback=ImageCertificate.validate_date,
+              help='Certificate expiration date. Date format '
+                   'is \'Jan 1 2031\'')
+def cmd_image_certificate(ctx, image, key, cert, version, image_id,
+                          exp_date):
     def process():
-        result = ctx.obj['TOOL'].entrance_exam()
+        if 'TOOL' not in ctx.obj:
+            return False
+        result = False
+        try:
+            key_path = key.name if key else None
+            result = ctx.obj['TOOL'].create_image_certificate(
+                image.name, key_path, cert.name, version, image_id, exp_date)
+        except JSONDecodeError as e:
+            logger.error(f'Invalid certificate signing key')
+            logger.error(e)
+        except HexRecordError as e:
+            logger.error(f'Invalid image \'{image.name}\'')
+            logger.error(e)
         return result
+    return process
+
+
+@main.command('entrance-exam', short_help='Checks device life-cycle, '
+                                          'FlashBoot firmware and Flash state')
+@click.option('--probe-id', type=click.STRING, required=False, default=None,
+              help='Probe serial number')
+@click.option('--ap', hidden=True, type=click.Choice(['cm0', 'cm4', 'sysap']),
+              default='cm4', help='The access port used for entrance-exam')
+@click.pass_context
+def cmd_entrance_exam(ctx, probe_id, ap):
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        result = ctx.obj['TOOL'].entrance_exam(probe_id, ap)
+        return result
+
+    return process
+
+
+@main.command('device-list', help='List of supported devices')
+@click.pass_context
+def cmd_device_list(ctx):
+    def process():
+        print_targets()
+        return True
+    return process
+
+
+@main.command('encrypt-image',
+              short_help='Creates encrypted image for encrypted programming')
+@click.pass_context
+@click.option('-i', '--image', type=click.File('r'),  default=None,
+              help='The image to encrypt')
+@click.option('-h', '--host-key-id', type=click.INT, required=True,
+              help='Host private key ID (4 - HSM, 5 - OEM)')
+@click.option('-d', '--device-key-id', type=click.INT, required=True,
+              help='Device public key ID (1 - device, 12 - group)')
+@click.option('-a', '--algorithm', 'algorithm', default='ECC',
+              help='Asymmetric algorithm for key derivation function')
+@click.option('--key-length', type=click.INT, default=16,
+              help='Derived key length')
+@click.option('-o', '--encrypted-image', required=True, type=click.File('w+'),
+              help='Output file of encrypted image for encrypted programming')
+@click.option('--padding-value', default=0, type=click.INT,
+              help='Value for image padding')
+@click.option('--probe-id', default=None,
+              help='Probe serial number. '
+                   'Used to read device public key from device.')
+def cmd_encrypt_image(ctx, image, host_key_id, device_key_id, algorithm,
+                      key_length, encrypted_image, padding_value, probe_id):
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        result = ctx.obj['TOOL'].encrypt_image(
+            image.name, host_key_id, device_key_id, algorithm, key_length,
+            encrypted_image.name, padding_value, probe_id)
+        return result
+    return process
+
+
+@main.command('encrypted-programming', help='Programs encrypted image')
+@click.pass_context
+# w+ is for -i option necessary if encryption and programming are run together
+@click.option('-i', '--encrypted-image', type=click.File('w+'), required=True,
+              help='The encrypted image to program')
+@click.option('--probe-id', default=None, help='Probe serial number')
+def cmd_encrypted_programming(ctx, encrypted_image, probe_id):
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        result = ctx.obj['TOOL'].encrypted_programming(
+            encrypted_image.name, probe_id)
+        return result
+
+    return process
+
+
+@main.command('slot-address', short_help='Gets slot address from given policy')
+@click.option('-i', '--image-id', type=click.INT, required=True,
+              help='Image ID')
+@click.option('-t', '--image-type', default='BOOT',
+              help='The image type - BOOT or UPGRADE')
+@click.option('-h', 'display_hex', is_flag=True,
+              help='Display result as hexadecimal')
+@click.pass_context
+def cmd_slot_address(ctx, image_id, image_type, display_hex):
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        address, size = ctx.obj['TOOL'].flash_map(image_id, image_type)
+        if address:
+            print(hex(address) if display_hex else address)
+            return True
+        else:
+            return False
+
+    return process
+
+
+@main.command('slot-size', short_help='Gets slot size from given policy')
+@click.option('-i', '--image-id', type=click.INT, required=True,
+              help='Image ID')
+@click.option('-t', '--image-type', default='BOOT',
+              help='The image type - BOOT or UPGRADE')
+@click.option('-h', 'display_hex', is_flag=True,
+              help='Display result as hexadecimal')
+@click.pass_context
+def cmd_slot_size(ctx, image_id, image_type, display_hex):
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        address, size = ctx.obj['TOOL'].flash_map(image_id, image_type)
+        if size:
+            print(hex(size) if display_hex else size)
+            return True
+        else:
+            return False
+
+    return process
+
+
+@main.command('read-public-key', help='Reads public key from device')
+@click.option('-k', '--key-id', type=click.INT, required=True,
+              help='Key ID to read (1 - DEVICE, 4 - HSM, 5 - OEM, 12 - GROUP')
+@click.option('-f', '--key-format', default='jwk',
+              help='Key format (jwk or pem)')
+@click.option('-o', '--out-file', default=None,
+              help='Filename where to save the key')
+@click.option('--probe-id', default=None,
+              help='Probe serial number')
+@click.pass_context
+def cmd_read_public_key(ctx, key_id, key_format, out_file, probe_id):
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        key = ctx.obj['TOOL'].read_public_key(key_id, key_format, out_file,
+                                              probe_id)
+        if key:
+            if type(key) is dict:
+                logger.info(json.dumps(key, indent=4))
+            elif type(key) is bytes:
+                logger.info(key.decode("utf-8"))
+            else:
+                logger.info(key)
+            return True
+        else:
+            return False
+
+    return process
+
+
+@main.command('sign-cert', help='Signs JSON certificate with the private key')
+@click.option('-j', '--json-file', type=click.File('r'), required=True,
+              help='JSON file to be signed')
+@click.option('-k', '--key-id', type=click.INT, required=True,
+              help='Private Key ID to sign the certificate with '
+                   '(1 - DEVICE, 4 - HSM, 5 - OEM, 12 - GROUP')
+@click.option('-o', '--out-file', default=None,
+              help='Filename where to save the JWT. If not specified, the '
+                   'input file name with "jwt" extension will be used')
+@click.pass_context
+def sign_cert(ctx, json_file, key_id, out_file):
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        token = ctx.obj['TOOL'].sign_json(json_file.name, key_id, out_file)
+        return True if token else False
+
+    return process
+
+
+@main.command('init', help='Initializes new project')
+@click.pass_context
+def cmd_init(ctx):
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        ctx.obj['TOOL'].init()
+        return True
 
     return process

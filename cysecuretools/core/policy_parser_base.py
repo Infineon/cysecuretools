@@ -22,11 +22,11 @@ class PolicyParserBase(ABC):
     Each device-specific policy parser must implement its methods.
     """
     @abstractmethod
-    def get_keys(self, out=None):
+    def get_keys(self, out=None, image_type=None, key_type=None):
         pass
 
     @abstractmethod
-    def get_image_data(self, image_id, image_type):
+    def get_image_data(self, image_type, image_id):
         pass
 
     @abstractmethod
