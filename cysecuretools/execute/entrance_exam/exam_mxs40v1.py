@@ -15,8 +15,10 @@ limitations under the License.
 """
 import os
 import logging
-from cysecuretools.execute.enums import EntranceExamStatus
+from collections import namedtuple
+from cysecuretools.core.enums import EntranceExamStatus, RegionHashStatus
 from cysecuretools.execute.sys_call import region_hash
+from cysecuretools.execute.programmer.base import AP
 from cysecuretools.execute.provisioning_lib.cyprov_crypto import Crypto
 from cysecuretools.core.target_director import Target
 from cysecuretools.core.entrance_exam_base import EntranceExam
@@ -58,6 +60,7 @@ class EntranceExamMXS40v1(EntranceExam):
         else:
             exam_pass = True
 
+        tool.set_ap(AP.SYS)
         # Verify entrance exam JWT signature
         if exam_pass:
             logger.info('Verify entrance exam JWT signature:')
@@ -90,28 +93,29 @@ class EntranceExamMXS40v1(EntranceExam):
                 logger.info(f'Size:    {item["size"]}')
                 logger.info(f'Mode:    {item["hash_id"]}')
                 logger.info(f'Value:   {item["value"]}')
-                syscall_passed = region_hash(tool, self.reg_map)
-                if syscall_passed:
+                syscall_status = region_hash(tool, self.reg_map)
+                if syscall_status == RegionHashStatus.OK:
                     logger.info('PASS\n')
                 else:
                     logger.info('FAIL\n')
 
-                exam_pass &= syscall_passed
+        result = EntranceExamStatus.OK
+        if exam_pass:
+            if syscall_status == RegionHashStatus.FLASH_NOT_EMPTY:
+                result = EntranceExamStatus.FLASH_NOT_EMPTY
+            elif syscall_status == RegionHashStatus.FAIL:
+                result = EntranceExamStatus.FAIL
+        else:
+            result = EntranceExamStatus.FAIL
 
         logger.info('*****************************************')
-        if exam_pass:
+        if result == EntranceExamStatus.OK:
             logger.info('       ENTRANCE EXAM PASSED')
         else:
             logger.info('       ENTRANCE EXAM FAILED')
         logger.info('*****************************************')
 
-        if exam_pass:
-            status = EntranceExamStatus.OK if syscall_passed \
-                else EntranceExamStatus.FLASH_NOT_EMPTY
-        else:
-            status = EntranceExamStatus.FAIL
-
-        return status
+        return result
 
     def read_sfb_version(self, tool):
         jwt_text = Crypto.read_jwt(self.entrance_exam_jwt)
@@ -140,6 +144,30 @@ class EntranceExamMXS40v1(EntranceExam):
         build = sfb_ver_lo & 0x0000FFFF
 
         return f'{maj_version}.{min_version}.{patch}.{build}'
+
+    def read_device_info(self, tool):
+        jwt_text = Crypto.read_jwt(self.entrance_exam_jwt)
+        json_data = Crypto.readable_jwt(jwt_text)
+        payload = json_data['payload']
+        silicon_id = None
+        silicon_rev = None
+        family_id = None
+        for item in payload['ahb_reads']:
+            if item['description'].startswith('SI_ID'):
+                address = int(item['address'], 0)
+                silicon_id = tool.read32(address) >> 16 & 0xFFFF
+                silicon_rev = tool.read32(address) >> 8 & 0xFF
+            if item['description'].startswith('FAMILY_ID'):
+                address = int(item['address'], 0)
+                mask = int(item['mask'], 0)
+                family_id = tool.read32(address) & mask
+            if silicon_id and silicon_rev and family_id:
+                break
+
+        DeviceInfo = namedtuple('DeviceInfo',
+                                'silicon_id silicon_rev family_id')
+        dev_info = DeviceInfo(silicon_id, silicon_rev, family_id)
+        return dev_info
 
     @staticmethod
     def verify_ahb_reads(tool, items, bits):

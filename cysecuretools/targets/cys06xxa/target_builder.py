@@ -30,6 +30,8 @@ from cysecuretools.execute.project_init_mxs40v1 import \
     ProjectInitializerMXS40V1
 from cysecuretools.execute.voltage_tool_mxs40v1 import VoltageToolMXS40v1
 from cysecuretools.execute.key_reader import KeyReaderMXS40V1
+from cysecuretools.execute.silicon_data_reader_mxs40v1 import \
+    SiliconDataReaderMXS40v1
 
 
 class CYS06xxA_Builder(TargetBuilder):
@@ -74,3 +76,6 @@ class CYS06xxA_Builder(TargetBuilder):
 
     def get_project_initializer(self):
         return ProjectInitializerMXS40V1
+
+    def get_silicon_data_reader(self):
+        return SiliconDataReaderMXS40v1

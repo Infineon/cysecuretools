@@ -42,11 +42,6 @@ class MemoryMapBase(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def MCUBOOT_HEADER_SIZE(self):
-        raise NotImplementedError
-
-    @property
-    @abc.abstractmethod
     def SPE_IMAGE_ID(self):
         raise NotImplementedError
 

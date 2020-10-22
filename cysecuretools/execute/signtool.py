@@ -15,26 +15,29 @@ limitations under the License.
 """
 import os
 import logging
-import cysecuretools.imgtool.main as imgtool
+import imgtool.main as imgtool
 from shutil import copy2
-from intelhex import hex2bin, bin2hex
-from cysecuretools.execute.enums import ImageType
+from intelhex import hex2bin, bin2hex, IntelHex
+from cysecuretools.core.enums import ImageType
 from cysecuretools.targets.common.policy_parser import PolicyParser
 
 logger = logging.getLogger(__name__)
 
+MCUBOOT_HEADER_SIZE = 0x400
+
 
 class SignTool:
-    def __init__(self, policy_file, memory_map):
+    def __init__(self, policy_file):
         # Resolve paths
         self.PKG_PATH = os.path.dirname(os.path.realpath(__file__))
         self.IMG_TOOL_PATH = os.path.join(self.PKG_PATH, '../imgtool/main.py')
         self.parser = PolicyParser(policy_file)
         self.policy = PolicyParser.get_json(policy_file)
-        self.memory_map = memory_map
         self.policy_file = policy_file
+        self.erased_val = None
 
-    def sign_image(self, hex_file, image_id, image_type, encrypt_key=None):
+    def sign_image(self, hex_file, image_id, image_type, encrypt_key=None,
+                   erased_val=None, boot_record='default'):
         """
         Signs hex file with the key specified in the policy file.
         Converts binary file of the signed image.
@@ -44,27 +47,61 @@ class SignTool:
         :param image_id: The ID of the firmware in policy file.
         :param image_type: The image type.
         :param encrypt_key: path to public key file for the image encryption
+        :param erased_val: The value that is read back from erased flash
+        :param boot_record: Create CBOR encoded boot record TLV.
+               The sw_type represents the role of the software component
+               (e.g. CoFM for coprocessor firmware). [max. 12 characters]
         :return: Path to the signed files. One file per slot.
         """
         result = []
         slot = self.parser.get_slot(image_id)
+
+        if erased_val:
+            self.erased_val = erased_val
+            ih_padding = int(erased_val, 0)
+            logger.warning(f'Custom value {erased_val} will be used as an '
+                           f'erased value for all regions and memory types. '
+                           f'Typical correct values for internal and '
+                           f'external Flash memory are 0x00 and 0xFF '
+                           f'respectively.')
+        else:
+            default_erased_val = self._default_erased_value(image_type, slot)
+            ih_padding = int(default_erased_val, 0)
+
         if slot is None:
             logger.error(f'Image with ID {image_id} not found in \'{self.policy_file}\'')
             return None
         unsigned_hex = '{0}_{2}{1}'.format(*os.path.splitext(hex_file) + ('unsigned',))
         copy2(hex_file, unsigned_hex)
 
+        boot_ih = IntelHex()
+        boot_ih.padding = ih_padding
+        boot_ih.loadfile(hex_file, 'hex')
+        base_addr = boot_ih.minaddr()
+        boot_bin = f'{hex_file}.bin'
+        hex2bin(boot_ih, boot_bin)
+
+        first_image_result = None  # indicates first image signing success
         for image in slot['resources']:
             if image_type:
                 if image['type'] != image_type.upper():
-                    continue # skip generating hex file if sign type defined and not same as current image type
+                    continue  # skip generating hex file if sign type defined and not same as current image type
             if image['type'] == ImageType.UPGRADE.name:
                 if 'upgrade' not in slot or not slot['upgrade']:
                     continue  # skip generating hex file for UPGRADE slot if it is disabled
 
             if image['type'] == ImageType.BOOT.name:
-                hex_out = self.sign_single_hex(slot, image['type'], unsigned_hex, hex_file)
+                if first_image_result is False:
+                    continue
+                hex_out = self.sign_single_hex(slot, image['type'], boot_bin,
+                                               hex_file, start_addr=base_addr,
+                                               boot_record=boot_record)
+                first_image_result = hex_out is not None
+                os.remove(boot_bin)
             else:
+                if first_image_result is False:
+                    continue
+
                 if 'encrypt' in slot and slot['encrypt']:
                     if encrypt_key is None:
                         if 'encrypt_peer' in slot and slot['encrypt_peer']:
@@ -78,13 +115,30 @@ class SignTool:
                     if encrypt_key is not None:
                         encrypt_key = None
 
-                output_name = '{0}_{2}{1}'.format(*os.path.splitext(hex_file) + ('upgrade',))
-                hex_out = self.sign_single_hex(slot, image['type'], unsigned_hex, output_name, encrypt_key)
-                bin_out = '{0}.bin'.format(os.path.splitext(hex_out)[0])
-                hex2bin(hex_out, bin_out)
-                bin2hex(bin_out, output_name, offset=int(image['address']))
-                os.remove(bin_out)
-            result.append(hex_out)
+                output_name = '{0}_{2}{1}'.format(
+                    *os.path.splitext(hex_file) + ('upgrade',))
+
+                hex_out = self.sign_single_hex(
+                    slot, image['type'], unsigned_hex, output_name,
+                    encrypt_key, boot_record=boot_record)
+                first_image_result = hex_out is not None
+                if hex_out:
+                    bin_out = '{0}.bin'.format(os.path.splitext(hex_out)[0])
+
+                    if not erased_val:
+                        default_erased_val = self._default_erased_value(
+                            image_type, slot)
+                        ih_padding = int(default_erased_val, 0)
+
+                    upgrade_ih = IntelHex()
+                    upgrade_ih.padding = ih_padding
+                    upgrade_ih.loadfile(hex_out, 'hex')
+
+                    hex2bin(upgrade_ih, bin_out)
+                    bin2hex(bin_out, output_name, offset=int(image['address']))
+                    os.remove(bin_out)
+            if hex_out:
+                result.append(hex_out)
 
         if image_type:
             if ImageType.UPGRADE.name == image_type.upper():
@@ -92,7 +146,8 @@ class SignTool:
         result = tuple(result) if len(result) > 0 else None
         return result
 
-    def sign_single_hex(self, slot, image_type, hex_in, hex_out=None, encrypt_key=None):
+    def sign_single_hex(self, slot, image_type, hex_in, hex_out=None,
+                        encrypt_key=None, start_addr=None, boot_record='default'):
         """
         Signs single hex file with a single key using imgtool.
         :param slot: Slot data from policy file.
@@ -101,6 +156,8 @@ class SignTool:
         :param hex_out: The name of the output file. If not specified,
                         the default name will be used.
         :param encrypt_key: path to public key file for the image encryption
+        :param start_addr: Image start address
+        :param boot_record: The role of the software component
         :return: The name of the signed hex file.
         """
         # Find in policy data necessary for image signing
@@ -122,12 +179,14 @@ class SignTool:
         if hex_out is None:
             hex_out = '{0}_{2}{1}'.format(*os.path.splitext(hex_in) + ('signed',))
 
-        is_smif = image_type == 'UPGRADE' and slot['smif_id'] > 0
-        erased_val = '0xff' if is_smif else '0'
+        if self.erased_val:
+            erased_val = self.erased_val
+        else:
+            erased_val = self._default_erased_value(image_type, slot)
 
         args = [
             '--key', key.pem_key_path,
-            '--header-size', hex(self.memory_map.MCUBOOT_HEADER_SIZE),
+            '--header-size', hex(MCUBOOT_HEADER_SIZE),
             '--pad-header',
             '--align', '8',
             '--version', slot['version'],
@@ -139,8 +198,14 @@ class SignTool:
             hex_out,
 
             # Add Cypress TLV
-            '--custom-tlv', '0x81', 'B', str(slot['id']),
+            '--custom-tlv', '0x81', self._align_tlv_value(slot['id']),
         ]
+
+        if start_addr:
+            args.extend(['--hex-addr', hex(start_addr - MCUBOOT_HEADER_SIZE)])
+
+        if boot_record:
+            args.extend(['--boot-record', boot_record])
 
         if encrypt_key is not None:
             args.append('--encrypt')
@@ -161,3 +226,13 @@ class SignTool:
         else:
             logger.info(f'Image for slot {image_type} signed successfully! ({hex_out})')
             return hex_out
+
+    @staticmethod
+    def _default_erased_value(image_type, slot):
+        is_smif = image_type == 'UPGRADE' and slot['smif_id'] > 0
+        return '0xff' if is_smif else '0'
+
+    @staticmethod
+    def _align_tlv_value(value):
+        hex_val = str("{:02x}".format(value))
+        return f'0x0{hex_val}' if len(hex_val) % 2 else f'0x{hex_val}'

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2018-2019 Cypress Semiconductor Corporation
+Copyright (c) 2018-2020 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -13,8 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from enum import Enum
-from enum import IntEnum
+from enum import Enum, IntEnum
 
 
 class ProtectionState(IntEnum):
@@ -34,10 +33,23 @@ class EntranceExamStatus(IntEnum):
     FLASH_NOT_EMPTY = 2
 
 
+class RegionHashStatus(IntEnum):
+    OK = 0
+    FAIL = 1
+    FLASH_NOT_EMPTY = 2
+
+
 class ProvisioningStatus(IntEnum):
     OK = 0
     FAIL = 1
     TERMINATED = 2
+
+
+class ValidationStatus(IntEnum):
+    OK = 0,
+    ERROR = 1,
+    WARNING = 2,
+    TERMINATED = 3
 
 
 class KeyId(IntEnum):

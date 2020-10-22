@@ -59,57 +59,67 @@ class ProjectInitializerMXS40V1(ProjectInitializer):
         self.prebuilt_src = os.path.join(
             self.target_dir, self.prebuilt_dir_name)
 
-    def init(self, cwd=None):
+    def init(self, cwd=None, overwrite=None):
         """
         Initializes new project
         :param cwd: Current working directory
+        :param overwrite: Indicates whether to overwrite project files
+               if already exist. If the value is None, an interactive prompt
+               will ask whether to overwrite existing files
         """
         if cwd:
             self.cwd = cwd
         exist = list()
 
-        # Check packets existence
+        keys_dst = os.path.join(self.cwd, self.keys_dir_name)
         packets_dst = os.path.join(self.cwd, os.path.basename(
             os.path.normpath(self.packets_src)))
-        exist.extend(self.get_existent(packets_dst, project_files['packets']))
 
-        # Check policies existence
-        policy_dst = os.path.join(self.cwd, self.policy_dir_name)
-        files = self.get_policy_src_files()
-        try:
-            for entry in os.scandir(policy_dst):
-                if entry.name in files:
-                    exist.extend([entry.path])
-        except FileNotFoundError:
-            pass
+        if overwrite is None:
+            # Check packets existence
+            exist.extend(self.get_existent(packets_dst,
+                                           project_files['packets']))
 
-        # Check prebuilt existence
-        src_files = self.get_prebuilt_files(self.prebuilt_src)
-        prebuilt_dst = os.path.join(self.cwd, self.prebuilt_dir_name)
-        dst_files = self.get_prebuilt_files(prebuilt_dst)
-        try:
-            for item in dst_files:
-                if item in src_files:
-                    exist.extend([os.path.join(prebuilt_dst, item)])
-        except FileNotFoundError:
-            pass
+            # Check policies existence
+            policy_dst = os.path.join(self.cwd, self.policy_dir_name)
+            files = self.get_policy_src_files()
+            try:
+                for entry in os.scandir(policy_dst):
+                    if entry.name in files:
+                        exist.extend([entry.path])
+            except FileNotFoundError:
+                pass
 
-        # Check keys existence
-        keys_dst = os.path.join(self.cwd, self.keys_dir_name)
-        exist.extend(self.get_existent(keys_dst, project_files['keys']))
+            # Check prebuilt existence
+            src_files = self.get_prebuilt_files(self.prebuilt_src)
+            prebuilt_dst = os.path.join(self.cwd, self.prebuilt_dir_name)
+            dst_files = self.get_prebuilt_files(prebuilt_dst)
+            try:
+                for item in dst_files:
+                    if item in src_files:
+                        exist.extend([os.path.join(prebuilt_dst, item)])
+            except FileNotFoundError:
+                pass
 
-        # Create a project
-        if exist:
-            for file in exist:
-                print(file)
-            answer = input('Above files exist and will be overwritten. '
-                           'Continue? (y/n): ')
-            if answer.strip() == 'y':
-                self.create_project(packets_dst, keys_dst)
+            # Check keys existence
+            exist.extend(self.get_existent(keys_dst, project_files['keys']))
+
+            # Create a project
+            if exist:
+                for file in exist:
+                    print(file)
+                answer = input('Above files exist and will be overwritten. '
+                               'Continue? (y/n): ')
+                if answer.strip() == 'y':
+                    self.create_project(packets_dst, keys_dst)
+                else:
+                    logger.info('Skip project creation')
             else:
-                logger.info('Skip project creation')
-        else:
+                self.create_project(packets_dst, keys_dst)
+        elif overwrite is True:
             self.create_project(packets_dst, keys_dst)
+        else:
+            logger.info('Skip project creation')
 
     def create_project(self, packets_dst, keys_dst):
         """

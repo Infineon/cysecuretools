@@ -24,6 +24,7 @@ from cryptography.hazmat.primitives import serialization
 import cysecuretools.execute.jwt as jwt
 import cysecuretools.execute.keygen as keygen
 from cysecuretools.version import __version__
+from cysecuretools.core.exceptions import ValidationError
 from cysecuretools.core.bootloader_provider import BootloaderProvider
 from cysecuretools.core.certificates.x509 import X509CertificateStrategy
 from cysecuretools.core.logging_formatter import CustomFormatter
@@ -39,16 +40,15 @@ from cysecuretools.core.target_director import TargetDirector
 from cysecuretools.core.project import ProjectInitializer
 from cysecuretools.execute.encrypted_programming.aes_header_strategy \
     import AesHeaderStrategy
-from cysecuretools.execute.enums import (EntranceExamStatus,
-                                         ProvisioningStatus,
-                                         ImageType, KeyType, KeyId)
+from cysecuretools.core.enums import (EntranceExamStatus, ValidationStatus,
+                                      ProvisioningStatus,
+                                      ImageType, KeyType, KeyId)
 from cysecuretools.execute.image_cert import ImageCertificate
 from cysecuretools.execute.key_reader import get_aes_key
 from cysecuretools.execute.programmer.programmer import ProgrammingTool
 from cysecuretools.execute.signtool import SignTool
 from cysecuretools.targets import print_targets
 from cysecuretools.targets import target_map
-from pyocd.core.exceptions import TransferFaultError, TransferError
 
 # Initialize logger
 logging.root.setLevel(logging.DEBUG)
@@ -68,18 +68,27 @@ class CySecureTools:
     TOOLS_PATH = os.path.dirname(os.path.realpath(__file__))
     PROGRAMMING_TOOL = 'pyocd'
 
-    def __init__(self, target=None, policy=None, log_file=True):
+    def __init__(self, target=None, policy=None, log_file=True,
+                 skip_prompts=False):
         """
         Creates instance of the class
-        :param target: Device manufacturing part number.
-        :param policy: Provisioning policy file.
+        :param target: Device manufacturing part number
+        :param policy: Provisioning policy file
+        :param log_file: Indicates whether to write log into a file
+        :param skip_prompts: Indicates whether to skip user interactive
+               prompts
         """
         if log_file:
             add_file_logging()
 
+        self.tool = ProgrammingTool.create(self.PROGRAMMING_TOOL)
+
+        self.skip_prompts = skip_prompts
+        if self.skip_prompts:
+            self.tool.wait_for_target = False
+
         self.inited = True
         if not target:
-            print_targets()
             self.inited = False
             return
 
@@ -109,15 +118,18 @@ class CySecureTools:
         self.target_dir = self.target.target_dir
 
         # Validate policy file
-        if not self.policy_validator.validate(skip=['pre_build']):
-            raise RuntimeError('Policy validation failed')
+        validation_state = self.policy_validator.validate(
+            skip=['pre_build', 'dap_disabling'],
+            skip_prompts=self.skip_prompts)
+        if validation_state in [ValidationStatus.ERROR,
+                                ValidationStatus.TERMINATED]:
+            raise ValidationError
 
         self.target.key_reader = self.target.key_reader(self.target)
         self.key_reader = self.target.key_reader
         self.bootloader_provider = BootloaderProvider(self.target)
         self.entr_exam = self.target.entrance_exam(self.target)
         self.project_initializer = self.target.project_initializer(self.target)
-        self.tool = ProgrammingTool.create(self.PROGRAMMING_TOOL)
 
     def create_keys(self, overwrite=None, out=None, kid=None,
                     user_key_alg='ec'):
@@ -180,7 +192,7 @@ class CySecureTools:
         return True
 
     def sign_image(self, hex_file, image_id=4, image_type=None,
-                   encrypt_key=None):
+                   encrypt_key=None, erased_val=None, boot_record='default'):
         """
         Signs firmware image with the key specified in the policy file.
         :param hex_file: User application hex file.
@@ -188,13 +200,19 @@ class CySecureTools:
         :param image_type: Image type (BOOT or UPGRADE).
         :param encrypt_key: Path to public key file
                for the image encryption
+        :param erased_val: The value that is read back from erased flash
+        :param boot_record: Create CBOR encoded boot record TLV.
+               The sw_type represents the role of the software component
+               (e.g. CoFM for coprocessor firmware). [max. 12 characters]
         :return: Signed (and encrypted if applicable) hex files path.
         """
-        sign_tool = SignTool(self.policy, self.memory_map)
+        sign_tool = SignTool(self.policy)
         result = sign_tool.sign_image(hex_file=hex_file,
                                       image_id=image_id,
                                       image_type=image_type,
-                                      encrypt_key=encrypt_key)
+                                      encrypt_key=encrypt_key,
+                                      erased_val=erased_val,
+                                      boot_record=boot_record)
         return result
 
     def create_provisioning_packet(self):
@@ -202,8 +220,10 @@ class CySecureTools:
         Creates JWT packet for provisioning device.
         :return: True if packet created successfully, otherwise False.
         """
-        if not self.policy_validator.validate():
-            logger.error('Policy validation failed')
+        validation_state = self.policy_validator.validate(
+            skip_prompts=self.skip_prompts)
+        if validation_state in [ValidationStatus.ERROR,
+                                ValidationStatus.TERMINATED]:
             return False
 
         filtered_policy = self.policy_filter.filter_policy()
@@ -233,11 +253,13 @@ class CySecureTools:
         :param ap: The access port used for provisioning
         :return: Provisioning result. True if success, otherwise False.
         """
-        # Get bootloader program file
-        if not self.policy_validator.validate():
-            logger.error('Policy validation failed')
+        validation_state = self.policy_validator.validate(
+            skip_prompts=self.skip_prompts)
+        if validation_state in [ValidationStatus.ERROR,
+                                ValidationStatus.TERMINATED]:
             return False
 
+        # Get bootloader program file
         bootloader = self.bootloader_provider.get_hex_path()
         if not os.path.isfile(bootloader):
             logger.error(f'Cannot find bootloader file \'{bootloader}\'')
@@ -245,17 +267,13 @@ class CySecureTools:
 
         context = ProvisioningContext(self.target.provisioning_strategy)
 
-        try:
-            if self.tool.connect(self.target_name, probe_id=probe_id, ap=ap):
-                status = context.provision(self.tool, self.target,
-                                           self.entr_exam, bootloader,
-                                           probe_id=probe_id, ap=ap)
-                self.tool.disconnect()
-            else:
-                status = ProvisioningStatus.FAIL
-        except (TransferFaultError, TransferError) as e:
-            logger.error(e)
-            logger.debug(e, exc_info=True)
+        if self.tool.connect(self.target_name, probe_id=probe_id, ap=ap):
+            status = context.provision(self.tool, self.target,
+                                       self.entr_exam, bootloader,
+                                       probe_id=probe_id, ap=ap,
+                                       skip_prompts=self.skip_prompts)
+            self.tool.disconnect()
+        else:
             status = ProvisioningStatus.FAIL
 
         if status == ProvisioningStatus.FAIL:
@@ -275,11 +293,13 @@ class CySecureTools:
                access to control DAP
         :return: Provisioning result. True if success, otherwise False.
         """
-        # Get bootloader program file
-        if not self.policy_validator.validate():
-            logger.error('Policy validation failed')
+        validation_state = self.policy_validator.validate(
+            skip_prompts=self.skip_prompts)
+        if validation_state in [ValidationStatus.ERROR,
+                                ValidationStatus.TERMINATED]:
             return False
 
+        # Get bootloader program file
         btldr = self.bootloader_provider.get_hex_path()
         if not os.path.isfile(btldr):
             logger.error(f'Cannot find bootloader file \'{btldr}\'')
@@ -287,22 +307,17 @@ class CySecureTools:
 
         context = ProvisioningContext(self.target.provisioning_strategy)
 
-        try:
-            if self.tool.connect(self.target_name, probe_id=probe_id, ap=ap):
-                status = context.re_provision(
-                    self.tool, self.target, btldr, erase_boot=erase_boot,
-                    control_dap_cert=control_dap_cert, ap=ap,
-                    probe_id=probe_id)
-                self.tool.disconnect()
-            else:
-                status = ProvisioningStatus.FAIL
-        except (TransferFaultError, TransferError) as e:
-            logger.error(e)
-            logger.debug(e, exc_info=True)
+        if self.tool.connect(self.target_name, probe_id=probe_id, ap=ap):
+            status = context.re_provision(
+                self.tool, self.target, btldr, erase_boot=erase_boot,
+                control_dap_cert=control_dap_cert, ap=ap,
+                probe_id=probe_id)
+            self.tool.disconnect()
+        else:
             status = ProvisioningStatus.FAIL
 
         if status == ProvisioningStatus.FAIL:
-            logger.error('Error occurred while provisioning device')
+            logger.error('Error occurred while reprovisioning device')
 
         return status == ProvisioningStatus.OK
 
@@ -328,15 +343,11 @@ class CySecureTools:
 
         if not all_fields_present or not serial or not public_key:
             logger.info('Get default certificate data')
-            try:
-                default = context.default_certificate_data(
-                    self.tool, self.target, self.entr_exam, probe_id)
-                if not default:
-                    logger.error('Failed to get data for the certificate')
-                    return None
-            except (TransferFaultError, TransferError) as e:
-                logger.error(e)
-                logger.debug(e, exc_info=True)
+
+            default = context.default_certificate_data(
+                self.tool, self.target, self.entr_exam, probe_id)
+            if not default:
+                logger.error('Failed to get data for the certificate')
                 return None
 
             for field in expected_fields:
@@ -348,34 +359,38 @@ class CySecureTools:
             if not public_key:
                 kwargs['public_key'] = default['public_key']
 
-        logger.info('Create certificate')
-        return context.create_certificate(cert_name, cert_encoding, **kwargs)
+        logger.info('Start creating certificate')
+        overwrite = True if self.skip_prompts else None
+        return context.create_certificate(cert_name, cert_encoding,
+                                          overwrite=overwrite, **kwargs)
 
-    def entrance_exam(self, probe_id=None, ap='cm4'):
+    def entrance_exam(self, probe_id=None, ap='cm4', erase_flash=False):
         """
         Checks device life-cycle, Flashboot firmware and Flash state.
         :param probe_id: Probe serial number.
         :param ap: The access port used for entrance exam
+        :param erase_flash: Indicates whether to erase flash before the
+               entrance exam
         :return True if the device is ready for provisioning,
                 otherwise False.
         """
         status = False
-        try:
-            if self.tool.connect(self.target_name, probe_id=probe_id, ap=ap):
-                status = self.entr_exam.execute(self.tool)
-                if status == EntranceExamStatus.FLASH_NOT_EMPTY:
+        if self.tool.connect(self.target_name, probe_id=probe_id, ap=ap):
+            context = ProvisioningContext(self.target.provisioning_strategy)
+            if erase_flash:
+                context.erase_flash(self.tool, self.target)
+            status = self.entr_exam.execute(self.tool)
+            if status == EntranceExamStatus.FLASH_NOT_EMPTY:
+                if self.skip_prompts:
+                    logger.error('Entrance exam failed. '
+                                 'User firmware running on chip detected')
+                    return ProvisioningStatus.FAIL
+                else:
                     answer = input(
                         'Erase user firmware running on chip? (y/n): ')
                     if answer.lower() == 'y':
-                        context = ProvisioningContext(
-                            self.target.provisioning_strategy)
                         context.erase_flash(self.tool, self.target)
-                self.tool.disconnect()
-        except (TransferFaultError, TransferError) as e:
-            logger.error(e)
-            logger.debug(e, exc_info=True)
-            status = EntranceExamStatus.FAIL
-
+            self.tool.disconnect()
         return status == EntranceExamStatus.OK
 
     def flash_map(self, image_id=4, image_type=ImageType.BOOT.name):
@@ -453,11 +468,13 @@ class CySecureTools:
         :param probe_id: Probe serial number.
                Used to read device public key from device.
         """
-        # Get host private key
-        if not self.policy_validator.validate():
-            logger.error('Policy validation failed')
+        validation_state = self.policy_validator.validate(
+            skip=['dap_disabling'], skip_prompts=self.skip_prompts)
+        if validation_state in [ValidationStatus.ERROR,
+                                ValidationStatus.TERMINATED]:
             return False
 
+        # Get host private key
         logger.debug(f'Host key id = {host_key_id}')
         try:
             _, host_key_pem = self.policy_parser.get_private_key(host_key_id)
@@ -468,18 +485,14 @@ class CySecureTools:
         # Get public key
         pub_key_pem = None
         logger.debug(f'Device key id = {dev_key_id}')
-        try:
-            connected = self.tool.connect(self.target_name, probe_id=probe_id,
-                                          blocking=False, ap='sysap')
-            if connected:
-                logger.info('Read device public key from device')
-                pub_key_pem = self.key_reader.read_public_key(
-                    self.tool, dev_key_id, 'pem')
-                self.tool.disconnect()
-        except (TransferFaultError, TransferError) as e:
-            logger.error(e)
-            logger.debug(e, exc_info=True)
-            return False
+
+        connected = self.tool.connect(self.target_name, probe_id=probe_id,
+                                      blocking=False, ap='sysap')
+        if connected:
+            logger.info('Read device public key from device')
+            pub_key_pem = self.key_reader.read_public_key(
+                self.tool, dev_key_id, 'pem')
+            self.tool.disconnect()
 
         if not connected or not pub_key_pem:
             logger.info(f'Read public key {dev_key_id} from file')
@@ -510,14 +523,9 @@ class CySecureTools:
         :return: True if the image programmed successfully, otherwise False.
         """
         context = EncryptedProgrammingContext(AesHeaderStrategy)
-        try:
-            self.tool.connect(self.target_name, probe_id=probe_id, ap='sysap')
-            result = context.program(self.tool, self.target, encrypted_image)
-            self.tool.disconnect()
-        except (TransferFaultError, TransferError) as e:
-            logger.error(e)
-            logger.debug(e, exc_info=True)
-            result = False
+        self.tool.connect(self.target_name, probe_id=probe_id, ap='sysap')
+        result = context.program(self.tool, self.target, encrypted_image)
+        self.tool.disconnect()
         return result
 
     def read_public_key(self, key_id, key_fmt, out_file=None, probe_id=None):
@@ -546,11 +554,20 @@ class CySecureTools:
         except (ValueError, FileNotFoundError) as e:
             logger.error(e)
             key = None
-        except (TransferFaultError, TransferError) as e:
-            logger.error(e)
-            logger.debug(e, exc_info=True)
-            key = None
         return key
+
+    def read_die_id(self, probe_id=None, ap='sysap'):
+        """
+        Reads die ID
+        :param probe_id: Probe serial number
+        :param ap: The access port used to read the data
+        :return: Die ID if success, otherwise None
+        """
+        self.tool.connect(self.target_name, probe_id=probe_id, ap=ap)
+        reader = self.target.silicon_data_reader(self.target)
+        die_id = reader.read_die_id(self.tool)
+        self.tool.disconnect()
+        return die_id
 
     def sign_json(self, json_file, priv_key_id, output_file):
         """
@@ -564,9 +581,11 @@ class CySecureTools:
         :return: The JWT
         """
         logger.info(f'Signing file {os.path.abspath(json_file)}')
-        if not self.policy_validator.validate():
-            logger.error('Policy validation failed')
-            return None
+        validation_state = self.policy_validator.validate(
+            skip=['dap_disabling'], skip_prompts=self.skip_prompts)
+        if validation_state in [ValidationStatus.ERROR,
+                                ValidationStatus.TERMINATED]:
+            return False
 
         logger.debug(f'Private key id = {priv_key_id}')
         try:
@@ -593,19 +612,13 @@ class CySecureTools:
         """
         context = ProvisioningContext(self.target.provisioning_strategy)
         sfb_version = 'unknown'
-        connected = False
         cert = None
-        try:
-            connected = self.tool.connect(self.target_name, probe_id=probe_id,
-                                          blocking=False, ap=ap)
-            if connected:
-                sfb_version = self.entr_exam.read_sfb_version(self.tool)
-                cert = context.read_image_certificate(self.tool, self.target)
-                self.tool.disconnect()
-        except (TransferFaultError, TransferError) as e:
-            logger.error(e)
-            logger.debug(e, exc_info=True)
-            cert = None
+        connected = self.tool.connect(self.target_name, probe_id=probe_id,
+                                      blocking=False, ap=ap)
+        if connected:
+            sfb_version = self.entr_exam.read_sfb_version(self.tool)
+            cert = context.read_image_certificate(self.tool, self.target)
+            self.tool.disconnect()
 
         print_version([self.target_name])
         if connected:
@@ -622,7 +635,26 @@ class CySecureTools:
         Initializes new project
         """
         cwd = os.getcwd()
-        self.project_initializer.init(cwd)
+        overwrite = True if self.skip_prompts else None
+        self.project_initializer.init(cwd, overwrite)
+
+    def get_probe_list(self):
+        """
+        Gets list of all connected probes
+        """
+        return self.tool.get_probe_list()
+
+    def get_device_info(self, probe_id=None, ap='sysap'):
+        """
+        Gets device information - silicon ID, silicon revision, family ID
+        """
+        connected = self.tool.connect(self.target_name, probe_id=probe_id,
+                                      ap=ap)
+        dev_info = None
+        if connected:
+            dev_info = self.entr_exam.read_device_info(self.tool)
+            self.tool.disconnect()
+        return dev_info
 
     @staticmethod
     def get_target_builder(director, target_name):

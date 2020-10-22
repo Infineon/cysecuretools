@@ -16,6 +16,7 @@ limitations under the License.
 import os
 import logging
 from time import sleep
+from cysecuretools.core.enums import RegionHashStatus
 import cysecuretools.data.mxs40v1.mxs40v1_sfb_status_codes as sfb_status
 
 # SysCall operation codes
@@ -39,8 +40,9 @@ def region_hash(tool, reg_map):
     Procedure calls RegionHash syscall over IPC and read response.
     :param tool: Programming/debugging tool.
     :param reg_map: Device register map.
-    :return: True if syscall succeeds, otherwise False.
+    :return: Region hash status
     """
+    result = RegionHashStatus.OK
     logger.debug('Start RegionHash syscall')
     sram_addr = reg_map.ENTRANCE_EXAM_SRAM_ADDR
     address = reg_map.ENTRANCE_EXAM_REGION_HASH_ADDR
@@ -70,11 +72,15 @@ def region_hash(tool, reg_map):
 
     if (response & 0xFF000000) == 0xa0000000:
         logger.debug('RegionHash syscall passed')
-        return True
     else:
-        logger.error(f'RegionHash syscall error: {hex(response)}')
-        print_sfb_status(response)
-        return False
+        if response == sfb_status.get_code_by_name('CY_FB_INVALID_FLASH_OPERATION'):
+            result = RegionHashStatus.FLASH_NOT_EMPTY
+        else:
+            logger.error(f'RegionHash syscall error: {hex(response)}')
+            print_sfb_status(response)
+            result = RegionHashStatus.FAIL
+
+    return result
 
 
 def get_prov_details(tool, reg_map, key_id):
@@ -143,7 +149,7 @@ def provision_keys_and_policies(tool, filename, reg_map):
     :param tool: Programming/debugging tool.
     :param filename: Path to provisioning JWT file.
     :param reg_map: Device register map.
-    :return: True if syscall succeeds, otherwise False.
+    :return: Tuple with the syscall result and device response
     """
     logger.debug('Start ProvisionKeysAndPolicies syscall')
     if filename:
@@ -152,7 +158,7 @@ def provision_keys_and_policies(tool, filename, reg_map):
             logger.error('JWT packet too long')
             return False
 
-        logger.info(f'JWT packet size: {file_size}')
+        logger.info(f'JWT packet size = {file_size}')
         with open(filename, 'r+') as jwt_file:
             jwt_file.seek(0)
             content = jwt_file.read()
@@ -197,22 +203,25 @@ def provision_keys_and_policies(tool, filename, reg_map):
     log_reg_value(tool, reg_map.CYREG_IPC2_STRUCT_DATA)
     log_reg_value(tool, reg_map.ENTRANCE_EXAM_SRAM_ADDR)
 
-    response = tool.read32(reg_map.ENTRANCE_EXAM_SRAM_ADDR)
-    result = (response & 0xFF000000) == 0xa0000000
+    status = tool.read32(reg_map.ENTRANCE_EXAM_SRAM_ADDR)
+    result = (status & 0xFF000000) == 0xa0000000
+    response = None
 
     if result:
         logger.debug('ProvisionKeysAndPolicies syscall passed')
+        response = read_device_response(tool, reg_map)
     else:
         if filename:
             logger.error(f'ProvisionKeysAndPolicies syscall error: '
-                         f'{hex(response)}')
-            print_sfb_status(response)
+                         f'{hex(status)}')
+            print_sfb_status(status)
         else:
             syscall_invalid_arg = \
                 sfb_status.get_code_by_name('CY_FB_SYSCALL_INVALID_ARGUMENT')
-            if response == syscall_invalid_arg:
-                return True  # it is expected when no JWT packet specified
-    return result
+            if status == syscall_invalid_arg:
+                response = read_device_response(tool, reg_map)
+                result = True  # it is expected when no JWT packet specified
+    return result, response
 
 
 def encrypted_programming(tool, reg_map, mode, data, host_key_id=0,
@@ -422,6 +431,24 @@ def read_lifecycle(tool, reg_map):
     response = tool.read32(reg_map.CYREG_IPC2_STRUCT_DATA)
     if response & 0xFF000000 == 0xa0000000:
         return (response >> 16) & 0x0f
+
+
+def read_device_response(tool, reg_map):
+    """
+    Reads device JWT response after provisioning syscall execution
+    """
+    scratch_addr = tool.read32(reg_map.ENTRANCE_EXAM_SRAM_ADDR + 0x04)
+    resp_size = tool.read32(scratch_addr)
+    resp_addr = tool.read32(scratch_addr + 0x04)
+    logger.debug(f'Device response address = {hex(resp_addr)}')
+    logger.debug(f'Device response size = {resp_size}')
+    response = ''
+    for i in range(resp_size):
+        hash_byte_chr = chr(tool.read8(resp_addr + i))
+        response += hash_byte_chr
+    response = response.strip()
+    logger.info(f'Device response = \'{response}\'')
+    return response
 
 
 def wait_acquire_ipc_struct(tool, reg_map, timeout=5000):

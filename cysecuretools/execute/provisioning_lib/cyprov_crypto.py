@@ -68,12 +68,11 @@ class Crypto:
         with decoded payload and header for printing and logging
         """
         signing_input, crypto_segment = txt.rsplit('.', 1)
-        header, claims, signing_input, signature = jws._load(txt)
-        readable = {
-            'protected': header,
-            'payload': json.loads(claims.decode('utf-8')),
-            'signature': crypto_segment
-        }
+
+        if len(signing_input.rsplit('.', 1)) == 1:
+            readable = Crypto._load_unsigned_jwt(txt)
+        else:
+            readable = Crypto._load_signed_jwt(txt)
 
         # create readable timestamps for exp/iat claims
         payload = readable["payload"]
@@ -88,6 +87,29 @@ class Crypto:
                 t = datetime.fromtimestamp(t).isoformat(' ')
                 payload["exp"] = t
 
+        return readable
+
+    @staticmethod
+    def _load_unsigned_jwt(txt):
+        _, payload = txt.rsplit('.', 1)
+        payload = payload.encode('utf-8')
+        payload = jws.base64url_decode(payload)
+        readable = {
+            'protected': {},
+            'payload': json.loads(payload.decode('utf-8')),
+            'signature': ''
+        }
+        return readable
+
+    @staticmethod
+    def _load_signed_jwt(txt):
+        signing_input, crypto_segment = txt.rsplit('.', 1)
+        header, claims, signing_input, signature = jws._load(txt)
+        readable = {
+            'protected': header,
+            'payload': json.loads(claims.decode('utf-8')),
+            'signature': crypto_segment
+        }
         return readable
 
     @staticmethod

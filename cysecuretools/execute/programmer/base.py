@@ -38,13 +38,33 @@ class ProgrammerBase(metaclass=ABCMeta):
     def __init__(self):
         pass
 
+    @property
+    def wait_for_target(self):
+        """
+        Gets a value indicating whether to wait for the target
+        if no available devices are connected
+        """
+        raise NotImplementedError
+
+    @wait_for_target.setter
+    def wait_for_target(self, value):
+        """
+        Sets a value indicating whether to wait for the target
+        if no available devices are connected
+        """
+        raise NotImplementedError
+
     @abstractmethod
-    def connect(self, target_name=None, interface=None, ap=None):
+    def connect(self, target_name=None, interface=None, probe_id=None,
+                ap=None, blocking=True):
         """
         Connects to target.
         :param target_name: The target name.
         :param interface: Debug interface.
+        :param probe_id: Probe serial number.
         :param ap: The access port used for communication.
+        :param blocking: Specifies whether to wait for a probe to be
+               connected if there are no available probes
         :return: True if connected successfully, otherwise False.
         """
         raise NotImplementedError()
@@ -208,6 +228,13 @@ class ProgrammerBase(metaclass=ABCMeta):
         :param address: The memory address where start reading
         :param length: Number of bytes to read
         :return: Values array
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def get_probe_list(self):
+        """
+        Gets list of connected probes
         """
         raise NotImplementedError()
 

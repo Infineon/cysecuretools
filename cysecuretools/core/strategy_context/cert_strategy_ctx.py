@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright (c) 2019-2020 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ class CertificateStrategy(ABC):
     of some algorithm.
     """
     @abstractmethod
-    def create_certificate(self, cert_name, cert_encoding, **kwargs):
+    def create_certificate(self, filename, encoding, overwrite, **kwargs):
         pass
 
     @abstractmethod
@@ -51,14 +51,16 @@ class CertificateContext:
         """
         self._strategy = strategy
 
-    def create_certificate(self, cert_name, cert_encoding, **kwargs):
+    def create_certificate(self, filename, encoding, overwrite, **kwargs):
         """
         Delegates work to the Strategy object.
         """
-        return self._strategy.create_certificate(cert_name, cert_encoding, **kwargs)
+        return self._strategy.create_certificate(filename, encoding, overwrite,
+                                                 **kwargs)
 
     def default_certificate_data(self, tool, target, entrance_exam, probe_id):
         """
         Delegates work to the Strategy object.
         """
-        return self._strategy.default_certificate_data(tool, target, entrance_exam, probe_id)
+        return self._strategy.default_certificate_data(tool, target,
+                                                       entrance_exam, probe_id)

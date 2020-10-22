@@ -2,3 +2,5 @@ __pycache__
 .DS_Store
 .idea
 logs
+output
+cysecuretools/targets/common/json/filtered.json

@@ -19,8 +19,8 @@ import logging
 from time import sleep
 import cysecuretools.execute.provisioning_packet_mxs40v1 as prov_packet
 from cysecuretools.core.target_director import Target
-from cysecuretools.execute.enums import (ProtectionState, EntranceExamStatus,
-                                         ProvisioningStatus, KeyId)
+from cysecuretools.core.enums import (ProtectionState, EntranceExamStatus,
+                                      ProvisioningStatus, KeyId)
 from cysecuretools.execute.entrance_exam.exam_mxs40v1 import \
     EntranceExamMXS40v1
 from cysecuretools.execute.provisioning_lib.cyprov_pem import PemKey
@@ -65,6 +65,11 @@ class ProvisioningMXS40V1(ProvisioningStrategy):
         else:
             ap = 'cm0'
 
+        if 'skip_prompts' in kwargs:
+            skip_prompts = kwargs['skip_prompts']
+        else:
+            skip_prompts = None
+
         if 'probe_id' in kwargs:
             probe_id = kwargs['probe_id']
         else:
@@ -72,7 +77,8 @@ class ProvisioningMXS40V1(ProvisioningStrategy):
 
         prov_packets = self._get_provisioning_packet(target)
         status = _provision_identity(tool, target, entrance_exam,
-                                     prov_packets['prov_identity'])
+                                     prov_packets['prov_identity'],
+                                     skip_prompts)
 
         if status == ProvisioningStatus.OK:
             status = _provision_complete(tool, target,
@@ -193,27 +199,9 @@ def read_silicon_data(tool, target: Target):
     :return: Device response
     """
     logger.debug('Read silicon data')
-    logger.debug('Run provision_keys_and_policies syscall')
-    response = None
     tool.reset(ResetType.HW)
-    passed = provision_keys_and_policies(tool, None, target.register_map)
-    if passed:
-        scratch_addr = tool.read32(
-            target.register_map.ENTRANCE_EXAM_SRAM_ADDR + 0x04)
-        resp_size = tool.read32(scratch_addr)
-        resp_addr = tool.read32(scratch_addr + 0x04)
-        logger.debug(f'resp_size = {hex(resp_size)}')
-        logger.debug(f'resp_addr = {hex(resp_addr)}')
-
-        response = ''
-        for i in range(resp_size):
-            hash_byte_chr = chr(tool.read8(resp_addr + i))
-            response += hash_byte_chr
-        response = response.strip()
-        logger.debug(f'ProvisionKeysAndPolicies response = \'{response}\'')
-    else:
-        logger.error('Unexpected ProvisionKeysAndPolicies syscall response')
-
+    passed, response = provision_keys_and_policies(tool, None,
+                                                   target.register_map)
     return response
 
 
@@ -267,7 +255,7 @@ def erase_slots(tool, target, slot_type, first_only=False):
 
 def _provision_identity(tool, target: Target,
                         entrance_exam: EntranceExamMXS40v1,
-                        prov_identity_jwt) -> ProvisioningStatus:
+                        prov_identity_jwt, skip_prompts) -> ProvisioningStatus:
     logger.info("CPUSS.PROTECTION state: "
                 "'0': UNKNOWN '1': VIRGIN '2': NORMAL '3': SECURE '4': DEAD")
     lifecycle = read_lifecycle(tool, target.register_map)
@@ -276,11 +264,16 @@ def _provision_identity(tool, target: Target,
     if lifecycle == ProtectionState.secure:
         status = entrance_exam.execute(tool)
         if status == EntranceExamStatus.FLASH_NOT_EMPTY:
-            answer = input('Erase user firmware running on chip? (y/n): ')
-            if answer.lower() == 'y':
-                erase_flash(tool, target)
+            if skip_prompts:
+                logger.error('Cannot start provisioning. '
+                             'User firmware running on chip detected')
+                return ProvisioningStatus.FAIL
             else:
-                return ProvisioningStatus.TERMINATED
+                answer = input('Erase user firmware running on chip? (y/n): ')
+                if answer.lower() == 'y':
+                    erase_flash(tool, target)
+                else:
+                    return ProvisioningStatus.TERMINATED
         elif status != EntranceExamStatus.OK:
             return ProvisioningStatus.FAIL
     else:
@@ -289,8 +282,10 @@ def _provision_identity(tool, target: Target,
     tool.reset_and_halt()
     sleep(0.2)
 
-    is_exam_pass = provision_keys_and_policies(tool, prov_identity_jwt,
-                                               target.register_map)
+    is_exam_pass, response = provision_keys_and_policies(
+        tool, prov_identity_jwt, target.register_map)
+    _save_device_response(target, response)
+
     if not is_exam_pass:
         logger.error('Unexpected TransitionToSecure syscall response\n')
         return ProvisioningStatus.FAIL
@@ -309,6 +304,7 @@ def _provision_complete(tool, target: Target, prov_cmd_jwt, bootloader,
         if cm0_open:
             tool.disconnect()
             tool.connect(target.name, probe_id=probe_id, ap='cm0')
+            tool.reset_and_halt(ResetType.HW)
         flash_ops_allowed = cm0_open or ap == 'cm4'
 
     reg_map = target.register_map
@@ -421,10 +417,12 @@ def _provision_complete(tool, target: Target, prov_cmd_jwt, bootloader,
 
     # Run provisioning syscall
     logger.info('Run provisioning syscall:')
-    is_exam_pass = provision_keys_and_policies(tool, prov_cmd_jwt,
-                                               target.register_map)
+    is_exam_pass, response = provision_keys_and_policies(tool, prov_cmd_jwt,
+                                                         target.register_map)
     if not is_exam_pass:
         return ProvisioningStatus.FAIL
+
+    _save_device_response(target, response)
 
     tool.reset()
 
@@ -476,4 +474,17 @@ def _save_device_public_key(tool, target):
             pem.save(pem_path, private_key=False)
     except Exception as e:
         logger.error('Failed to save device public key')
+        logger.error(e)
+
+
+def _save_device_response(target, response):
+    try:
+        packet_dir = target.policy_parser.get_provisioning_packet_dir()
+        filename = os.path.join(packet_dir, prov_packet.DEVICE_RESPONSE_JWT)
+        if response:
+            with open(filename, 'w') as f:
+                f.write(response)
+        logger.info(f'Saved device response to \'{filename}\'')
+    except Exception as e:
+        logger.error('Failed to save device response')
         logger.error(e)

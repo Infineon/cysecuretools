@@ -19,6 +19,7 @@ import json
 import os.path
 from cysecuretools.targets.common.policy_parser import ImageType
 from cysecuretools.core import PolicyValidatorBase
+from cysecuretools.core.enums import ValidationStatus
 from collections import namedtuple
 from cysecuretools.execute.key_reader import load_key
 
@@ -43,11 +44,14 @@ class PolicyValidator(PolicyValidatorBase):
         self.policy_dir = self.parser.policy_dir
         self.stage = self.get_policy_stage()
 
-    def validate(self, skip=None):
+    def validate(self, skip=None, skip_prompts=False):
         """
         Validation of policy.json.
-        :return True if validation succeeds, otherwise False.
+        :param skip: Validators to skip (e.g. pre_build, dap_disabling)
+        :param skip_prompts: Indicates whether to skip interactive prompts
+        :return Validation status
         """
+        status = ValidationStatus.OK
         skip_list = skip if skip else []
         # First stage validation
         with open(POLICY_SCHEMA) as f:
@@ -56,103 +60,169 @@ class PolicyValidator(PolicyValidatorBase):
 
         try:
             jsonschema.validate(self.parser.json, json_schema)
+            logger.debug('First stage validation success')
         except (jsonschema.exceptions.ValidationError,
                 jsonschema.exceptions.SchemaError) as e:
             logger.error('Validation against schema failed')
             logger.error(e)
-            return False
-        logger.debug('First stage validation success')
+            status = ValidationStatus.ERROR
 
         # Second stage validation
-        is_multi_image = self.is_multi_image()
-        logger.debug('Validating firmware slots overlapping')
-        result = self.validate_address_overlap(slot_overlaps=is_multi_image)
-        if not result:
-            return result
-
-        for slot in self.parser.json['boot_upgrade']['firmware'][1:]:
-            boot_auth = slot['boot_auth'][0]
-            boot_keys = slot['boot_keys'][0]
-            logger.debug('Validating boot_auth id matches kid in JSON key file')
-            result = self.key_id_validation(boot_auth, boot_keys)
+        if self._continue_validation(status):
+            is_multi_image = self.is_multi_image()
+            logger.debug('Validating firmware slots overlapping')
+            result = self.validate_address_overlap(is_multi_image)
             if not result:
-                return result
+                status = ValidationStatus.ERROR
 
-        logger.debug('Validating there is no different JWKs with the same key ID')
-        result = self.key_name_validation()
-        if not result:
-            return result
+        if self._continue_validation(status):
+            for slot in self.parser.json['boot_upgrade']['firmware'][1:]:
+                logger.debug('Validating boot_auth id matches kid in JSON '
+                             'key file')
+                result = self.validate_boot_keys(slot)
+                result &= self.validate_key_file_kid(slot)
+                if not result:
+                    status = ValidationStatus.ERROR
 
-        if self.stage == 'multi':
-            logger.debug('Validating multi-image IDs')
-            result = self.validate_multi_image_id()
+        if self._continue_validation(status):
+            logger.debug('Validating there is no different JWKs with the '
+                         'same key ID')
+            result = self.key_name_validation()
             if not result:
-                return result
+                status = ValidationStatus.ERROR
 
-            logger.debug('Validating multi-image smif_id')
-            result = self.validate_multi_image_smif_id()
+        if self._continue_validation(status):
+            if self.stage == 'multi':
+                logger.debug('Validating multi-image IDs')
+                result = self.validate_multi_image_id()
+                if not result:
+                    status = ValidationStatus.ERROR
+
+        if self._continue_validation(status):
+            if self.stage == 'multi':
+                logger.debug('Validating multi-image smif_id')
+                result = self.validate_multi_image_smif_id()
+                if not result:
+                    status = ValidationStatus.ERROR
+
+        if self._continue_validation(status):
+            if self.stage != 'multi':
+                logger.debug('Validating whether image ID corresponds to '
+                             'CyBootloader launch ID')
+                result = self.image_launch_validation()
+                if not result:
+                    status = ValidationStatus.ERROR
+
+        if self._continue_validation(status):
+            logger.debug('Validating policy for BOOT sections, '
+                         'encryption and SMIF')
+            result = self.check_slots()
             if not result:
-                return result
+                status = ValidationStatus.ERROR
 
-        if self.stage != 'multi':
-            logger.debug('Validating whether image ID corresponds to '
-                         'CyBootloader launch ID')
-            result = self.image_launch_validation()
+        if self._continue_validation(status):
+            logger.debug('Validating monotonic counter')
+            result = self.validate_monotonic_counter()
             if not result:
-                return result
+                status = ValidationStatus.ERROR
 
-        logger.debug('Validating policy for BOOT sections, encryption and SMIF')
-        result = self.check_slots()
+        if self._continue_validation(status):
+            logger.debug('Validating CyBootloader paths')
+            result = self.validate_cybootloader_paths()
+            if not result:
+                status = ValidationStatus.ERROR
+
+        if self._continue_validation(status):
+            logger.debug('Validate whether slots address value is aligned '
+                         'with the SMPU address limits')
+            result = self.validate_slot_address_alignment()
+            if not result:
+                status = ValidationStatus.ERROR
+
+        if self._continue_validation(status):
+            logger.debug('Check aligning to Memory map')
+            result = self.memory_map_align()
+            if not result:
+                status = ValidationStatus.ERROR
+
+        if self._continue_validation(status):
+            if 'pre_build' not in skip_list:
+                logger.debug('Checking integrity of pre-build section')
+                result = self.validate_prebuild_section()
+                if not result:
+                    status = ValidationStatus.ERROR
+
+        if self._continue_validation(status):
+            if 'dap_disabling' not in skip_list:
+                result = self.validate_dap_disabling(skip_prompts)
+                if result != ValidationStatus.OK:
+                    status = result
+
+        if status == ValidationStatus.ERROR:
+            logger.error('Policy validation finished with error')
+        elif status == ValidationStatus.WARNING:
+            logger.warning('Policy validation finished with warnings')
+        elif status == ValidationStatus.TERMINATED:
+            logger.info('Terminated by user')
+        else:
+            logger.debug('Second stage validation success')
+
+        return status
+
+    @staticmethod
+    def _continue_validation(status):
+        return status not in [ValidationStatus.ERROR,
+                              ValidationStatus.TERMINATED]
+
+    @staticmethod
+    def validate_boot_keys(slot):
+        """ Validates boot_keys section against boot_auth section """
+        result = True
+        for a in slot['boot_auth']:
+            key_found = False
+            for k in slot['boot_keys']:
+                if k['kid'] == a:
+                    key_found = True
+                    break
+            result &= key_found
+            if not result:
+                break
         if not result:
-            return result
-
-        logger.debug('Validating CyBootloader paths')
-        result = self.validate_cybootloader_paths()
-        if not result:
-            return result
-
-        logger.debug('Check aligning to Memory map')
-        result = self.memory_map_align()
-        if not result:
-            return result
-
-        if 'pre_build' not in skip_list:
-            logger.debug('Checking integrity of pre-build section')
-            result = self.validate_prebuild_section()
-
-        logger.debug('Second stage validation success')
+            logger.error(f'Key with ID {a} not found in the \'boot_keys\' '
+                         f'section (image ID {slot["id"]})')
         return result
 
-    def key_id_validation(self, auth, keys):
-        """
-        Validates keys ID in policy.
-        :param auth: Auth ID from policy.
-        :param keys: Key ID from policy.
-        :return True if validation succeeds, otherwise False.
-        """
-        key_file = os.path.join(self.policy_dir, keys['key'])
-        if os.path.exists(key_file):
-            priv, pub = load_key(key_file)
+    def validate_key_file_kid(self, slot):
+        """ Validates kid field of the key files against boot_auth section """
+        result = True
+        for a in slot['boot_auth']:
+            key_found = False
+            for k in slot['boot_keys']:
+                if k['kid'] == a:
+                    key_file = os.path.join(self.policy_dir, k['key'])
+                    if os.path.exists(key_file):
+                        private, public = load_key(key_file)
+                        if private:
+                            file_kid = int(private['kid'])
+                        elif public:
+                            file_kid = int(public['kid'])
+                        else:
+                            file_kid = None
 
-            if priv:
-                key_kid = priv['kid']
-            elif pub:
-                key_kid = pub['kid']
-            else:
-                key_kid = '-1'
-
-            key_kid = int(key_kid)
-            boot_key_kid = int(keys['kid'])
-
-            if not key_kid == auth:
-                logger.error(f'ID:"{auth}" NOT equals to kid:"{key_kid}" in JSON key file')
-                return False
-            if not boot_key_kid == auth:
-                logger.error(f'ID:"{auth}" NOT equals to kid:"{boot_key_kid}" in JSON key file')
-                return False
-        else:
-            logger.debug(f'Key file "{key_file}" does not exist')
-        return True
+                        if file_kid == a:
+                            key_found = True
+                            break
+                    else:
+                        key_found = True  # it is ok if file does not exist
+                        logger.debug(f'Key file "{key_file}" does not exist')
+            result &= key_found
+            if not result:
+                break
+        if not result:
+            logger.error(f"Key ID {a}, specified in the 'boot_auth' section "
+                         f"does not match key 'kid' field "
+                         f"(image ID {slot['id']})")
+        return result
 
     def key_name_validation(self):
         """
@@ -345,40 +415,52 @@ class PolicyValidator(PolicyValidatorBase):
         :return: True if there are no overlaps, otherwise False.
         """
         AddressSize = namedtuple("AddressSize", "address size")
-        all_addresses = []
+        all_slots_addr = []
+        bootloader_addr = []
         for slot in self.parser.json['boot_upgrade']['firmware']:
-            # Create list of used addresses
-            slot_addresses = []
+            slot_addr = []
             for res in slot['resources']:
                 if res['type'] in ['BOOT', 'UPGRADE']:
-                    slot_addresses.append(AddressSize(res['address'],
-                                                      res['size']))
+                    slot_addr.append(AddressSize(res['address'], res['size']))
+                if res['type'] in ['FLASH_PC1_SPM']:
+                    bootloader_addr.append(AddressSize(res['address'],
+                                                       res['size']))
             # Validate overlaps in range of the slot
-            if slot_addresses:
-                result = self.check_overlaps(slot_addresses)
+            if slot_addr:
+                result = self.check_overlaps(slot_addr)
                 if not result:
                     return result
-                all_addresses.extend(slot_addresses)
+                all_slots_addr.extend(slot_addr)
+
+        # Validate overlaps between slots and bootloader
+        result = self.check_overlaps(all_slots_addr, bootloader_addr)
+        if not result:
+            return result
 
         # Validate overlaps between the slots
         if slot_overlaps:
-            return self.check_overlaps(all_addresses)
+            return self.check_overlaps(all_slots_addr)
 
         return True
 
     @staticmethod
-    def check_overlaps(addr_list):
+    def check_overlaps(addr_list1, addr_list2=None):
         """
-        Checks whether addresses in the specified list overlap
+        Checks whether addresses in the specified list(s) overlap.
+        If single list specified, check overlaps in the range of the list.
+        If two lists specified, check overlaps between the lists.
         :return: True if address intersection detected, otherwise False
         """
-        for i in range(len(addr_list)):
-            for k in range(len(addr_list)):
+        if addr_list2 is None:
+            addr_list2 = addr_list1
+
+        for i in range(len(addr_list1)):
+            for k in range(len(addr_list2)):
                 if i != k:
-                    x = range(addr_list[i].address,
-                              addr_list[i].address + addr_list[i].size)
-                    y = range(addr_list[k].address,
-                              addr_list[k].address + addr_list[k].size)
+                    x = range(addr_list1[i].address,
+                              addr_list1[i].address + addr_list1[i].size)
+                    y = range(addr_list2[k].address,
+                              addr_list2[k].address + addr_list2[k].size)
                     xs = set(x)
                     if len(xs.intersection(y)) > 0:
                         logger.error(f'Address range '
@@ -552,3 +634,96 @@ class PolicyValidator(PolicyValidatorBase):
             if 'multi_image' in slot:
                 return True
         return False
+
+    def validate_slot_address_alignment(self):
+        """
+        Validates whether slots address is aligned with the SMPU
+        address limits
+        """
+        for slot in self.parser.json['boot_upgrade']['firmware']:
+            for res in slot['resources']:
+                if res['type'] in ['BOOT', 'UPGRADE']:
+                    address = int(res['address'])
+                    if address % 1024 != 0:
+                        logger.error(f'{res["type"]} slot address '
+                                     f'({hex(address)}) is misaligned '
+                                     f'with the SMPU address limits for the '
+                                     f'CYB06XXX part')
+                        return False
+        return True
+
+    def validate_dap_disabling(self, skip_prompts=False):
+        """
+        Validates DAP closure and warns a user about the result
+        """
+        cm0_closed = self.parser.is_ap_disabled('m0p')
+        cm4_closed = self.parser.is_ap_disabled('m4')
+        sysap_closed = self.parser.is_ap_disabled('system')
+        result = ValidationStatus.OK
+        if cm0_closed and cm4_closed:
+            if skip_prompts:
+                logger.warning('The policy will close out SWD ports on the '
+                               'chip, preventing any reprogramming of '
+                               'application image via SWD')
+                result = ValidationStatus.WARNING
+            else:
+                answer = input('The policy will close out SWD ports on the '
+                               'chip, preventing any reprogramming of '
+                               'application image via SWD. Please ensure you '
+                               'have a valid image programmed on the chip '
+                               'before provisioning the chip. '
+                               'Continue? (y/n): ')
+                if answer.lower() == 'y':
+                    result = ValidationStatus.OK
+                else:
+                    return ValidationStatus.TERMINATED
+
+        if sysap_closed:
+            if skip_prompts:
+                logger.warning('The policy will close out System DAP on the '
+                               'chip, preventing further reprovisioning')
+                result = ValidationStatus.WARNING
+            else:
+                answer = input('The policy will close out System DAP on the '
+                               'chip, preventing further reprovisioning. '
+                               'Continue? (y/n): ')
+                if answer.lower() != 'y':
+                    return ValidationStatus.TERMINATED
+        return result
+
+    def validate_monotonic_counter(self):
+        """
+        Validates 'monotonic' field in the policy
+        """
+        result = True
+        cm0_monotonic = None
+        cm4_monotonic = None
+        for slot in self.parser.json['boot_upgrade']['firmware']:
+            if slot['id'] != 0:
+                if self._is_cm0_slot(slot['id']):
+                    r = range(0, 15)
+                    cm0_monotonic = slot['monotonic']
+                    if cm0_monotonic not in r:
+                        logger.error(f'CM0 application monotonic counter must '
+                                     f'be in range {r.start}-{r.stop}')
+                        result &= False
+                if self._is_cm4_slot(slot['id']):
+                    r = range(8, 15)
+                    cm4_monotonic = slot['monotonic']
+                    if cm4_monotonic not in r:
+                        logger.error(f'CM4 application monotonic counter must '
+                                     f'be in range {r.start}-{r.stop}')
+                        result &= False
+        if cm0_monotonic and cm4_monotonic and cm0_monotonic == cm4_monotonic:
+            logger.error('\'monotonic\' field must be different for different '
+                         'applications in multi-image case')
+            result &= False
+        return result
+
+    @staticmethod
+    def _is_cm0_slot(image_id):
+        return image_id in [1, 2, 3]
+
+    @staticmethod
+    def _is_cm4_slot(image_id):
+        return image_id in [4, 16]

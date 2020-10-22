@@ -34,10 +34,6 @@ class MemoryMap_cyb06xx7(MemoryMapBase):
         return 0x4A00
 
     @property
-    def MCUBOOT_HEADER_SIZE(self):
-        return 0x400
-
-    @property
     def SPE_IMAGE_ID(self):
         return 1
 

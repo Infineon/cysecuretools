@@ -23,10 +23,12 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cysecuretools.execute.key_reader import load_key
-from cysecuretools.execute.enums import KeyId
-from cysecuretools.core.strategy_context.cert_strategy_ctx import CertificateStrategy
+from cysecuretools.core.enums import KeyId
+from cysecuretools.core.strategy_context.cert_strategy_ctx \
+    import CertificateStrategy
 from cysecuretools.core.target_director import Target
-from cysecuretools.execute.entrance_exam.exam_mxs40v1 import EntranceExamMXS40v1
+from cysecuretools.execute.entrance_exam.exam_mxs40v1 \
+    import EntranceExamMXS40v1
 from cysecuretools.execute.provisioning_lib.cyprov_pem import PemKey
 from cysecuretools.targets.common.silicon_data_parser import SiliconDataParser
 from cysecuretools.execute.provision_device_mxs40v1 import read_silicon_data
@@ -35,20 +37,63 @@ logger = logging.getLogger(__name__)
 
 
 class X509CertificateStrategy(CertificateStrategy):
-    def create_certificate(self, cert_name, cert_encoding,
-                           subject_name,
-                           issuer_name,
-                           country,
-                           state,
-                           organization,
-                           public_key,
-                           private_key,
-                           not_valid_before=datetime.datetime.today(),
-                           not_valid_after=datetime.datetime.today() + datetime.timedelta(days=365 * 5),
-                           serial_number=x509.random_serial_number()):
+    def create_certificate(self, filename, encoding, overwrite=None, **kwargs):
         """
         Creates certificate in X.509 format.
         """
+        filename = os.path.abspath(filename)
+
+        if 'subject_name' in kwargs:
+            subject_name = kwargs['subject_name']
+        else:
+            raise KeyError('Mandatory argument "subject_name" not specified')
+
+        if 'issuer_name' in kwargs:
+            issuer_name = kwargs['issuer_name']
+        else:
+            raise KeyError('Mandatory argument "issuer_name" not specified')
+
+        if 'country' in kwargs:
+            country = kwargs['country']
+        else:
+            raise KeyError('Mandatory argument "country" not specified')
+
+        if 'state' in kwargs:
+            state = kwargs['state']
+        else:
+            raise KeyError('Mandatory argument "state" not specified')
+
+        if 'organization' in kwargs:
+            organization = kwargs['organization']
+        else:
+            raise KeyError('Mandatory argument "organization" not specified')
+
+        if 'public_key' in kwargs:
+            public_key = kwargs['public_key']
+        else:
+            raise KeyError('Mandatory argument "public_key" not specified')
+
+        if 'private_key' in kwargs:
+            private_key = kwargs['private_key']
+        else:
+            raise KeyError('Mandatory argument "private_key" not specified')
+
+        if 'not_valid_before' in kwargs:
+            not_valid_before = kwargs['not_valid_before']
+        else:
+            not_valid_before = datetime.datetime.today()
+
+        if 'not_valid_after' in kwargs:
+            not_valid_after = kwargs['not_valid_after']
+        else:
+            not_valid_after = datetime.datetime.today() + datetime.timedelta(
+                days=365 * 5)
+
+        if 'serial_number' in kwargs:
+            serial_number = kwargs['serial_number']
+        else:
+            serial_number = x509.random_serial_number()
+
         # Check public key exists and convert to PEM if JWK passed
         if os.path.isfile(str(public_key)):
             if public_key.lower().endswith('.json'):
@@ -71,8 +116,10 @@ class X509CertificateStrategy(CertificateStrategy):
             serialized_private = self.jwk_to_pem(private_key, private_key=True)
 
         # Create certificate
-        public_key = serialization.load_pem_public_key(serialized_public, backend=default_backend())
-        private_key = serialization.load_pem_private_key(serialized_private, password=None, backend=default_backend())
+        public_key = serialization.load_pem_public_key(
+            serialized_public, backend=default_backend())
+        private_key = serialization.load_pem_private_key(
+            serialized_private, password=None, backend=default_backend())
 
         builder = x509.CertificateBuilder()
         subj = [
@@ -83,32 +130,56 @@ class X509CertificateStrategy(CertificateStrategy):
             x509.NameAttribute(NameOID.SERIAL_NUMBER, str(serial_number))
         ]
         builder = builder.subject_name(x509.Name(subj))
-        builder = builder.issuer_name(x509.Name([x509.NameAttribute(NameOID.COMMON_NAME, issuer_name)]))
+        builder = builder.issuer_name(x509.Name([x509.NameAttribute(
+            NameOID.COMMON_NAME, issuer_name)]))
         builder = builder.not_valid_before(not_valid_before)
         builder = builder.not_valid_after(not_valid_after)
         builder = builder.serial_number(serial_number)
         builder = builder.public_key(public_key)
-        builder = builder.add_extension(x509.BasicConstraints(ca=False, path_length=None), critical=True)
+        builder = builder.add_extension(x509.BasicConstraints(
+            ca=False, path_length=None), critical=True)
 
-        certificate = builder.sign(private_key=private_key, algorithm=hashes.SHA256(), backend=default_backend())
+        certificate = builder.sign(private_key=private_key,
+                                   algorithm=hashes.SHA256(),
+                                   backend=default_backend())
 
         # Save certificate to the file
-        with open(cert_name, 'wb') as f:
-            f.write(certificate.public_bytes(cert_encoding))
-
-        if certificate:
-            logger.info(f'Certificate created: {os.path.abspath(cert_name)}')
+        if overwrite is None:
+            if os.path.isfile(filename):
+                answer = input(f'File \'{filename}\' already exists. '
+                               f'Overwrite? (y/n): ')
+                if answer.lower() == 'y':
+                    self._save_to_file(certificate, encoding, filename)
+                else:
+                    logger.info('Skip saving certificate to file')
+            else:
+                self._save_to_file(certificate, encoding, filename)
+        elif overwrite:
+            self._save_to_file(certificate, encoding, filename)
+        else:
+            logger.info('Skip saving certificate to file')
         return certificate
 
-    def default_certificate_data(self, tool, target: Target, entrance_exam: EntranceExamMXS40v1, probe_id=None):
+    @staticmethod
+    def _save_to_file(certificate, encoding, filename):
+        with open(filename, 'wb') as f:
+            f.write(certificate.public_bytes(encoding))
+        logger.info(f'Certificate created: {filename}')
+
+    def default_certificate_data(self, tool, target: Target,
+                                 entrance_exam: EntranceExamMXS40v1,
+                                 probe_id=None):
         """
         Gets a dictionary with the default values.
-        Default certificate requires device to be connected to read device public key and die ID,
-        which are used as a certificate fields.
+        Default certificate requires device to be connected to read
+        device public key and die ID, which are used as a certificate
+        fields
         :param tool: Programming tool to connect to device
         :param target: Target object
-        :param entrance_exam: The object used to execute entrance exam before provisioning.
-        :param probe_id: Probe ID. Need to be used if more than one device is connected to the computer.
+        :param entrance_exam: The object used to execute entrance exam
+               before provisioning.
+        :param probe_id: Probe ID. Need to be used if more than one
+               device is connected to the computer.
         :return: Dictionary with the certificate fields.
         """
         # Read silicon data

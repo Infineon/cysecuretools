@@ -2,11 +2,13 @@ This package contains security tools for creating keys, creating certificates, s
 
 # Table of Contents
 - [Features](#features)
+- [Documentation](#documentation)
 - [Prerequisites](#prerequisites)
 - [Installing package](#installing-package)
 - [Init project](#init-project)
 - [Quick start](#quick-start)
 - [Interface description](#interface-description)
+    - [Common options](#common-options)
     - [Create keys](#create-keys)
     - [Create provisioning packet](#create-provisioning-packet)
     - [Provision device](#provision-device)
@@ -25,11 +27,18 @@ This package contains security tools for creating keys, creating certificates, s
     - [CyBootloader and Secure Flash Boot version](#cybootloader-and-secure-flash-boot-version)
     - [Sign certificate](#sign-certificate)
     - [Read public key from device](#read-public-key-from-device)
+    - [Read die ID from device](#read-die-id-from-device)
 - [Closing All Access Ports](#closing-all-access-ports)
 - [Open CM0 Access Port](#open-cm0-access-port)
 - [Policy and Keys](#policy-and-keys)
+    - [Provisioning Policies](#provisioning-policies)
+    - [Policy Location](#policy-location)
+    - [Custom Data Sections](#custom-data-sections)
+    - [Keys Location](#keys-location)
 - [CyBootloader](#cybootloader)
-- [Encrypted Bootloader](#encrypted-bootloader)
+    - [Custom Bootloader](#custom-bootloader)
+    - [Encrypted Bootloader](#encrypted-bootloader)
+- [Using Different On-Chip Debugger](#using-different-on-chip-debugger)
 - [Package Installation Directory](#package-installation-directory)
 - [License and Contributions](#license-and-contributions)
 
@@ -48,6 +57,11 @@ This package contains security tools for creating keys, creating certificates, s
 * [Create image certificate](#create-image-certificate) - Based on an image, create a JWT that certifies the image's validity.
 
 * [Output CyBootloader and Secure Flash Boot version](#output-cybootloader-and-secure-flash-boot-version) - Outputs CyBootloader and Secure Flash Boot version.
+
+# Documentation
+
+* [PSoC64 Secure MCU Secure Boot SDK User Guide](https://www.cypress.com/documentation/software-and-drivers/psoc-64-secure-mcu-secure-boot-sdk-user-guide)
+* [Changelog](CHANGELOG.md)
 
 # Prerequisites
 
@@ -103,13 +117,16 @@ tools = CySecureTools()
 A possible output of this command:
 ```
 Supported targets and families:
+PSoC64 Secure Boot Family:
+	cyb06xx7
+	cyb06xxa
+	cyb06xx5
 PSOC64 Kit targets:
+	cy8cproto-064s1-sb
+	cy8cproto-064b0s1-ble
 	cy8ckit-064b0s2-4343w
 	cy8ckit-064s0s2-4343w
 	cy8cproto-064b0s3
-PSoC64 Secure Boot Family:
-	cyb06xxa
-	cyb06xx5
 PSoC64 Standard Secure Family:
 	cys06xxa
 ```
@@ -176,6 +193,27 @@ tools.sign_image('example-blinky.hex')
 ```
 
 # Interface description
+
+## **Common options**
+
+The CLI (command line interface) provides common options - the options that are common for all commands and must precede them:
+
+| Option         | Description              |
+| -------------  | ------------------------ |
+| -t, --target   | Device name or family    |
+| -p, --policy   | Provisioning policy file |
+| -v, --verbose  | Provides debug-level log |
+| --logfile-off  | Avoids logging into file |
+| --help         | Shows the tool help      |
+
+#### Usage example:
+```bash
+cysecuretools -t <TARGET> -p <POLICY> <COMMAND> --<COMMAND_OPTION>
+```
+For the detailed help of particular command use:
+```bash
+cysecuretools <COMMAND> --help
+```
 
 ## **Create keys**
 Creates keys specified in the policy file for the image signing.
@@ -339,11 +377,14 @@ Signs the user application with the keys created by the [create keys](#create-ke
 #### CLI implementation
 ### sign-image
 #### Parameters
-| Name           | Optional/Required  | Description   |
-| -------------- |:------------------:| ------------- |
-| -h, --hex      | required           | The hex file with the user application. |
-| -i, --image-id | optional           | The ID of the firmware image in the device. The default value is 4. |
-| --image-type   | optional           | Indicates which type of an image is signed - boot or upgrade. If omitted, both types will be generated. Accepted only **BOOT** or **UPGRADE** values. |
+| Name             | Optional/Required  | Description   |
+| ---------------- |:------------------:| ------------- |
+| -h, --hex        | required           | The hex file with the user application. |
+| -i, --image-id   | optional           | The ID of the firmware image in the device. The default value is 4. |
+| --image-type     | optional           | Indicates which type of an image is signed - boot or upgrade. If omitted, both types will be generated. Accepted only **BOOT** or **UPGRADE** values. |
+| -e, --encrypt    | optional           | Public key PEM-file for the image encryption. |
+| -R, --erased-val | optional           | The value that is read back from erased flash. |
+| --boot-record    | optional           | Create CBOR encoded boot record TLV. Represents the role of the software component (e.g. CoFM for coprocessor firmware) [max. 12 characters] |
 
 #### Usage example
 ```bash
@@ -362,6 +403,9 @@ cysecuretools -t CY8CKIT-064B0S2-4343W -p MyPolicy.json sign-image --hex example
 | hex_file      | required           | The hex file with the user application. |
 | image_id      | optional           | The ID of the firmware image in the device. The default value is 4. |
 | image_type    | optional           | Indicates which type of an image is signed - boot or upgrade. If omitted, both types will be generated. Accepted only **BOOT** or **UPGRADE** values. |
+| encrypt_key   | optional           | Path to public key file for the image encryption. |
+| erased_val    | optional           | The value that is read back from erased flash. |
+| boot_record   | optional           | Create CBOR encoded boot record TLV. Represents the role of the software component (e.g. CoFM for coprocessor firmware) [max. 12 characters] |
 
 #### Usage example
 ```python
@@ -838,6 +882,38 @@ tools = CySecureTools('CY8CKIT-064B0S2-4343W', 'MyPolicy.json')
 pem = tools.read_public_key(5, 'pem', 'pub_oem.pem')
 ```
 
+
+### Read die ID from device
+Reads die ID from device.
+
+#### CLI implementation
+### read-die-id
+#### Parameters
+| Name            | Optional/Required  | Description   |
+| --------------- |:------------------:| ------------- |
+| -o, --out-file  | optional           | Filename where to save die ID. If not specified, the log file is used for output. |
+| --probe-id      | optional           | Probe serial number. |
+
+#### Usage example
+```bash
+cysecuretools -t CY8CKIT-064B0S2-4343W read-die-id -o die_id.json
+```
+
+#### API implementation
+### read_die_id()
+#### Parameters
+| Name          | Optional/Required  | Description   |
+| ------------- |:------------------:| ------------- |
+| probe_id      | optional           | Probe serial number. |
+
+#### Usage example
+```python
+from cysecuretools import CySecureTools
+tools = CySecureTools('CY8CKIT-064B0S2-4343W')
+jwk = tools.read_die_id()
+```
+
+
 ## Closing All Access Ports
 Often it is necessary to close all access ports during provisioning. After closing the access ports, there will be no way to program application.
 In this case, the application can be programmed during the provisioning process, when the access ports are open. Refer [Programming encrypted user application](#programming-encrypted-user-application).
@@ -888,6 +964,23 @@ cysecuretools -t CY8CKIT-064B0S2-4343W -p /Users/example/policy_multi_CM0_CM4.js
 from cysecuretools import CySecureTools
 tools = CySecureTools('CY8CKIT-064B0S2-4343W', '/Users/example/policy_multi_CM0_CM4.json')
 ```
+
+## Custom Data Sections
+Policy file used for provisioning or reprovisioning can contain optional list of sections, e.g.:
+```json
+{
+    "custom_data_sections": ["abc", "xyz"],
+    "abc":
+    {
+        ...
+    },
+    "xyz":
+    {
+        ...
+    }
+}
+```
+All listed sections content will be added to the provisioning JWT packet. These data sections are simply copied raw without validation or filtering.
 
 ## Keys Location
 By default, the keys location is the  _keys_ directory inside the package installation directory. The keys location can be changed in the policy file. Either an absolute or relative path can be used. A relative path is related to the policy file location.
@@ -964,6 +1057,27 @@ To use a custom bootloader, specify value _custom_ in the _cy_bootloader_ _mode_
 
 ## Encrypted Bootloader
 Refer [Programming encrypted bootloader](#programming-encrypted-bootloader).
+
+# Using Different On-Chip Debugger
+The package supports the following on-chip debuggers - `pyocd` and `Cypress OpenOCD`. To use a different debugger, run command `set-ocd`.
+
+### Command Parameters
+| Name          | Optional/Required  | Description   |
+| ------------- |:------------------:| ------------- |
+| --name        | required           | The tool name (pyocd \| openocd). |
+| --path        | optional           | The path to the tool root directory. Not applicable for pyocd. |
+
+### Usage example
+```bash
+cysecuretools set-ocd --name openocd --path /Users/example/tools/openocd-4.0
+```
+
+## pyocd
+`pyocd` is the default debugger and is installed together with cysecuretools. The project is hosted on PyPI (https://pypi.org/project/pyocd/).
+
+## OpenOCD
+`Cypress OpenOCD` is downloaded and installed separately. The supported version is 4.0.0. The project is hosted on GitHub (https://github.com/cypresssemiconductorco/openocd).
+
 
 # Package Installation Directory
 Use the `pip` command to get the package location:

@@ -72,3 +72,11 @@ class OemEntity(Entity):
         rot_auth = Crypto.create_jwt(payload, oem_priv_key)
         
         return rot_auth
+
+    def group_priv_key_packet(self, grp_priv_key):
+        payload = {
+            'grp_priv_key': grp_priv_key,
+            'type': 'OEM_GRP_PRIV_KEY'
+        }
+        jwt = Crypto.create_jwt(payload, self.state["oem_priv_key"])
+        return jwt

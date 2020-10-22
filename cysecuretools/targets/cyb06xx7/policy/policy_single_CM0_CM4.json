@@ -79,10 +79,10 @@
                     { "kid": 8, "key": "../keys/USERAPP_CM4_KEY.json" }
                 ],
                 "id": 1,
+                "launch": 16,
                 "monotonic": 0,
-                "smif_id": 1,
+                "smif_id": 0,
                 "acq_win": 100,
-                "multi_image" : 1,
                 "upgrade": true,
                 "version": "0.1",
                 "rollback_counter": 0,
@@ -93,12 +93,12 @@
                     {
                         "type": "BOOT",
                         "address": 268435456,
-                        "size": 262144
+                        "size": 425984
                     },
                     {
                         "type": "UPGRADE",
-                        "address": 402653184,
-                        "size": 262144
+                        "address": 268861440,
+                        "size": 425984
                     }
                 ]
             },
@@ -111,9 +111,8 @@
                 ],
                 "id": 16,
                 "monotonic": 8,
-                "smif_id": 1,
-                "multi_image" : 2,
-                "upgrade": true,
+                "smif_id": 0,
+                "upgrade": false,
                 "version": "0.1",
                 "rollback_counter": 0,
                 "encrypt": false,
@@ -122,13 +121,8 @@
                 "resources": [
                     {
                         "type": "BOOT",
-                        "address": 268697600,
-                        "size": 262144
-                    },
-                    {
-                        "type": "UPGRADE",
-                        "address": 402915328,
-                        "size": 262144
+                        "address": 268500992,
+                        "size": 360448
                     }
                 ]
             }

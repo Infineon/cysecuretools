@@ -34,9 +34,26 @@ class Pyocd(ProgrammerBase):
         self.target = None
         self.probe = None
         self.ap = None
+        self._wait_for_target = None
 
-    def connect(self, target_name=None, interface=None, ap='cm4',
-                probe_id=None, blocking=True):
+    @property
+    def wait_for_target(self):
+        """
+        Gets a value indicating whether to wait for the target
+        if no available devices are connected
+        """
+        return self._wait_for_target
+
+    @wait_for_target.setter
+    def wait_for_target(self, value):
+        """
+        Sets a value indicating whether to wait for the target
+        if no available devices are connected
+        """
+        self._wait_for_target = value
+
+    def connect(self, target_name=None, interface=None, probe_id=None,
+                ap='cm4', blocking=True):
         """
         Connects to target using default debug interface.
         :param target_name: The target name.
@@ -65,6 +82,10 @@ class Pyocd(ProgrammerBase):
                 }
             else:
                 options = {}
+
+            if self.wait_for_target is not None:
+                blocking = self.wait_for_target
+
             self.session = \
                 ConnectHelper.session_with_chosen_probe(blocking=blocking,
                                                         options=options,
@@ -110,24 +131,24 @@ class Pyocd(ProgrammerBase):
         if ap == AP.SYS:
             logger.info('Use system AP')
             if self.get_ap() != AP.SYS:
-                self.start_core()
+                self._start_core()
             self.target.selected_core = 0
         elif ap == AP.CM0:
             logger.info('Use cm0 AP')
             self.target.selected_core = 1
-            self.start_core()
+            self._start_core()
         elif ap == AP.CM4:
             logger.info('Use cm4 AP')
             self.target.selected_core = 1
-            self.start_core()
+            self._start_core()
         elif ap == AP.CMx:
             logger.info(f'Use {self.ap} AP')
             self.target.selected_core = 1
-            self.start_core()
+            self._start_core()
         else:
             raise ValueError('Invalid access port.')
 
-    def start_core(self):
+    def _start_core(self):
         """
         Writes infinite loop into RAM and starts core execution.
         """
@@ -289,8 +310,8 @@ class Pyocd(ProgrammerBase):
         """
         reg = reg_name.lower()
         if reg in coresight.cortex_m.CORE_REGISTER:
-            self.target.write_core_register(reg, value)
             logger.debug(f'write_reg ({reg_name}): {hex(value)}')
+            self.target.write_core_register(reg, value)
         else:
             raise ValueError(f'Unknown core register {reg}.')
 
@@ -337,7 +358,16 @@ class Pyocd(ProgrammerBase):
         if self.target is None:
             raise ValueError('Target is not initialized.')
         data = self.target.read_memory_block8(address, length)
+        logger.debug(f'Read block (address={hex(address)}, length={length}: '
+                     f'{data}')
         return data
+
+    @staticmethod
+    def get_probe_list():
+        """
+        Gets list of all connected probes
+        """
+        return ConnectHelper.get_all_connected_probes(blocking=False)
 
     def set_skip_reset_and_halt(self, value):
         """

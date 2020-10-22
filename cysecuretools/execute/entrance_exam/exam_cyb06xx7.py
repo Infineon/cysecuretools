@@ -16,7 +16,7 @@ limitations under the License.
 import hashlib
 import logging
 from cysecuretools.core.target_director import Target
-from cysecuretools.execute.enums import EntranceExamStatus
+from cysecuretools.core.enums import EntranceExamStatus
 from cysecuretools.execute.provisioning_lib.cyprov_crypto import Crypto
 from cysecuretools.execute.entrance_exam.exam_mxs40v1 import \
     EntranceExamMXS40v1

@@ -18,17 +18,19 @@ import json
 import logging
 from .provisioning_lib import HsmEntity
 from .provisioning_lib import OemEntity
-from .provisioning_lib import CustomerEntity
 from .provisioning_lib import DeviceEntity
 from .provisioning_lib import Crypto
-from cysecuretools.execute.enums import *
-from cysecuretools.core.strategy_context.prov_packet_strategy_ctx import ProvisioningPacketStrategy
+from cysecuretools.core.enums import *
+from cysecuretools.core.strategy_context.prov_packet_strategy_ctx import \
+    ProvisioningPacketStrategy
 
 # Default output values and paths
 PROV_IDENTITY_JWT = 'prov_identity.jwt'
 PROV_REQ_JWT = 'prov_req.jwt'
 ROT_AUTH_JWT = 'rot_auth.jwt'
 PROV_CMD_JWT = 'prov_cmd.jwt'
+PROV_PRIV_KEY_JWT = 'prov_priv_key.jwt'
+DEVICE_RESPONSE_JWT = 'device_response.jwt'
 DEFAULT_IMAGE_CERT_PATH = \
     '../prebuilt/CyBootloader_WithLogs/CypressBootloader_CM0p.jwt'
 
@@ -67,6 +69,11 @@ class ProvisioningPacketMXS40V1(ProvisioningPacketStrategy):
         # Process chain of trust certificates input parameter
         dev_cert = kwargs['dev_cert'] if 'dev_cert' in kwargs else ()
 
+        # Provisioning packet output directory
+        output_path = self.policy_parser.get_provisioning_packet_dir()
+        if not os.path.exists(output_path):
+            os.makedirs(output_path)
+
         # OEM key
         oem_pub_key, _ = self.policy_parser.oem_public_key()
         oem_priv_key, _ = self.policy_parser.oem_private_key()
@@ -87,10 +94,17 @@ class ProvisioningPacketMXS40V1(ProvisioningPacketStrategy):
             logger.error('Invalid HSM private key')
             return False
 
+        oem = OemEntity(oem_priv_key=oem_priv_key, oem_pub_key=oem_pub_key)
+        hsm = HsmEntity(hsm_priv_key=hsm_priv_key, hsm_pub_key=hsm_pub_key)
+        dev = DeviceEntity()
+
         # Group private key
         use_key = self.policy_parser.provision_group_private_key_state()
         if use_key:
             grp_priv_key, _ = self.policy_parser.group_private_key()
+            grp_priv_key_packet = oem.group_priv_key_packet(grp_priv_key)
+            grp_priv_key_path = os.path.join(output_path, PROV_PRIV_KEY_JWT)
+            Crypto.dump_jwt(grp_priv_key_packet, grp_priv_key_path)
         else:
             grp_priv_key = None
 
@@ -113,11 +127,6 @@ class ProvisioningPacketMXS40V1(ProvisioningPacketStrategy):
         with open(image_cert) as f:
             image_cert_jwt = f.read()
 
-        # Provisioning packet output directory
-        output_path = self.policy_parser.get_provisioning_packet_dir()
-        if not os.path.exists(output_path):
-            os.makedirs(output_path)
-
         # Customer keys
         cust_key_path = self._get_customer_keys()
         if cust_key_path is None:
@@ -133,10 +142,6 @@ class ProvisioningPacketMXS40V1(ProvisioningPacketStrategy):
         prov_req_jwt_path = os.path.join(output_path, PROV_REQ_JWT)
         rot_auth_jwt_path = os.path.join(output_path, ROT_AUTH_JWT)
         prov_jwt_path = os.path.join(output_path, PROV_CMD_JWT)
-
-        oem = OemEntity(oem_priv_key=oem_priv_key, oem_pub_key=oem_pub_key)
-        hsm = HsmEntity(hsm_priv_key=hsm_priv_key, hsm_pub_key=hsm_pub_key)
-        dev = DeviceEntity()
 
         with open(filtered_policy) as f:
             json_str = f.read()
@@ -201,5 +206,6 @@ class ProvisioningPacketMXS40V1(ProvisioningPacketStrategy):
                     logger.error(f'Cannot find the key \'{json_key_path}\'')
                     return None
                 else:
-                    json_key_paths.append(json_key_path)
+                    if json_key_path not in json_key_paths:
+                        json_key_paths.append(json_key_path)
         return json_key_paths

@@ -13,10 +13,12 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import re
 import sys
 import json
 import click
 import logging
+import traceback
 from intelhex import HexRecordError
 from json.decoder import JSONDecodeError
 from cryptography.hazmat.primitives import serialization
@@ -24,6 +26,7 @@ import cysecuretools.main as main_module
 from cysecuretools import CySecureTools
 from cysecuretools.execute.image_cert import ImageCertificate
 from cysecuretools.targets import print_targets
+from cysecuretools.core.exceptions import ValidationError
 from cysecuretools.core.target_director import TargetDirector
 
 logger = logging.getLogger(__name__)
@@ -32,18 +35,21 @@ logger = logging.getLogger(__name__)
 def require_target():
     return not (('--help' in sys.argv)
                 or ('device-list' in sys.argv)
-                or ('version' in sys.argv))
+                or ('version' in sys.argv)
+                or ('probe-list' in sys.argv))
 
 
 @click.group(chain=True)
 @click.pass_context
 @click.option('-t', '--target', type=click.STRING, required=require_target(),
-              help='Device manufacturing part number')
+              help='Device name or family')
 @click.option('-p', '--policy', type=click.File(), required=False,
               help='Provisioning policy file')
 @click.option('-v', '--verbose', is_flag=True, help='Provides debug-level log')
 @click.option('--logfile-off', is_flag=True, help='Avoids logging into file')
-def main(ctx, target, policy, verbose, logfile_off):
+@click.option('--no-interactive-mode', is_flag=True, hidden=True,
+              help='Skips user interactive prompts')
+def main(ctx, target, policy, verbose, logfile_off, no_interactive_mode):
     """
     Common options (e.g. -t, -p, -v) are common for all commands and must
     precede them:
@@ -63,32 +69,65 @@ def main(ctx, target, policy, verbose, logfile_off):
     if verbose:
         main_module.set_logger_level(logging.DEBUG)
     ctx.ensure_object(dict)
+    log_file = not logfile_off
 
     if require_target():
         if 'init' in sys.argv:
             validate_init_cmd_args()
             policy_path = default_policy(target)
+            log_file = False
         else:
             policy_path = policy.name if policy else None
         try:
-            ctx.obj['TOOL'] = CySecureTools(target, policy_path,
-                                            not logfile_off)
+            ctx.obj['TOOL'] = CySecureTools(target, policy_path, log_file,
+                                            no_interactive_mode)
+        except ValidationError:
+            pass
         except Exception as e:
             logger.error(e)
             logger.debug(e, exc_info=True)
     else:
         if 'version' in sys.argv:
             if '--target' in sys.argv or '-t' in sys.argv:
-                ctx.obj['TOOL'] = CySecureTools(target,
-                                                log_file=not logfile_off)
+                try:
+                    ctx.obj['TOOL'] = CySecureTools(
+                        target, log_file=log_file,
+                        skip_prompts=no_interactive_mode)
+                except ValidationError:
+                    pass
+                except Exception as e:
+                    logger.error(e)
+                    logger.debug(e, exc_info=True)
+        else:
+            try:
+                ctx.obj['TOOL'] = CySecureTools(
+                    log_file=log_file, skip_prompts=no_interactive_mode)
+            except Exception as e:
+                logger.error(e)
+                logger.debug(e, exc_info=True)
+                exit(1)
 
 
 @main.resultcallback()
-def process_pipeline(processors, target, policy, verbose, logfile_off):
+def process_pipeline(processors, target, policy, verbose, logfile_off,
+                     no_interactive_mode):
     for func in processors:
         res = func()
         if not res:
             raise click.ClickException('Failed processing!')
+
+
+def print_assertion_error():
+    _, _, tb = sys.exc_info()
+    tb_info = traceback.extract_tb(tb)
+    stack_trace = ''
+    for item in traceback.StackSummary.from_list(tb_info).format():
+        stack_trace += item
+    stack_trace = stack_trace.rstrip('\n')
+    logger.debug(stack_trace)
+    filename, line, func, text = tb_info[-1]
+    logger.error(f'An error occurred in file \'{filename}\' on line {line} '
+                 f'in statement {text}')
 
 
 def default_policy(target_name):
@@ -126,7 +165,12 @@ def cmd_create_keys(ctx, overwrite, out, kid):
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        result = ctx.obj['TOOL'].create_keys(overwrite, out, kid)
+        try:
+            result = ctx.obj['TOOL'].create_keys(overwrite, out, kid)
+        except Exception as e:
+            result = False
+            logger.error(e)
+            logger.debug(e, exc_info=True)
         return result is not False
 
     return process
@@ -143,13 +187,21 @@ def cmd_create_keys(ctx, overwrite, out, kid):
 @click.pass_context
 def cmd_version(ctx, probe_id, ap):
     def process():
-        if ctx.obj:
-            if 'TOOL' not in ctx.obj:
-                return False
-            ctx.obj['TOOL'].print_version(probe_id, ap)
-        else:
-            main_module.print_version(['cyb06xxa', 'cyb06xx5'])
-        return True
+        result = False
+        try:
+            if ctx.obj:
+                if 'TOOL' not in ctx.obj:
+                    return False
+                ctx.obj['TOOL'].print_version(probe_id, ap)
+            else:
+                main_module.print_version(['cyb06xx7', 'cyb06xxa', 'cyb06xx5'])
+            result = True
+        except AssertionError:
+            print_assertion_error()
+        except Exception as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
+        return result
 
     return process
 
@@ -168,12 +220,26 @@ def cmd_version(ctx, probe_id, ap):
 @click.option('-e', '--encrypt', 'encrypt_key', type=click.Path(),
               default=None,
               help='Public key PEM-file for the image encryption')
-def cmd_sign_image(ctx, hex_file, image_id, image_type, encrypt_key):
+@click.option('-R', '--erased-val',
+              type=click.Choice(['0', '0xff'], case_sensitive=False),
+              help='The value that is read back from erased flash')
+@click.option('--boot-record', metavar='sw_type', default='default',
+              help='Create CBOR encoded boot record TLV. The sw_type '
+                   'represents the role of the software component (e.g. CoFM '
+                   'for coprocessor firmware). [max. 12 characters]')
+def cmd_sign_image(ctx, hex_file, image_id, image_type, encrypt_key,
+                   erased_val, boot_record):
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        result = ctx.obj['TOOL'].sign_image(hex_file, image_id, image_type,
-                                            encrypt_key)
+        try:
+            result = ctx.obj['TOOL'].sign_image(hex_file, image_id, image_type,
+                                                encrypt_key, erased_val,
+                                                boot_record)
+        except Exception as e:
+            result = None
+            logger.error(e)
+            logger.debug(e, exc_info=True)
         return result is not None
 
     return process
@@ -186,7 +252,12 @@ def cmd_create_provisioning_packet(ctx):
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        result = ctx.obj['TOOL'].create_provisioning_packet()
+        try:
+            result = ctx.obj['TOOL'].create_provisioning_packet()
+        except Exception as e:
+            result = False
+            logger.error(e)
+            logger.debug(e, exc_info=True)
         return result
 
     return process
@@ -204,12 +275,20 @@ def cmd_provision_device(ctx, probe_id, use_existing_packet, ap):
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        if use_existing_packet:
-            result = True
-        else:
-            result = ctx.obj['TOOL'].create_provisioning_packet()
-        if result:
-            result = ctx.obj['TOOL'].provision_device(probe_id, ap)
+        try:
+            if use_existing_packet:
+                result = True
+            else:
+                result = ctx.obj['TOOL'].create_provisioning_packet()
+            if result:
+                result = ctx.obj['TOOL'].provision_device(probe_id, ap)
+        except AssertionError:
+            result = False
+            print_assertion_error()
+        except Exception as e:
+            result = False
+            logger.error(e)
+            logger.debug(e, exc_info=True)
         return result
 
     return process
@@ -232,14 +311,21 @@ def cmd_re_provision_device(ctx, probe_id, existing_packet, ap, erase_boot,
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        if existing_packet:
-            result = True
-        else:
-            result = ctx.obj['TOOL'].create_provisioning_packet()
-        if result:
-            result = ctx.obj['TOOL'].re_provision_device(probe_id, ap,
-                                                         erase_boot,
-                                                         control_dap_cert)
+        try:
+            if existing_packet:
+                result = True
+            else:
+                result = ctx.obj['TOOL'].create_provisioning_packet()
+            if result:
+                result = ctx.obj['TOOL'].re_provision_device(
+                    probe_id, ap, erase_boot, control_dap_cert)
+        except AssertionError:
+            result = False
+            print_assertion_error()
+        except Exception as e:
+            result = False
+            logger.error(e)
+            logger.debug(e, exc_info=True)
         return result
 
     return process
@@ -285,13 +371,19 @@ def cmd_create_certificate(ctx, cert_type, cert_name, encoding, probe_id,
             'private_key': private_key.name if private_key else None
         }
 
+        result = False
         if cert_type == 'x509':
-            cert = ctx.obj['TOOL'].create_x509_certificate(
-                cert_name.name, enc, probe_id, **d)
-            result = cert is not None
+            try:
+                cert = ctx.obj['TOOL'].create_x509_certificate(
+                    cert_name.name, enc, probe_id, **d)
+                result = cert is not None
+            except AssertionError:
+                print_assertion_error()
+            except Exception as e:
+                logger.error(e)
+                logger.debug(e, exc_info=True)
         else:
             logger.error(f'Invalid certificate type \'{cert_type}\'')
-            result = False
         return result
 
     return process
@@ -329,6 +421,9 @@ def cmd_image_certificate(ctx, image, key, cert, version, image_id,
         except HexRecordError as e:
             logger.error(f'Invalid image \'{image.name}\'')
             logger.error(e)
+        except Exception as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
         return result
     return process
 
@@ -339,12 +434,21 @@ def cmd_image_certificate(ctx, image, key, cert, version, image_id,
               help='Probe serial number')
 @click.option('--ap', hidden=True, type=click.Choice(['cm0', 'cm4', 'sysap']),
               default='cm4', help='The access port used for entrance-exam')
+@click.option('--erase-flash', hidden=True, is_flag=True,
+              help='Erase flash before the command execution')
 @click.pass_context
-def cmd_entrance_exam(ctx, probe_id, ap):
+def cmd_entrance_exam(ctx, probe_id, ap, erase_flash):
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        result = ctx.obj['TOOL'].entrance_exam(probe_id, ap)
+        result = False
+        try:
+            result = ctx.obj['TOOL'].entrance_exam(probe_id, ap, erase_flash)
+        except AssertionError:
+            print_assertion_error()
+        except Exception as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
         return result
 
     return process
@@ -354,8 +458,14 @@ def cmd_entrance_exam(ctx, probe_id, ap):
 @click.pass_context
 def cmd_device_list(ctx):
     def process():
-        print_targets()
-        return True
+        result = False
+        try:
+            print_targets()
+            result = True
+        except Exception as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
+        return result
     return process
 
 
@@ -384,9 +494,16 @@ def cmd_encrypt_image(ctx, image, host_key_id, device_key_id, algorithm,
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        result = ctx.obj['TOOL'].encrypt_image(
-            image.name, host_key_id, device_key_id, algorithm, key_length,
-            encrypted_image.name, padding_value, probe_id)
+        result = False
+        try:
+            result = ctx.obj['TOOL'].encrypt_image(
+                image.name, host_key_id, device_key_id, algorithm, key_length,
+                encrypted_image.name, padding_value, probe_id)
+        except AssertionError:
+            print_assertion_error()
+        except Exception as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
         return result
     return process
 
@@ -401,8 +518,15 @@ def cmd_encrypted_programming(ctx, encrypted_image, probe_id):
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        result = ctx.obj['TOOL'].encrypted_programming(
-            encrypted_image.name, probe_id)
+        result = False
+        try:
+            result = ctx.obj['TOOL'].encrypted_programming(
+                encrypted_image.name, probe_id)
+        except AssertionError:
+            print_assertion_error()
+        except Exception as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
         return result
 
     return process
@@ -420,7 +544,12 @@ def cmd_slot_address(ctx, image_id, image_type, display_hex):
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        address, size = ctx.obj['TOOL'].flash_map(image_id, image_type)
+        try:
+            address, size = ctx.obj['TOOL'].flash_map(image_id, image_type)
+        except Exception as e:
+            address = None
+            logger.error(e)
+            logger.debug(e, exc_info=True)
         if address:
             print(hex(address) if display_hex else address)
             return True
@@ -442,7 +571,12 @@ def cmd_slot_size(ctx, image_id, image_type, display_hex):
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        address, size = ctx.obj['TOOL'].flash_map(image_id, image_type)
+        try:
+            address, size = ctx.obj['TOOL'].flash_map(image_id, image_type)
+        except Exception as e:
+            size = None
+            logger.error(e)
+            logger.debug(e, exc_info=True)
         if size:
             print(hex(size) if display_hex else size)
             return True
@@ -466,8 +600,15 @@ def cmd_read_public_key(ctx, key_id, key_format, out_file, probe_id):
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        key = ctx.obj['TOOL'].read_public_key(key_id, key_format, out_file,
-                                              probe_id)
+        key = None
+        try:
+            key = ctx.obj['TOOL'].read_public_key(key_id, key_format, out_file,
+                                                  probe_id)
+        except AssertionError:
+            print_assertion_error()
+        except Exception as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
         if key:
             if type(key) is dict:
                 logger.info(json.dumps(key, indent=4))
@@ -475,6 +616,38 @@ def cmd_read_public_key(ctx, key_id, key_format, out_file, probe_id):
                 logger.info(key.decode("utf-8"))
             else:
                 logger.info(key)
+            return True
+        else:
+            return False
+
+    return process
+
+
+@main.command('read-die-id', help='Reads die ID from device')
+@click.option('-o', '--out-file', default=None,
+              help='Filename where to save die ID')
+@click.option('--probe-id', default=None,
+              help='Probe serial number')
+@click.option('--ap', hidden=True, type=click.Choice(['cm0', 'cm4', 'sysap']),
+              default='sysap', help='The access port used to read the data')
+@click.pass_context
+def cmd_read_die_id(ctx, out_file, probe_id, ap):
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        data = None
+        try:
+            data = ctx.obj['TOOL'].read_die_id(probe_id, ap)
+        except AssertionError:
+            print_assertion_error()
+        except Exception as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
+        if data:
+            logger.info(f'die_id = {json.dumps(data, indent=4)}')
+            if out_file:
+                with open(out_file, 'w') as f:
+                    json.dump(data, f, indent=4)
             return True
         else:
             return False
@@ -492,12 +665,66 @@ def cmd_read_public_key(ctx, key_id, key_format, out_file, probe_id):
               help='Filename where to save the JWT. If not specified, the '
                    'input file name with "jwt" extension will be used')
 @click.pass_context
-def sign_cert(ctx, json_file, key_id, out_file):
+def cmd_sign_cert(ctx, json_file, key_id, out_file):
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        token = ctx.obj['TOOL'].sign_json(json_file.name, key_id, out_file)
+        try:
+            token = ctx.obj['TOOL'].sign_json(json_file.name, key_id, out_file)
+        except Exception as e:
+            token = None
+            logger.error(e)
+            logger.debug(e, exc_info=True)
         return True if token else False
+
+    return process
+
+
+@main.command('probe-list', hidden=True,
+              help='Prints a list of connected probes')
+@click.pass_context
+def cmd_probe_list(ctx):
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        try:
+            probes = ctx.obj['TOOL'].get_probe_list()
+            if probes:
+                for probe in probes:
+                    probe_name = re.sub('[\[].*?[\]]', '', probe.description)
+                    print(probe_name.strip(), probe.unique_id)
+            else:
+                print('No available debug probes are connected',
+                      file=sys.stderr)
+        except Exception as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
+        return True
+
+    return process
+
+
+@main.command('device-info', hidden=True,
+              help='Gets device information')
+@click.option('--probe-id', default=None,
+              help='Probe serial number')
+@click.option('--ap', type=click.Choice(['cm0', 'cm4', 'sysap']),
+              default='sysap', help='The access port used to read the data')
+@click.pass_context
+def cmd_device_info(ctx, probe_id, ap):
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        try:
+            dev_info = ctx.obj['TOOL'].get_device_info(probe_id, ap)
+            if dev_info:
+                logger.info(f'Silicon: {hex(dev_info.silicon_id)}, '
+                            f'Family: {hex(dev_info.family_id)}, '
+                            f'Rev.: {hex(dev_info.silicon_rev)}')
+        except Exception as e:
+            logger.error(e)
+            logger.debug(e, exc_info=True)
+        return True
 
     return process
 
@@ -508,7 +735,13 @@ def cmd_init(ctx):
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        ctx.obj['TOOL'].init()
-        return True
+        try:
+            ctx.obj['TOOL'].init()
+            result = True
+        except Exception as e:
+            result = False
+            logger.error(e)
+            logger.debug(e, exc_info=True)
+        return result
 
     return process

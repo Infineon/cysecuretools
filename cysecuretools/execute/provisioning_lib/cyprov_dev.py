@@ -47,19 +47,25 @@ class DeviceEntity(Entity):
         """
         # Create device keys if not exist
         if dev_priv_key:
-            if os.path.isfile(dev_priv_key):
-                self.state['dev_priv_key'] = Crypto.read_json(dev_priv_key)
+            if isinstance(dev_priv_key, dict):
+                self.state['dev_priv_key'] = dev_priv_key
             else:
-                self.state['dev_priv_key'], self.state['dev_pub_key'] = Crypto.create_jwk()
-                Crypto.dump_json(self.state['dev_priv_key'], dev_priv_key)
+                if os.path.isfile(dev_priv_key):
+                    self.state['dev_priv_key'] = Crypto.read_json(dev_priv_key)
+                else:
+                    self.state['dev_priv_key'], self.state['dev_pub_key'] = Crypto.create_jwk()
+                    Crypto.dump_json(self.state['dev_priv_key'], dev_priv_key)
 
         # Create group keys if not exist
         if grp_priv_key:
-            if os.path.isfile(grp_priv_key):
-                self.state['grp_priv_key'] = Crypto.read_json(grp_priv_key)
+            if isinstance(grp_priv_key, dict):
+                self.state['grp_priv_key'] = grp_priv_key
             else:
-                self.state['grp_priv_key'], self.state['grp_pub_key'] = Crypto.create_jwk()
-                Crypto.dump_json(self.state['grp_priv_key'], grp_priv_key)
+                if os.path.isfile(grp_priv_key):
+                    self.state['grp_priv_key'] = Crypto.read_json(grp_priv_key)
+                else:
+                    self.state['grp_priv_key'], self.state['grp_pub_key'] = Crypto.create_jwk()
+                    Crypto.dump_json(self.state['grp_priv_key'], grp_priv_key)
 
         # Create prov_identity JWT
         payload = dict()

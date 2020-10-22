@@ -41,6 +41,7 @@ class TargetBuilder:
     def get_voltage_tool(self): pass
     def get_key_reader(self): pass
     def get_project_initializer(self): pass
+    def get_silicon_data_reader(self): pass
 
 
 class TargetDirector:
@@ -120,6 +121,9 @@ class TargetDirector:
         # Project initializer
         target.project_initializer = self._builder.get_project_initializer()
 
+        # Silicon data reader
+        target.silicon_data_reader = self._builder.get_silicon_data_reader()
+
         return target
 
 
@@ -140,6 +144,7 @@ class Target:
         self._key_reader = None
         self._project_initializer = None
         self._cwd = None
+        self._silicon_data_reader = None
 
     @property
     def name(self):
@@ -260,3 +265,11 @@ class Target:
     @cwd.setter
     def cwd(self, cwd):
         self._cwd = cwd
+
+    @property
+    def silicon_data_reader(self):
+        return self._silicon_data_reader
+
+    @silicon_data_reader.setter
+    def silicon_data_reader(self, reader):
+        self._silicon_data_reader = reader

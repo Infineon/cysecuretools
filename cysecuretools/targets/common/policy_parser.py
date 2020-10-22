@@ -17,7 +17,7 @@ import os
 import json
 from pathlib import Path
 from cysecuretools.core import PolicyParserBase
-from cysecuretools.execute.enums import KeyType, ImageType, KeyId
+from cysecuretools.core.enums import KeyType, ImageType, KeyId
 from cysecuretools.execute.key_reader import load_key, jwk_to_pem
 
 
@@ -46,7 +46,11 @@ class PolicyParser(PolicyParserBase):
         """
         with open(filename) as f:
             file_content = f.read()
-            data = json.loads(file_content)
+            try:
+                data = json.loads(file_content)
+            except json.decoder.JSONDecodeError as e:
+                msg = f'Failed to parse policy \'{filename}\': {e.args[0]}'
+                raise json.decoder.JSONDecodeError(msg, e.doc, e.pos)
         return data
 
     def get_keys(self, out=None, image_type=None, key_type=None):
@@ -226,6 +230,9 @@ class PolicyParser(PolicyParserBase):
 
     def is_sys_ap_enabled(self):
         return self.json["debug"]["system"]["permission"] == "enabled"
+
+    def is_ap_disabled(self, ap):
+        return self.json["debug"][ap]["permission"] == "disabled"
 
     def get_smif_resources(self):
         smif_resources = []
