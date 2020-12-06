@@ -16,6 +16,7 @@ limitations under the License.
 import os
 import json
 from pathlib import Path
+from cysecuretools.core import MemoryArea
 from cysecuretools.core import PolicyParserBase
 from cysecuretools.core.enums import KeyType, ImageType, KeyId
 from cysecuretools.execute.key_reader import load_key, jwk_to_pem
@@ -136,6 +137,15 @@ class PolicyParser(PolicyParserBase):
             if slot['id'] == slot_id:
                 return slot
 
+    def get_upgrade_mode(self):
+        """
+        Gets upgrade mode specified in the policy file
+        """
+        for slot in self.json["boot_upgrade"]["firmware"]:
+            if 'upgrade_mode' in slot:
+                return slot['upgrade_mode']
+        return None
+
     def get_cybootloader_mode(self):
         """
         Gets mode of CyBootloader specified in the policy file.
@@ -243,6 +253,23 @@ class PolicyParser(PolicyParserBase):
                     if 'UPGRADE' in res['type']:
                         smif_resources.append([res['address'], res['size']])
         return smif_resources
+
+    def upgrade_mode(self):
+        for item in self.json['boot_upgrade']['firmware']:
+            if item['id'] == 0 and 'upgrade_mode' in item:
+                return item['upgrade_mode']
+        return None
+
+    def status_partition(self) -> MemoryArea:
+        """
+        Gets status partition memory area
+        """
+        for slot in self.json['boot_upgrade']['firmware']:
+            if slot['id'] == 0:
+                for item in slot['resources']:
+                    if item['type'] == 'STATUS_PARTITION':
+                        return MemoryArea(item['address'], item['size'])
+        return None
 
     def device_public_key_path(self):
         """
@@ -354,6 +381,28 @@ class PolicyParser(PolicyParserBase):
         except FileNotFoundError:
             public_jwk, public_pem = None, None
         return public_jwk, public_pem
+
+    def abs_policy_path(self, path):
+        """ Converts policy relative path to the absolute """
+        if not os.path.isabs(path):
+            return os.path.abspath(os.path.join(self.policy_dir, path))
+        return path
+
+    def encryption_enabled(self, image_id):
+        """
+        Indicates whether encryption is enabled for the
+        specified image ID
+        """
+        slot = self.get_slot(image_id)
+        return slot.get('encrypt', False)
+
+    def encrypt_key(self, image_id):
+        """ Gets encrypt peer for the specified image ID """
+        slot = self.get_slot(image_id)
+        if slot.get('encrypt_peer', False):
+            return self.abs_policy_path(slot['encrypt_peer'])
+        else:
+            return None
 
 
 class KeyData:

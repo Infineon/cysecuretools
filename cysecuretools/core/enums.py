@@ -66,6 +66,14 @@ class KeyType(Enum):
     user, encryption, device_public, group_public = range(4)
 
 
+class KeyAlgorithm:
+    """
+    Supported key algorithms.
+    """
+    EC = 'EC'
+    RSA = 'RSA'
+
+
 class ImageType(Enum):
     """
     Available image types.

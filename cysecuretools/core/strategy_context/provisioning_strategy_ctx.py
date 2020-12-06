@@ -33,10 +33,6 @@ class ProvisioningStrategy(ABC):
     def erase_flash(self, tool, target):
         pass
 
-    @abstractmethod
-    def read_image_certificate(self, tool, target):
-        pass
-
 
 class ProvisioningContext:
     """
@@ -78,9 +74,3 @@ class ProvisioningContext:
         Delegates work to the Strategy object.
         """
         self._strategy.erase_flash(tool, target)
-
-    def read_image_certificate(self, tool, target):
-        """
-        Delegates work to the Strategy object.
-        """
-        return self._strategy.read_image_certificate(tool, target)

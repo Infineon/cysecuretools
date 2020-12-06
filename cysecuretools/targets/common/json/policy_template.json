@@ -57,9 +57,12 @@
                 "id": 0,
                 "launch": 0,
                 "acq_win": 0,
+                "wdt_timeout": 0,
+                "wdt_enable": false,
                 "clock_flags": 0,
                 "protect_flags": 0,
                 "upgrade": false,
+                "upgrade_mode": "",
                 "resources": [
                     {
                         "type": "FLASH_PC1_SPM",
@@ -75,6 +78,11 @@
                         "type": "SRAM_DAP",
                         "address": 0,
                         "size": 0
+                    },
+                    {
+                        "type": "STATUS_PARTITION",
+                        "address": 0,
+                        "size": 0
                     }
                 ]
             },
@@ -87,6 +95,9 @@
                 "monotonic": 0,
                 "smif_id": 0,
                 "acq_win": 0,
+                "wdt_timeout": 0,
+                "wdt_enable": false,
+                "set_img_ok": false,
                 "multi_image" : 0,
                 "rollback_counter": 0,
                 "upgrade": false,

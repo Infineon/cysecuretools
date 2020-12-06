@@ -17,13 +17,11 @@ import json
 import logging
 import os
 import sys
-from datetime import datetime
-
 from cryptography.hazmat.primitives import serialization
 
 import cysecuretools.execute.jwt as jwt
 import cysecuretools.execute.keygen as keygen
-from cysecuretools.version import __version__
+from cysecuretools.execute.version_helper import VersionHelper
 from cysecuretools.core.exceptions import ValidationError
 from cysecuretools.core.bootloader_provider import BootloaderProvider
 from cysecuretools.core.certificates.x509 import X509CertificateStrategy
@@ -41,14 +39,14 @@ from cysecuretools.core.project import ProjectInitializer
 from cysecuretools.execute.encrypted_programming.aes_header_strategy \
     import AesHeaderStrategy
 from cysecuretools.core.enums import (EntranceExamStatus, ValidationStatus,
-                                      ProvisioningStatus,
+                                      ProvisioningStatus, KeyAlgorithm,
                                       ImageType, KeyType, KeyId)
 from cysecuretools.execute.image_cert import ImageCertificate
 from cysecuretools.execute.key_reader import get_aes_key
 from cysecuretools.execute.programmer.programmer import ProgrammingTool
 from cysecuretools.execute.signtool import SignTool
-from cysecuretools.targets import print_targets
-from cysecuretools.targets import target_map
+from cysecuretools.targets import print_targets, get_target_builder
+from cysecuretools.core.logging_configurator import LoggingConfigurator
 
 # Initialize logger
 logging.root.setLevel(logging.DEBUG)
@@ -79,7 +77,7 @@ class CySecureTools:
                prompts
         """
         if log_file:
-            add_file_logging()
+            LoggingConfigurator.add_file_logging()
 
         self.tool = ProgrammingTool.create(self.PROGRAMMING_TOOL)
 
@@ -98,11 +96,10 @@ class CySecureTools:
         self.policy = None
         if policy is not None:
             self.policy = os.path.abspath(policy)
-        else:
-            if ProjectInitializer.is_project():
+        if ProjectInitializer.is_project():
+            if policy is None:
                 self.policy = ProjectInitializer.get_default_policy()
-                self.policy = os.path.abspath(self.policy)
-                cwd = os.getcwd()
+            cwd = os.getcwd()
 
         if self.policy and not os.path.isfile(self.policy):
             raise ValueError(f'Cannot find file "{self.policy}"')
@@ -132,7 +129,7 @@ class CySecureTools:
         self.project_initializer = self.target.project_initializer(self.target)
 
     def create_keys(self, overwrite=None, out=None, kid=None,
-                    user_key_alg='ec'):
+                    user_key_alg=KeyAlgorithm.EC):
         """
         Creates keys specified in policy file for image signing
         :param overwrite: Indicates whether overwrite keys in the
@@ -146,6 +143,16 @@ class CySecureTools:
         :param user_key_alg: User key algorithm
         :return: True if key(s) created successfully, otherwise False.
         """
+        # Define key algorithm
+        if user_key_alg is None:
+            user_key_alg = self.target.key_algorithms[0]
+        else:
+            if user_key_alg not in self.target.key_algorithms:
+                logger.error(f'Invalid key algorithm \'{user_key_alg}\'. '
+                             f'Supported key algorithms for the selected '
+                             f'target: {",".join(self.target.key_algorithms)}')
+                return False
+
         # Find keys that have to be generated
         keys = self.policy_parser.get_keys(out)
 
@@ -181,11 +188,11 @@ class CySecureTools:
                 else:
                     seen.append({pair.key_id, pair.json_key_path})
 
-                if user_key_alg == 'ec':
+                if user_key_alg == KeyAlgorithm.EC:
                     keygen.generate_ecdsa_key(pair.key_id, pair.json_key_path,
                                               pair.pem_key_path)
-                else:
-                    raise ValueError(f'Invalid key algorithm {user_key_alg}.')
+                elif user_key_alg == KeyAlgorithm.RSA:
+                    keygen.generate_rsa_key(pair.pem_key_path)
             else:
                 continue
 
@@ -206,7 +213,7 @@ class CySecureTools:
                (e.g. CoFM for coprocessor firmware). [max. 12 characters]
         :return: Signed (and encrypted if applicable) hex files path.
         """
-        sign_tool = SignTool(self.policy)
+        sign_tool = SignTool(self.target)
         result = sign_tool.sign_image(hex_file=hex_file,
                                       image_id=image_id,
                                       image_type=image_type,
@@ -229,7 +236,7 @@ class CySecureTools:
         filtered_policy = self.policy_filter.filter_policy()
 
         # Get bootloader image certificate
-        image_cert = self.bootloader_provider.get_jwt_path()
+        image_cert = self.bootloader_provider.jwt_path()
         if not os.path.isfile(image_cert):
             logger.error(f'Cannot find bootloader file \'{image_cert}\'')
             return False
@@ -260,7 +267,7 @@ class CySecureTools:
             return False
 
         # Get bootloader program file
-        bootloader = self.bootloader_provider.get_hex_path()
+        bootloader = self.bootloader_provider.hex_path()
         if not os.path.isfile(bootloader):
             logger.error(f'Cannot find bootloader file \'{bootloader}\'')
             return False
@@ -268,6 +275,9 @@ class CySecureTools:
         context = ProvisioningContext(self.target.provisioning_strategy)
 
         if self.tool.connect(self.target_name, probe_id=probe_id, ap=ap):
+            VersionHelper.log_version(self.tool, self.target)
+            if not VersionHelper.verify_sfb_version(self.tool, self.target):
+                return False
             status = context.provision(self.tool, self.target,
                                        self.entr_exam, bootloader,
                                        probe_id=probe_id, ap=ap,
@@ -283,7 +293,7 @@ class CySecureTools:
         return True
 
     def re_provision_device(self, probe_id=None, ap='sysap', erase_boot=False,
-                            control_dap_cert=None):
+                            control_dap_cert=None, skip_bootloader=False):
         """
         Executes device re-provisioning
         :param probe_id: Probe serial number.
@@ -291,6 +301,8 @@ class CySecureTools:
         :param erase_boot: Indicates whether erase BOOT slot
         :param control_dap_cert: The certificate that provides the
                access to control DAP
+        :param skip_bootloader: Indicates whether to skip bootloader
+               programming during reprovisioning
         :return: Provisioning result. True if success, otherwise False.
         """
         validation_state = self.policy_validator.validate(
@@ -300,18 +312,22 @@ class CySecureTools:
             return False
 
         # Get bootloader program file
-        btldr = self.bootloader_provider.get_hex_path()
-        if not os.path.isfile(btldr):
-            logger.error(f'Cannot find bootloader file \'{btldr}\'')
-            return False
+        btldr = None
+        if not skip_bootloader:
+            btldr = self.bootloader_provider.hex_path()
+            if not os.path.isfile(btldr):
+                logger.error(f'Cannot find bootloader file \'{btldr}\'')
+                return False
 
         context = ProvisioningContext(self.target.provisioning_strategy)
 
         if self.tool.connect(self.target_name, probe_id=probe_id, ap=ap):
+            VersionHelper.log_version(self.tool, self.target)
+            if not VersionHelper.verify_sfb_version(self.tool, self.target):
+                return False
             status = context.re_provision(
                 self.tool, self.target, btldr, erase_boot=erase_boot,
-                control_dap_cert=control_dap_cert, ap=ap,
-                probe_id=probe_id)
+                control_dap_cert=control_dap_cert, ap=ap, probe_id=probe_id)
             self.tool.disconnect()
         else:
             status = ProvisioningStatus.FAIL
@@ -376,6 +392,9 @@ class CySecureTools:
         """
         status = False
         if self.tool.connect(self.target_name, probe_id=probe_id, ap=ap):
+            VersionHelper.log_version(self.tool, self.target)
+            if not VersionHelper.verify_sfb_version(self.tool, self.target):
+                return False
             context = ProvisioningContext(self.target.provisioning_strategy)
             if erase_flash:
                 context.erase_flash(self.tool, self.target)
@@ -489,6 +508,8 @@ class CySecureTools:
         connected = self.tool.connect(self.target_name, probe_id=probe_id,
                                       blocking=False, ap='sysap')
         if connected:
+            VersionHelper.log_version(self.tool, self.target)
+            VersionHelper.verify_sfb_version(self.tool, self.target)
             logger.info('Read device public key from device')
             pub_key_pem = self.key_reader.read_public_key(
                 self.tool, dev_key_id, 'pem')
@@ -522,10 +543,13 @@ class CySecureTools:
         :param probe_id: Probe serial number.
         :return: True if the image programmed successfully, otherwise False.
         """
+        result = False
         context = EncryptedProgrammingContext(AesHeaderStrategy)
-        self.tool.connect(self.target_name, probe_id=probe_id, ap='sysap')
-        result = context.program(self.tool, self.target, encrypted_image)
-        self.tool.disconnect()
+        if self.tool.connect(self.target_name, probe_id=probe_id, ap='sysap'):
+            VersionHelper.log_version(self.tool, self.target)
+            VersionHelper.verify_sfb_version(self.tool, self.target)
+            result = context.program(self.tool, self.target, encrypted_image)
+            self.tool.disconnect()
         return result
 
     def read_public_key(self, key_id, key_fmt, out_file=None, probe_id=None):
@@ -537,23 +561,25 @@ class CySecureTools:
         :param probe_id: Probe serial number
         :return: Key if it read successfully, otherwise None
         """
-        try:
-            self.tool.connect(self.target_name, probe_id=probe_id, ap='sysap')
-            key = self.key_reader.read_public_key(self.tool, key_id, key_fmt)
-            if out_file:
-                out_file = os.path.abspath(out_file)
-                with open(out_file, 'w') as fp:
-                    if key_fmt == 'jwk':
-                        json.dump(key, fp, indent=4)
-                    elif key_fmt == 'pem':
-                        fp.write(key.decode("utf-8"))
-                    else:
-                        fp.write(str(key))
-                logger.info(f'Key saved: {out_file}')
-            self.tool.disconnect()
-        except (ValueError, FileNotFoundError) as e:
-            logger.error(e)
-            key = None
+        key = None
+        if self.tool.connect(self.target_name, probe_id=probe_id, ap='sysap'):
+            VersionHelper.log_version(self.tool, self.target)
+            VersionHelper.verify_sfb_version(self.tool, self.target)
+            try:
+                key = self.key_reader.read_public_key(self.tool, key_id, key_fmt)
+                if out_file:
+                    out_file = os.path.abspath(out_file)
+                    with open(out_file, 'w') as fp:
+                        if key_fmt == 'jwk':
+                            json.dump(key, fp, indent=4)
+                        elif key_fmt == 'pem':
+                            fp.write(key.decode("utf-8"))
+                        else:
+                            fp.write(str(key))
+                    logger.info(f'Key saved: {out_file}')
+                self.tool.disconnect()
+            except (ValueError, FileNotFoundError) as e:
+                logger.error(e)
         return key
 
     def read_die_id(self, probe_id=None, ap='sysap'):
@@ -563,10 +589,13 @@ class CySecureTools:
         :param ap: The access port used to read the data
         :return: Die ID if success, otherwise None
         """
-        self.tool.connect(self.target_name, probe_id=probe_id, ap=ap)
-        reader = self.target.silicon_data_reader(self.target)
-        die_id = reader.read_die_id(self.tool)
-        self.tool.disconnect()
+        die_id = None
+        if self.tool.connect(self.target_name, probe_id=probe_id, ap=ap):
+            VersionHelper.log_version(self.tool, self.target)
+            VersionHelper.verify_sfb_version(self.tool, self.target)
+            reader = self.target.silicon_data_reader(self.target)
+            die_id = reader.read_die_id(self.tool)
+            self.tool.disconnect()
         return die_id
 
     def sign_json(self, json_file, priv_key_id, output_file):
@@ -610,25 +639,20 @@ class CySecureTools:
         :param ap: The access port used for to read CyBootloader and
                Secure Flash Boot version from device
         """
-        context = ProvisioningContext(self.target.provisioning_strategy)
-        sfb_version = 'unknown'
-        cert = None
+        sfb_ver = 'unknown'
         connected = self.tool.connect(self.target_name, probe_id=probe_id,
                                       blocking=False, ap=ap)
         if connected:
-            sfb_version = self.entr_exam.read_sfb_version(self.tool)
-            cert = context.read_image_certificate(self.tool, self.target)
+            sfb_ver = VersionHelper.sfb_version(self.tool, self.target)
+            bootloader_ver = VersionHelper.device_bootloader_version(self.tool, self.target)
+            VersionHelper.verify_sfb_version(self.tool, self.target)
             self.tool.disconnect()
 
-        print_version([self.target_name])
+        VersionHelper.print_version([self.target_name])
         if connected:
-            if cert:
-                bootloader_version = ImageCertificate.get_version(cert)
-            else:
-                bootloader_version = 'unknown'
             print('Device:')
-            print(f'\tCyBootloader: {bootloader_version}')
-            print(f'\tSecure Flash Boot: {sfb_version}')
+            print(f'\tCyBootloader: {bootloader_ver}')
+            print(f'\tSecure Flash Boot: {sfb_ver}')
 
     def init(self):
         """
@@ -656,77 +680,12 @@ class CySecureTools:
             self.tool.disconnect()
         return dev_info
 
-    @staticmethod
-    def get_target_builder(director, target_name):
-        try:
-            director.builder = target_map[target_name]['class']()
-            return director.builder
-        except KeyError:
-            raise ValueError(f'Unknown target "{target_name}"')
-
     def _get_target(self, target_name, policy, cwd):
         director = TargetDirector()
-        self.target_builder = self.get_target_builder(director, target_name)
+        self.target_builder = get_target_builder(director, target_name)
         return director.get_target(policy, target_name, cwd)
 
     @staticmethod
     def device_list():
         print_targets()
         return True
-
-
-def print_version(targets):
-    """
-    Prints the package version and CyBootloader version bundled with
-    the package for the specified targets
-    :param targets: The list of targets
-    """
-    versions = []
-    for target_name in targets:
-        director = TargetDirector()
-        CySecureTools.get_target_builder(director, target_name)
-        target = director.get_target(None, target_name, None)
-        policy_path = target.policy
-        tools = CySecureTools(target.name, policy_path, log_file=False)
-        jwt_filename = tools.bootloader_provider.get_jwt_path(mode='release')
-        if not os.path.isfile(jwt_filename):
-            logger.error(f'File {jwt_filename} not found')
-            continue
-        version = ImageCertificate.get_version(jwt_filename)
-        if len(targets) == 1:
-            versions.append(f'{version}')
-        else:
-            target_name = target_map[target.name]["display_name"]
-            versions.append(f'\t\t{target_name}: {version}')
-
-    print('\nPackage:')
-    print(f'\tCySecureTools: {__version__}')
-    end_str = '' if len(targets) == 1 or not versions else '\n'
-    print('\tCyBootloader: ', end=end_str)
-    if versions:
-        for item in versions:
-            print(item)
-    else:
-        print('unknown')
-
-
-def set_logger_level(level):
-    root_logger = logging.getLogger()
-    root_logger.setLevel(level)
-    for handler in root_logger.handlers:
-        if isinstance(handler, type(logging.StreamHandler())):
-            handler.setLevel(level)
-
-
-def add_file_logging():
-    if ProjectInitializer.is_project():
-        cwd = os.getcwd()
-    else:
-        cwd = os.path.dirname(os.path.abspath(__file__))
-    log_filename = datetime.now().strftime(
-        os.path.join(cwd, 'logs/cysecuretools_%Y-%m-%d_%H-%M-%S.log'))
-    os.makedirs(os.path.dirname(log_filename), exist_ok=True)
-    file_handler = logging.FileHandler(log_filename, mode='w+')
-    file_handler.setLevel(logging.DEBUG)
-    file_handler.setFormatter(fmt)
-    logger.root.addHandler(file_handler)

@@ -26,7 +26,7 @@ from cysecuretools.execute.entrance_exam.exam_mxs40v1 import \
 from cysecuretools.execute.provisioning_lib.cyprov_pem import PemKey
 from cysecuretools.execute.sys_call \
     import (provision_keys_and_policies, read_lifecycle, dap_control,
-            get_prov_details, FB_POLICY_JWT, FB_POLICY_IMG_CERTIFICATE)
+            get_prov_details, FB_POLICY_JWT)
 from cysecuretools.execute.programmer.base import AP
 from cysecuretools.execute.programmer.pyocd_wrapper import ResetType
 from cysecuretools.core.strategy_context.provisioning_strategy_ctx import \
@@ -149,21 +149,6 @@ class ProvisioningMXS40V1(ProvisioningStrategy):
         """
         erase_flash(tool, target)
 
-    def read_image_certificate(self, tool, target):
-        """
-        Reads image certificate provisioned into device
-        :param tool: Programming/debugging tool
-        :param target: The target object
-        :return: The certificate
-        """
-        passed, data = get_prov_details(tool, target.register_map,
-                                        FB_POLICY_IMG_CERTIFICATE)
-        if passed:
-            return data
-        else:
-            logger.error('Failed to read image certificate from device')
-            return None
-
     @staticmethod
     def _get_provisioning_packet(target):
         packet_dir = target.policy_parser.get_provisioning_packet_dir()
@@ -212,8 +197,9 @@ def erase_flash(tool, target):
     logger.info(f'erasing address {hex(addr)}, size {hex(size)} ...')
     ap = tool.get_ap()
     tool.set_ap(AP.CMx)
+    tool.halt()
     tool.erase(addr, size)
-    logger.info('Erasing complete\n')
+    logger.info('Erasing complete')
     tool.set_ap(ap)
     erase_smif(tool, target)
 
@@ -227,7 +213,7 @@ def erase_smif(tool, target):
         for (addr, size) in smif_resources:
             logger.info(f'erasing address {hex(addr)}, size {hex(size)} ...')
             tool.erase(addr, size)
-            logger.info('Erasing complete\n')
+            logger.info('Erasing complete')
         tool.set_ap(ap)
 
 
@@ -246,6 +232,7 @@ def erase_slots(tool, target, slot_type, first_only=False):
         logger.info(f'erasing address {hex(addr)}, size {hex(size)} ...')
         ap = tool.get_ap()
         tool.set_ap(AP.CMx)
+        tool.halt()
         tool.erase(addr, size)
         logger.info('Erasing complete')
         tool.set_ap(ap)
@@ -256,10 +243,7 @@ def erase_slots(tool, target, slot_type, first_only=False):
 def _provision_identity(tool, target: Target,
                         entrance_exam: EntranceExamMXS40v1,
                         prov_identity_jwt, skip_prompts) -> ProvisioningStatus:
-    logger.info("CPUSS.PROTECTION state: "
-                "'0': UNKNOWN '1': VIRGIN '2': NORMAL '3': SECURE '4': DEAD")
     lifecycle = read_lifecycle(tool, target.register_map)
-    logger.info(f'{lifecycle}\n')
 
     if lifecycle == ProtectionState.secure:
         status = entrance_exam.execute(tool)
@@ -287,7 +271,7 @@ def _provision_identity(tool, target: Target,
     _save_device_response(target, response)
 
     if not is_exam_pass:
-        logger.error('Unexpected TransitionToSecure syscall response\n')
+        logger.error('Unexpected TransitionToSecure syscall response')
         return ProvisioningStatus.FAIL
     else:
         return ProvisioningStatus.OK
@@ -373,6 +357,7 @@ def _provision_complete(tool, target: Target, prov_cmd_jwt, bootloader,
                 current_ap = tool.get_ap()
                 tool.set_ap(AP.CMx)
                 logger.info(f'Programming user application \'{app}\':')
+                tool.halt()
                 tool.program(app)
                 tool.set_ap(current_ap)
             else:
@@ -391,16 +376,19 @@ def _provision_complete(tool, target: Target, prov_cmd_jwt, bootloader,
             logger.error('Bootloader encrypted programming failed')
             return ProvisioningStatus.FAIL
     else:
-        if flash_ops_allowed:
+        if not flash_ops_allowed:
+            logger.warning('Skip programming bootloader, AP cm0 is closed')
+        elif bootloader is None:
+            logger.warning('Skip programming bootloader')
+        else:
             sleep(3)
             current_ap = tool.get_ap()
             tool.set_ap(AP.CMx)
             logger.info(f'Programming bootloader \'{bootloader}\':')
+            tool.halt()
             tool.program(bootloader)
             logger.info('Programming bootloader complete')
             tool.set_ap(current_ap)
-        else:
-            logger.warning('Skip programming bootloader, AP cm0 is closed')
 
     if control_dap_cert:
         tool.set_skip_reset_and_halt(False)

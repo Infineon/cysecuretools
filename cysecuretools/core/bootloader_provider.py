@@ -25,52 +25,49 @@ class BootloaderProvider:
     def __init__(self, target):
         self.target = target
         self.policy_parser = target.policy_parser
-        self.mode = self.policy_parser.get_cybootloader_mode()
+        self.build_mode = self.policy_parser.get_cybootloader_mode()
+        self.upgrade_mode = self.policy_parser.get_upgrade_mode()
         self.cb_dir = ProjectInitializer.prebuilt_dir_name
 
-    def get_hex_path(self):
+    def hex_path(self):
         """
         Gets CyBootloader hex-file path.
         :return: File path.
         """
-        if self.mode == 'custom':
+        if self.build_mode == 'custom':
             filename = self.policy_parser.get_cybootloader_hex()
         else:
-            filename = CyBootloaderMapParser.get_filename(
-                self.target.name, self.mode, 'hex')
-            if filename is None:
-                logger.error(f'CyBootloader data not found for target '
-                             f'{self.target.name}, mode \'{self.mode}\'')
-                return ''
-            if self.target.cwd:
-                filename = os.path.join(self.target.cwd, self.cb_dir, filename)
-            else:
-                filename = os.path.join(self.target.target_dir, self.cb_dir,
-                                        filename)
+            filename = self._get_filename_from_map('hex')
+
         return os.path.abspath(filename)
 
-    def get_jwt_path(self, mode=None):
+    def jwt_path(self, build_mode=None):
         """
         Gets CyBootloader jwt-file path.
-        :param mode: CyBootloader mode (release or debug). If not
+        :param build_mode: CyBootloader mode (release or debug). If not
                specified, the mode specified in policy will be used
         :return: File path.
         """
-        if not mode:
-            mode = self.mode
-        if mode == 'custom':
+        if not build_mode:
+            build_mode = self.build_mode
+
+        if build_mode == 'custom':
             filename = self.policy_parser.get_cybootloader_jwt()
         else:
-            filename = CyBootloaderMapParser.get_filename(
-                self.target.name, mode, 'jwt')
-            if filename is None:
-                logger.error(f'CyBootloader data not found for target '
-                             f'{self.target.name}, mode \'{mode}\'')
-                return ''
+            filename = self._get_filename_from_map('jwt')
 
+        return os.path.abspath(filename)
+
+    def _get_filename_from_map(self, file_type):
+        try:
+            filename = CyBootloaderMapParser.get_filename(
+                self.target.name, self.upgrade_mode, self.build_mode, file_type)
             if self.target.cwd:
                 filename = os.path.join(self.target.cwd, self.cb_dir, filename)
             else:
-                filename = os.path.join(self.target.target_dir, self.cb_dir,
-                                        filename)
-        return os.path.abspath(filename)
+                filename = os.path.join(self.target.target_dir, self.cb_dir, filename)
+        except KeyError as e:
+            logger.error(e)
+            filename = ''
+
+        return filename

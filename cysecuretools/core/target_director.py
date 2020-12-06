@@ -15,33 +15,7 @@ limitations under the License.
 """
 import os
 import inspect
-
-
-class TargetBuilder:
-    def __init__(self):
-        self._target_dir = None
-
-    @property
-    def target_dir(self):
-        return self._target_dir
-
-    @target_dir.setter
-    def target_dir(self, target_dir):
-        self._target_dir = target_dir
-
-    def get_default_policy(self): pass
-    def get_memory_map(self): pass
-    def get_register_map(self): pass
-    def get_policy_parser(self): pass
-    def get_policy_validator(self, policy_parser, memory_map): pass
-    def get_policy_filter(self, policy_parser): pass
-    def get_provisioning_strategy(self): pass
-    def get_provisioning_packet_strategy(self, policy_parser): pass
-    def get_entrance_exam(self): pass
-    def get_voltage_tool(self): pass
-    def get_key_reader(self): pass
-    def get_project_initializer(self): pass
-    def get_silicon_data_reader(self): pass
+from cysecuretools.core.target_builder import TargetBuilder
 
 
 class TargetDirector:
@@ -124,6 +98,9 @@ class TargetDirector:
         # Silicon data reader
         target.silicon_data_reader = self._builder.get_silicon_data_reader()
 
+        # Key algorithms
+        target.key_algorithms = self._builder.get_key_algorithms()
+
         return target
 
 
@@ -145,6 +122,7 @@ class Target:
         self._project_initializer = None
         self._cwd = None
         self._silicon_data_reader = None
+        self._key_algorithms = None
 
     @property
     def name(self):
@@ -273,3 +251,11 @@ class Target:
     @silicon_data_reader.setter
     def silicon_data_reader(self, reader):
         self._silicon_data_reader = reader
+
+    @property
+    def key_algorithms(self):
+        return self._key_algorithms
+
+    @key_algorithms.setter
+    def key_algorithms(self, algorithms):
+        self._key_algorithms = algorithms

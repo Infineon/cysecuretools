@@ -28,3 +28,7 @@ class EntranceExam(ABC):
     @abstractmethod
     def read_sfb_version(self, tool):
         pass
+
+    @abstractmethod
+    def log_protection_state(self, tool):
+        pass

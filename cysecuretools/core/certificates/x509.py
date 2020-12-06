@@ -32,6 +32,7 @@ from cysecuretools.execute.entrance_exam.exam_mxs40v1 \
 from cysecuretools.execute.provisioning_lib.cyprov_pem import PemKey
 from cysecuretools.targets.common.silicon_data_parser import SiliconDataParser
 from cysecuretools.execute.provision_device_mxs40v1 import read_silicon_data
+from cysecuretools.execute.version_helper import VersionHelper
 
 logger = logging.getLogger(__name__)
 
@@ -184,6 +185,8 @@ class X509CertificateStrategy(CertificateStrategy):
         """
         # Read silicon data
         if tool.connect(target.name, probe_id=probe_id, ap='sysap'):
+            VersionHelper.log_version(tool, target)
+            VersionHelper.verify_sfb_version(tool, target)
             data = read_silicon_data(tool, target)
             if data is None:
                 logger.error('Failed to read silicon data')

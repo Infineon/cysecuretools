@@ -237,10 +237,34 @@
                                 "required": false,
                                 "type": "number"
                             },
+                            "wdt_timeout": {
+                                "id": "wdt_timeout",
+                                "required": false,
+                                "type": "number"
+                            },
+                            "wdt_enable": {
+                                "id": "wdt_enable",
+                                "required": false,
+                                "type": "boolean"
+                            },
+                            "set_img_ok": {
+                                "id": "set_img_ok",
+                                "required": false,
+                                "type": "boolean"
+                            },
                             "upgrade": {
                                 "id": "upgrade",
                                 "required": true,
                                 "type": "boolean"
+                            },
+                            "upgrade_mode": {
+                                "id": "upgrade_mode",
+                                "required": false,
+                                "type": "string",
+                                "enum": [
+                                    "overwrite",
+                                    "swap"
+                                ]
                             },
                             "resources": {
                                 "id": "resources",
@@ -277,7 +301,8 @@
                                                 "SMIF_XO",
                                                 "SMIF_DATA",
                                                 "BOOT",
-                                                "UPGRADE"
+                                                "UPGRADE",
+                                                "STATUS_PARTITION"
                                             ],
                                             "id": "type",
                                             "required": true,

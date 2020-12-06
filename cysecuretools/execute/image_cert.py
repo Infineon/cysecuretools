@@ -19,6 +19,7 @@ from datetime import datetime
 from click import BadParameter
 from intelhex import IntelHex
 import cysecuretools.execute.jwt as jwt
+import cysecuretools.execute.sys_call as sys_call
 from cysecuretools.execute.key_reader import load_key
 
 
@@ -133,3 +134,15 @@ class ImageCertificate:
         payload = readable['payload']
         version = payload['image_version']
         return version
+
+    @staticmethod
+    def read_image_certificate(tool, target):
+        """
+        Reads image certificate provisioned into device
+        :param tool: Programming/debugging tool
+        :param target: The target object
+        :return: The certificate if exists, otherwise None
+        """
+        _, data = sys_call.get_prov_details(tool, target.register_map,
+                                            sys_call.FB_POLICY_IMG_CERTIFICATE)
+        return data

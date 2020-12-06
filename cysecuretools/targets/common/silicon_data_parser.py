@@ -42,3 +42,6 @@ class SiliconDataParser:
         die_id = self.get_die_id()
         concat = ''.join(str(x) for x in die_id.values())
         return concat
+
+    def get_complete_status(self):
+        return self.data['payload']['complete']

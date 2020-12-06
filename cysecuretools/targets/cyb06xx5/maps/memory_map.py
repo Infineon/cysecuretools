@@ -45,5 +45,6 @@ class MemoryMap_cyb06xx5(MemoryMapBase):
     def SMIF_MEM_MAP_START(self):
         return 0x18000000
 
-    def trailer_size(self):
-        return 0x200
+    @property
+    def VECTOR_TABLE_ADDR_ALIGNMENT(self):
+        return 0x400

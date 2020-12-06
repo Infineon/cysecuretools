@@ -19,18 +19,17 @@ with open("cysecuretools/version.py") as f:
 setup(
     name='cysecuretools',
     version=version['__version__'],
-    setup_requires=[
-        'setuptools>=40.0,!=46.0,!=50.0,<51',
-        'pip>=19,!=20.0,!=20.0.1,<21'
-        ],
     install_requires=[
-        'cryptography>=2.4.2,<3',
+        'setuptools>=40.0,!=46.0,!=50.0,<51',
+        'psutil==5.7.2',
+        'cryptography>=2.4.2,<4',
         'click>=7.0,<8',
         'intelhex>=2.2.1,<3',
         'python-jose>=3.0.1,<4',
         'jsonschema>=3.0.0,<4',
         'pyocd==0.27.3',
         'cbor==1.0.0',
+        'packaging>=20.7,<21',
         'imgtool==1.7.0a1'
         ],
     description='Cypress secure tools for Python',

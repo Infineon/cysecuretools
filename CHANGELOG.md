@@ -1,7 +1,15 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
-## 2.1.0 
+## 3.0.0
+### Added
+- Image SWAP using Status Partition
+
+### Changed
+- CyBootloader 2.0
+- Secure Flash Boot 4.0.2 support
+
+## 2.1.0
 ### Added
 - Support PSoC64 1M
 - New command to read device die ID
@@ -11,7 +19,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 - Fixed issue with using group private key
-- Use pyocd 0.27.3 
+- Use pyocd 0.27.3
 
 
 ## 2.0.0

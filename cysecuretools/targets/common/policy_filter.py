@@ -88,7 +88,7 @@ class PolicyFilter(PolicyFilterBase):
                                 else:                             # process dictionary in the list
                                     self.parse_node(d_elem, t_elem)
                             else:
-                                del t_value[t_i]
+                                del t_value[t_i:]
                             d_i += 1
                             t_i += 1
                     elif not isinstance(d_value, dict):           # process values in the dictionary

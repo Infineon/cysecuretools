@@ -15,25 +15,20 @@ limitations under the License.
 """
 import os
 import logging
+import pathlib
 import imgtool.main as imgtool
 from shutil import copy2
 from intelhex import hex2bin, bin2hex, IntelHex
 from cysecuretools.core.enums import ImageType
-from cysecuretools.targets.common.policy_parser import PolicyParser
 
 logger = logging.getLogger(__name__)
 
-MCUBOOT_HEADER_SIZE = 0x400
-
 
 class SignTool:
-    def __init__(self, policy_file):
-        # Resolve paths
-        self.PKG_PATH = os.path.dirname(os.path.realpath(__file__))
-        self.IMG_TOOL_PATH = os.path.join(self.PKG_PATH, '../imgtool/main.py')
-        self.parser = PolicyParser(policy_file)
-        self.policy = PolicyParser.get_json(policy_file)
-        self.policy_file = policy_file
+    def __init__(self, target):
+        self.header_size = target.memory_map.VECTOR_TABLE_ADDR_ALIGNMENT
+        self.parser = target.policy_parser
+        self.policy_file = target.policy
         self.erased_val = None
 
     def sign_image(self, hex_file, image_id, image_type, encrypt_key=None,
@@ -81,6 +76,7 @@ class SignTool:
         boot_bin = f'{hex_file}.bin'
         hex2bin(boot_ih, boot_bin)
 
+        encrypted_boot = False
         first_image_result = None  # indicates first image signing success
         for image in slot['resources']:
             if image_type:
@@ -90,30 +86,33 @@ class SignTool:
                 if 'upgrade' not in slot or not slot['upgrade']:
                     continue  # skip generating hex file for UPGRADE slot if it is disabled
 
+            encryption = self.parser.encryption_enabled(slot['id'])
+            if encryption:
+                if encrypt_key is None:
+                    encrypt_key = self.parser.encrypt_key(slot['id'])
+                    if encrypt_key is None:
+                        raise ValueError('Encryption key not specified')
+                    else:
+                        if not os.path.isfile(encrypt_key):
+                            raise FileNotFoundError(
+                                f'Encryption key \'{encrypt_key}\' not found')
+            else:
+                encrypt_key = None
+
             if image['type'] == ImageType.BOOT.name:
                 if first_image_result is False:
                     continue
+
                 hex_out = self.sign_single_hex(slot, image['type'], boot_bin,
                                                hex_file, start_addr=base_addr,
-                                               boot_record=boot_record)
+                                               boot_record=boot_record,
+                                               encrypt_key=encrypt_key)
+                encrypted_boot = encrypt_key is not None
                 first_image_result = hex_out is not None
                 os.remove(boot_bin)
             else:
                 if first_image_result is False:
                     continue
-
-                if 'encrypt' in slot and slot['encrypt']:
-                    if encrypt_key is None:
-                        if 'encrypt_peer' in slot and slot['encrypt_peer']:
-                            encrypt_key = slot['encrypt_peer']
-                            if not os.path.isabs(encrypt_key):
-                                encrypt_key = os.path.join(self.parser.policy_dir, encrypt_key)
-                        else:
-                            logger.error('Image must be encrypted! Specify encrypt_key_file path.')
-                            return None
-                else:
-                    if encrypt_key is not None:
-                        encrypt_key = None
 
                 output_name = '{0}_{2}{1}'.format(
                     *os.path.splitext(hex_file) + ('upgrade',))
@@ -140,10 +139,14 @@ class SignTool:
             if hex_out:
                 result.append(hex_out)
 
+        if encrypted_boot:
+            self.replace_image_body(hex_file, unsigned_hex, ih_padding)
+
         if image_type:
             if ImageType.UPGRADE.name == image_type.upper():
                 os.remove(hex_file)
         result = tuple(result) if len(result) > 0 else None
+
         return result
 
     def sign_single_hex(self, slot, image_type, hex_in, hex_out=None,
@@ -186,7 +189,7 @@ class SignTool:
 
         args = [
             '--key', key.pem_key_path,
-            '--header-size', hex(MCUBOOT_HEADER_SIZE),
+            '--header-size', hex(self.header_size),
             '--pad-header',
             '--align', '8',
             '--version', slot['version'],
@@ -202,7 +205,7 @@ class SignTool:
         ]
 
         if start_addr:
-            args.extend(['--hex-addr', hex(start_addr - MCUBOOT_HEADER_SIZE)])
+            args.extend(['--hex-addr', hex(start_addr - self.header_size)])
 
         if boot_record:
             args.extend(['--boot-record', boot_record])
@@ -226,6 +229,33 @@ class SignTool:
         else:
             logger.info(f'Image for slot {image_type} signed successfully! ({hex_out})')
             return hex_out
+
+    def replace_image_body(self, orig, repl, padding):
+        """
+        Replaces original image with the replacement image
+        :param orig: The image to be replaced
+        :param repl: The image to replace with
+        :param padding: Padding value
+        """
+        orig_ih = IntelHex()
+        orig_ih.padding = padding
+        orig_ih.loadhex(orig)
+
+        repl_ih = IntelHex()
+        repl_ih.padding = padding
+        repl_ih.loadhex(repl)
+        minaddr = repl_ih.minaddr()
+        maxaddr = repl_ih.maxaddr()
+
+        # This adds padding if the image is not aligned to 16 Bytes
+        pad_len = (maxaddr - minaddr + self.header_size) % 16
+        if pad_len > 0:
+            pad_len = 16 - pad_len
+
+        for i in range(repl_ih.minaddr(), repl_ih.maxaddr() + pad_len):
+            orig_ih[i] = repl_ih[i]
+
+        orig_ih.tofile(orig, pathlib.Path(orig).suffix[1:])
 
     @staticmethod
     def _default_erased_value(image_type, slot):

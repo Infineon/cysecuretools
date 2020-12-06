@@ -14,6 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 import os
+import posixpath
 import json
 import logging
 from pathlib import Path
@@ -33,6 +34,7 @@ project_files = {
         'cy_auth_2m_b0_sample.jwt',
         'cy_auth_2m_s0_sample.jwt',
         'cy_auth_512k_b0_sample.jwt',
+        'entrance_exam.jwt',
     },
     'keys': {
         'hsm_state.json',
@@ -210,7 +212,7 @@ class ProjectInitializerMXS40V1(ProjectInitializer):
                                                       exist_ok=True)
                 copyfile(src_file, dst_file)
                 logger.info(f'Copy \'{dst_file}\'')
-            except FileNotFoundError as e:
+            except FileNotFoundError:
                 if warn:
                     logger.warning(f'File \'{src_file}\' does not exist')
 
@@ -243,12 +245,12 @@ class ProjectInitializerMXS40V1(ProjectInitializer):
         for k, v in policy['pre_build'].items():
             if k in update_nodes:
                 filename = os.path.basename(os.path.normpath(v))
-                new_path = os.path.join('../', self.keys_dir_name, filename)
+                new_path = posixpath.join('../', self.keys_dir_name, filename)
                 policy['pre_build'][k] = new_path
 
     def update_bootloader_keys_section(self, policy):
         path = 'boot_upgrade.firmware.0.bootloader_keys.0.key'
         old_value = jsonpath.get_node_value(policy, path)
         filename = os.path.basename(os.path.normpath(old_value))
-        new_value = os.path.join('../', self.keys_dir_name, filename)
+        new_value = posixpath.join('../', self.keys_dir_name, filename)
         jsonpath.set_node_value(policy, path, new_value)

@@ -18,6 +18,8 @@ import json
 import logging
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives.asymmetric import ec
+from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives import serialization
 from jose.backends import ECKey
 from jose.constants import ALGORITHMS
 from jose.utils import long_to_base64
@@ -100,5 +102,33 @@ def generate_ecdsa_key(kid=6, jwkey=None, pem_priv=None, pem_pub=None):
             with open(pem_pub, 'wb') as fp:
                 fp.write(key.public_key().to_pem().strip())
 
-    logger.debug(key_str)
     return key_str
+
+
+def generate_rsa_key(key_filename):
+    """
+    Creates a key using RSA algorithm
+    """
+    private_key = rsa.generate_private_key(65537, 2048, default_backend())
+    public_key = private_key.public_key()
+
+    private_pem = private_key.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.TraditionalOpenSSL,
+        encryption_algorithm=serialization.NoEncryption())
+
+    public_pem = public_key.public_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PublicFormat.SubjectPublicKeyInfo)
+
+    filename = "{0}_PRIV.pem".format(*os.path.splitext(key_filename))
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    with open(filename, 'wb') as fp:
+        fp.write(private_pem)
+
+    filename = "{0}_PUB.pem".format(*os.path.splitext(key_filename))
+    os.makedirs(os.path.dirname(filename), exist_ok=True)
+    with open(filename, 'wb') as fp:
+        fp.write(public_pem)
+
+    return private_pem

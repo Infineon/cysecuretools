@@ -22,12 +22,14 @@ import traceback
 from intelhex import HexRecordError
 from json.decoder import JSONDecodeError
 from cryptography.hazmat.primitives import serialization
-import cysecuretools.main as main_module
 from cysecuretools import CySecureTools
 from cysecuretools.execute.image_cert import ImageCertificate
-from cysecuretools.targets import print_targets
+from cysecuretools.execute.version_helper import VersionHelper
+from cysecuretools.targets import print_targets, print_targets_extended, target_names_by_type, get_target_builder
+from cysecuretools.core.enums import KeyAlgorithm
 from cysecuretools.core.exceptions import ValidationError
 from cysecuretools.core.target_director import TargetDirector
+from cysecuretools.core.logging_configurator import LoggingConfigurator
 
 logger = logging.getLogger(__name__)
 
@@ -67,7 +69,7 @@ def main(ctx, target, policy, verbose, logfile_off, no_interactive_mode):
     For detailed description of using CySecureTools please refer to readme.md
     """
     if verbose:
-        main_module.set_logger_level(logging.DEBUG)
+        LoggingConfigurator.set_logger_level(logging.DEBUG)
     ctx.ensure_object(dict)
     log_file = not logfile_off
 
@@ -133,7 +135,7 @@ def print_assertion_error():
 def default_policy(target_name):
     director = TargetDirector()
     target_name = target_name.lower()
-    CySecureTools.get_target_builder(director, target_name)
+    get_target_builder(director, target_name)
     target = director.get_target(None, target_name, None)
     return target.policy
 
@@ -161,12 +163,16 @@ def validate_init_cmd_args():
 @click.option('--kid', type=click.INT, default=None, required=False,
               help='The ID of the key to create. If not specified, all the '
                    'keys found in the policy will be generated')
-def cmd_create_keys(ctx, overwrite, out, kid):
+@click.option('-a', '--algorithm', default=None,
+              type=click.Choice([KeyAlgorithm.EC, KeyAlgorithm.RSA],
+                                case_sensitive=False),
+              help='Key algorithm')
+def cmd_create_keys(ctx, overwrite, out, kid, algorithm):
     def process():
         if 'TOOL' not in ctx.obj:
             return False
         try:
-            result = ctx.obj['TOOL'].create_keys(overwrite, out, kid)
+            result = ctx.obj['TOOL'].create_keys(overwrite, out, kid, algorithm)
         except Exception as e:
             result = False
             logger.error(e)
@@ -194,7 +200,7 @@ def cmd_version(ctx, probe_id, ap):
                     return False
                 ctx.obj['TOOL'].print_version(probe_id, ap)
             else:
-                main_module.print_version(['cyb06xx7', 'cyb06xxa', 'cyb06xx5'])
+                VersionHelper.print_version(target_names_by_type('family'))
             result = True
         except AssertionError:
             print_assertion_error()
@@ -306,8 +312,10 @@ def cmd_provision_device(ctx, probe_id, use_existing_packet, ap):
               help='Indicates whether erase BOOT slot')
 @click.option('--control-dap-cert', default=None,
               help='The certificate that provides the access to control DAP')
+@click.option('--skip-bootloader', is_flag=True, hidden=True, default=False,
+              help='Skips bootloader programming')
 def cmd_re_provision_device(ctx, probe_id, existing_packet, ap, erase_boot,
-                            control_dap_cert):
+                            control_dap_cert, skip_bootloader):
     def process():
         if 'TOOL' not in ctx.obj:
             return False
@@ -318,7 +326,8 @@ def cmd_re_provision_device(ctx, probe_id, existing_packet, ap, erase_boot,
                 result = ctx.obj['TOOL'].create_provisioning_packet()
             if result:
                 result = ctx.obj['TOOL'].re_provision_device(
-                    probe_id, ap, erase_boot, control_dap_cert)
+                    probe_id, ap, erase_boot, control_dap_cert,
+                    skip_bootloader)
         except AssertionError:
             result = False
             print_assertion_error()
@@ -428,7 +437,7 @@ def cmd_image_certificate(ctx, image, key, cert, version, image_id,
     return process
 
 
-@main.command('entrance-exam', short_help='Checks device life-cycle, '
+@main.command('entrance-exam', short_help='Checks device life cycle, '
                                           'FlashBoot firmware and Flash state')
 @click.option('--probe-id', type=click.STRING, required=False, default=None,
               help='Probe serial number')
@@ -455,12 +464,17 @@ def cmd_entrance_exam(ctx, probe_id, ap, erase_flash):
 
 
 @main.command('device-list', help='List of supported devices')
+@click.option('--extended', hidden=True, is_flag=True,
+              help='Provides targets extended data')
 @click.pass_context
-def cmd_device_list(ctx):
+def cmd_device_list(ctx, extended):
     def process():
         result = False
         try:
-            print_targets()
+            if extended:
+                print_targets_extended()
+            else:
+                print_targets()
             result = True
         except Exception as e:
             logger.error(e)
@@ -472,7 +486,7 @@ def cmd_device_list(ctx):
 @main.command('encrypt-image',
               short_help='Creates encrypted image for encrypted programming')
 @click.pass_context
-@click.option('-i', '--image', type=click.File('r'),  default=None,
+@click.option('-i', '--image', type=click.File('r'),  required=True,
               help='The image to encrypt')
 @click.option('-h', '--host-key-id', type=click.INT, required=True,
               help='Host private key ID (4 - HSM, 5 - OEM)')

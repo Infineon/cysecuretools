@@ -17,6 +17,7 @@ import jsonschema
 import logging
 import json
 import os.path
+from math import ceil
 from cysecuretools.targets.common.policy_parser import ImageType
 from cysecuretools.core import PolicyValidatorBase
 from cysecuretools.core.enums import ValidationStatus
@@ -43,6 +44,8 @@ class PolicyValidator(PolicyValidatorBase):
         self.memory_map = memory_map
         self.policy_dir = self.parser.policy_dir
         self.stage = self.get_policy_stage()
+        self.is_smif = self._is_smif()
+        self.is_multi_image = self._is_multi_image()
 
     def validate(self, skip=None, skip_prompts=False):
         """
@@ -69,7 +72,7 @@ class PolicyValidator(PolicyValidatorBase):
 
         # Second stage validation
         if self._continue_validation(status):
-            is_multi_image = self.is_multi_image()
+            is_multi_image = self._is_multi_image()
             logger.debug('Validating firmware slots overlapping')
             result = self.validate_address_overlap(is_multi_image)
             if not result:
@@ -158,6 +161,12 @@ class PolicyValidator(PolicyValidatorBase):
                 if result != ValidationStatus.OK:
                     status = result
 
+        if self._continue_validation(status):
+            if self.parser.upgrade_mode() == 'swap':
+                result = self.validate_status_partition_size()
+                if not result:
+                    status = ValidationStatus.ERROR
+
         if status == ValidationStatus.ERROR:
             logger.error('Policy validation finished with error')
         elif status == ValidationStatus.WARNING:
@@ -186,10 +195,10 @@ class PolicyValidator(PolicyValidatorBase):
                     break
             result &= key_found
             if not result:
+                logger.error(f'Key with ID {a} not found in the \'boot_keys\' '
+                             f'section (image ID {slot["id"]})')
                 break
-        if not result:
-            logger.error(f'Key with ID {a} not found in the \'boot_keys\' '
-                         f'section (image ID {slot["id"]})')
+
         return result
 
     def validate_key_file_kid(self, slot):
@@ -217,11 +226,11 @@ class PolicyValidator(PolicyValidatorBase):
                         logger.debug(f'Key file "{key_file}" does not exist')
             result &= key_found
             if not result:
+                logger.error(f"Key ID {a}, specified in the 'boot_auth' "
+                             f"section does not match the ID in the 'kid' "
+                             f"field of JWK (image ID {slot['id']})")
                 break
-        if not result:
-            logger.error(f"Key ID {a}, specified in the 'boot_auth' section "
-                         f"does not match key 'kid' field "
-                         f"(image ID {slot['id']})")
+
         return result
 
     def key_name_validation(self):
@@ -416,24 +425,30 @@ class PolicyValidator(PolicyValidatorBase):
         """
         AddressSize = namedtuple("AddressSize", "address size")
         all_slots_addr = []
-        bootloader_addr = []
+        res_area = []
         for slot in self.parser.json['boot_upgrade']['firmware']:
-            slot_addr = []
-            for res in slot['resources']:
-                if res['type'] in ['BOOT', 'UPGRADE']:
-                    slot_addr.append(AddressSize(res['address'], res['size']))
-                if res['type'] in ['FLASH_PC1_SPM']:
-                    bootloader_addr.append(AddressSize(res['address'],
-                                                       res['size']))
+            app_area = []
+            for item in slot['resources']:
+                if item['type'] in ['BOOT', 'UPGRADE']:
+                    app_area.append(AddressSize(item['address'], item['size']))
+                if item['type'] in ['FLASH_PC1_SPM', 'STATUS_PARTITION']:
+                    res_area.append(AddressSize(item['address'], item['size']))
+
             # Validate overlaps in range of the slot
-            if slot_addr:
-                result = self.check_overlaps(slot_addr)
+            if app_area:
+                result = self.check_overlaps(app_area)
                 if not result:
                     return result
-                all_slots_addr.extend(slot_addr)
+                all_slots_addr.extend(app_area)
 
-        # Validate overlaps between slots and bootloader
-        result = self.check_overlaps(all_slots_addr, bootloader_addr)
+            # Validate overlaps in range of the resources
+            if res_area:
+                result = self.check_overlaps(res_area)
+                if not result:
+                    return result
+
+        # Validate overlaps between app and resources
+        result = self.check_overlaps(all_slots_addr, res_area)
         if not result:
             return result
 
@@ -451,18 +466,19 @@ class PolicyValidator(PolicyValidatorBase):
         If two lists specified, check overlaps between the lists.
         :return: True if address intersection detected, otherwise False
         """
-        if addr_list2 is None:
+        single_list = addr_list2 is None
+        if single_list:
             addr_list2 = addr_list1
 
         for i in range(len(addr_list1)):
             for k in range(len(addr_list2)):
-                if i != k:
+                if not single_list or (single_list and i != k):
                     x = range(addr_list1[i].address,
                               addr_list1[i].address + addr_list1[i].size)
                     y = range(addr_list2[k].address,
                               addr_list2[k].address + addr_list2[k].size)
-                    xs = set(x)
-                    if len(xs.intersection(y)) > 0:
+                    xy = range(max(x.start, y.start), min(x.stop, y.stop))
+                    if len(xy) > 0:
                         logger.error(f'Address range '
                                      f'\'{hex(x.start)}-{hex(x.stop)}\' '
                                      f'overlaps address range '
@@ -500,7 +516,8 @@ class PolicyValidator(PolicyValidatorBase):
         for item in self.parser.json["boot_upgrade"]["firmware"]:
             for res in item["resources"]:
                 if res["type"].startswith("FLASH") or \
-                   res["type"].startswith("BOOT"):
+                   res["type"].startswith("BOOT") or \
+                   res["type"].startswith("STATUS_PARTITION"):
                     flash_res.append([res["address"], res["address"] + res["size"]])
                 if item["upgrade"] and res["type"].startswith("UPGRADE"):
                     if item["smif_id"] == 0:
@@ -513,7 +530,7 @@ class PolicyValidator(PolicyValidatorBase):
         flash_end = flash_start + self.memory_map.FLASH_SIZE
         for item in flash_res:
             if flash_start > item[0] or flash_end < item[0] or flash_end < item[1]:
-                logger.error(f'Address range \'{hex(item[0])}-{hex(item[1])}\' is not in FLASH area (\'{hex(flash_start)}-{hex(flash_end)}\').')
+                logger.error(f'Address range \'{hex(item[0])}-{hex(item[1])}\' is out of available FLASH area (\'{hex(flash_start)}-{hex(flash_end)}\').')
                 return False
 
         # test smif
@@ -629,7 +646,7 @@ class PolicyValidator(PolicyValidatorBase):
 
         return result
 
-    def is_multi_image(self):
+    def _is_multi_image(self):
         for slot in self.parser.json['boot_upgrade']['firmware']:
             if 'multi_image' in slot:
                 return True
@@ -701,24 +718,74 @@ class PolicyValidator(PolicyValidatorBase):
         for slot in self.parser.json['boot_upgrade']['firmware']:
             if slot['id'] != 0:
                 if self._is_cm0_slot(slot['id']):
-                    r = range(0, 15)
+                    r = range(0, 16)
                     cm0_monotonic = slot['monotonic']
                     if cm0_monotonic not in r:
                         logger.error(f'CM0 application monotonic counter must '
-                                     f'be in range {r.start}-{r.stop}')
+                                     f'be in range {r.start}-{r.stop-1}')
                         result &= False
                 if self._is_cm4_slot(slot['id']):
-                    r = range(8, 15)
+                    r = range(8, 16)
                     cm4_monotonic = slot['monotonic']
                     if cm4_monotonic not in r:
                         logger.error(f'CM4 application monotonic counter must '
-                                     f'be in range {r.start}-{r.stop}')
+                                     f'be in range {r.start}-{r.stop-1}')
                         result &= False
         if cm0_monotonic and cm4_monotonic and cm0_monotonic == cm4_monotonic:
             logger.error('\'monotonic\' field must be different for different '
                          'applications in multi-image case')
             result &= False
         return result
+
+    def validate_status_partition_size(self):
+        result = True
+
+        status_partition = self.parser.status_partition()
+        if not status_partition:
+            raise ValueError('Status partition not found in the specified '
+                             'policy file')
+
+        if self.is_multi_image:
+            d_cm0 = self._calc_status_partition_size('cm0')
+            d_cm4 = self._calc_status_partition_size('cm4')
+            d = d_cm0 + d_cm4
+        else:
+            d = self._calc_status_partition_size()
+
+        if status_partition.size < d:
+            logger.error(f'SWAP status partition is too small. The minimum '
+                         f'sufficient size is {d} bytes')
+            result = False
+
+        return result
+
+    def _calc_status_partition_size(self, slot_name=None):
+        """
+        Calculates minimum sufficient status partition size
+        for the specified slot
+        :param slot_name: cm0 or cm4. If None, the maximum image size
+        between both slots will be used
+        :return: Status partition size in bytes
+        """
+        int_mem_sector_size = 512  # internal memory sector size
+        ext_mem_sector_size = 256 * 1024  # external memory sector size
+        trailer = int_mem_sector_size  # trailer is 64B, one slice is enough
+        duplicates = 2  # status partition duplicates
+        boot_max_size = self._max_image_size('BOOT', slot_name)
+        if self.is_smif:
+            sector_size = ext_mem_sector_size
+        else:
+            sector_size = int_mem_sector_size
+        boot_sectors = boot_max_size / sector_size
+        sector_count = ceil(boot_sectors / sector_size)
+        dx = int_mem_sector_size * sector_count + trailer
+        d = dx * duplicates
+        d = d * 2  # add UPGRADE slot
+        return d
+
+    @staticmethod
+    def _is_bootloader_slot(image_id):
+        return image_id == 0
 
     @staticmethod
     def _is_cm0_slot(image_id):
@@ -727,3 +794,40 @@ class PolicyValidator(PolicyValidatorBase):
     @staticmethod
     def _is_cm4_slot(image_id):
         return image_id in [4, 16]
+
+    @staticmethod
+    def _is_app_slot(image_id):
+        return PolicyValidator._is_cm0_slot(image_id) or \
+               PolicyValidator._is_cm4_slot(image_id)
+
+    def _is_smif(self):
+        for slot in self.parser.json['boot_upgrade']['firmware']:
+            if 'smif_id' in slot and slot['smif_id'] > 0:
+                return True
+        return False
+
+    def _max_image_size(self, image_type, slot_name=None):
+        """
+        Gets the maximum size between the images of the
+        specified type and slot
+        """
+        img_max_size = 0
+        max_size_list = dict()
+        for slot in self.parser.json['boot_upgrade']['firmware']:
+            for item in slot['resources']:
+                if item['type'] == image_type:
+                    if item['size'] > img_max_size:
+                        if self._is_cm0_slot(slot['id']):
+                            max_size_list['cm0'] = item['size']
+                        if self._is_cm4_slot(slot['id']):
+                            max_size_list['cm4'] = item['size']
+        if 'cm0' == slot_name:
+            img_max_size = max_size_list['cm0']
+        elif 'cm4' == slot_name:
+            img_max_size = max_size_list['cm4']
+        else:
+            try:
+                img_max_size = max(max_size_list['cm0'], max_size_list['cm4'])
+            except KeyError:
+                img_max_size = list(max_size_list.values())[0]
+        return img_max_size

@@ -15,6 +15,7 @@ limitations under the License.
 """
 import os
 from cysecuretools.core import TargetBuilder
+from cysecuretools.core.enums import KeyAlgorithm
 from cysecuretools.targets.cyb06xxa.maps.memory_map import MemoryMap_cyb06xxa
 from cysecuretools.targets.cyb06xxa.maps.register_map import \
     RegisterMap_cyb06xxa
@@ -37,7 +38,7 @@ from cysecuretools.execute.silicon_data_reader_mxs40v1 import \
 class CYS06xxA_Builder(TargetBuilder):
     def get_default_policy(self):
         return os.path.join(self.target_dir, 'policy',
-                            'policy_multi_CM0_CM4.json')
+                            'policy_single_CM0_CM4_swap.json')
 
     def get_memory_map(self):
         memory_map = MemoryMap_cyb06xxa()
@@ -79,3 +80,6 @@ class CYS06xxA_Builder(TargetBuilder):
 
     def get_silicon_data_reader(self):
         return SiliconDataReaderMXS40v1
+
+    def get_key_algorithms(self):
+        return [KeyAlgorithm.EC]

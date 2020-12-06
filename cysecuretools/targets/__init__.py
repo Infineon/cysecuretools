@@ -23,56 +23,68 @@ target_map = {
     'cyb06xx7': {
         'class': CYB06xx7_Builder,
         'family': 'PSoC64 Secure Boot Family',
-        'display_name': 'PSoC64 1M'
+        'display_name': 'PSoC64 1M',
+        'type': 'family'
     },
     'cy8cproto-064s1-sb': {
         'class': CYB06xx7_Builder,
-        'family': 'PSOC64 Kit targets',
-        'display_name': 'PSoC64 1M'
+        'family': 'PSoC64 Kit targets',
+        'display_name': 'PSoC64 1M',
+        'type': 'kit'
     },
     'cy8cproto-064b0s1-ble': {
         'class': CYB06xx7_Builder,
-        'family': 'PSOC64 Kit targets',
-        'display_name': 'PSoC64 1M'
+        'family': 'PSoC64 Kit targets',
+        'display_name': 'PSoC64 1M',
+        'type': 'kit'
     },
 
     # PSoC64 2M
     'cy8ckit-064b0s2-4343w': {
         'class': CYB06xxA_Builder,
-        'family': 'PSOC64 Kit targets',
-        'display_name': 'PSoC64 2M'
+        'family': 'PSoC64 Kit targets',
+        'display_name': 'PSoC64 2M',
+        'type': 'kit'
     },
     'cy8ckit-064s0s2-4343w': {
         'class': CYS06xxA_Builder,
-        'family': 'PSOC64 Kit targets',
-        'display_name': 'PSoC64 2M'
+        'family': 'PSoC64 Kit targets',
+        'display_name': 'PSoC64 2M',
+        'type': 'kit'
     },
     'cyb06xxa': {
         'class': CYB06xxA_Builder,
         'family': 'PSoC64 Secure Boot Family',
-        'display_name': 'PSoC64 2M'
+        'display_name': 'PSoC64 2M',
+        'type': 'family'
     },
     'cys06xxa': {
         'class': CYS06xxA_Builder,
         'family': 'PSoC64 Standard Secure Family',
-        'display_name': 'PSoC64 2M'
+        'display_name': 'PSoC64 2M',
+        'type': 'family'
     },
 
     # PSoC64 512K
     'cy8cproto-064b0s3': {
         'class': CYB06xx5_Builder,
-        'family': 'PSOC64 Kit targets',
-        'display_name': 'PSoC64 512K'
+        'family': 'PSoC64 Kit targets',
+        'display_name': 'PSoC64 512K',
+        'type': 'kit'
     },
     'cyb06xx5': {
         'class': CYB06xx5_Builder,
         'family': 'PSoC64 Secure Boot Family',
-        'display_name': 'PSoC64 512K'
+        'display_name': 'PSoC64 512K',
+        'type': 'family'
     },
 }
 
 
 def print_targets():
+    """
+    Prints target list
+    """
     output = {}
     for target in target_map:
         tmp = output.get(target_map[target]['family'], [])
@@ -83,3 +95,34 @@ def print_targets():
         print(f'{family}:')
         for target in output[family]:
             print(f'\t{target}')
+
+
+def get_target_builder(director, target_name):
+    try:
+        director.builder = target_map[target_name]['class']()
+        return director.builder
+    except KeyError:
+        raise ValueError(f'Unknown target "{target_name}"')
+
+
+def targets_by_type(target_type):
+    """
+    Gets dictionary of targets of the specified type
+    """
+    return {k: v for k, v in target_map.items() if v['type'] == target_type}
+
+
+def target_names_by_type(target_type):
+    """
+    Gets list of target names of the specified type
+    """
+    return [k for k in targets_by_type(target_type).keys()]
+
+
+def print_targets_extended():
+    """
+    Prints extended target list
+    """
+    print('target|type|display_name|family')
+    for k, v in target_map.items():
+        print(f'{k}|{v["type"]}|{v["display_name"]}|{v["family"]}')

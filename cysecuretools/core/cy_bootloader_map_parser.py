@@ -37,19 +37,24 @@ class CyBootloaderMapParser:
         return data
 
     @staticmethod
-    def get_filename(target, mode, file_type):
+    def get_filename(target, upgrade_mode, build_mode, file_type):
         """
         Gets the name of CyBootloader hex, or jwt file based on
         target, mode and file type.
         :param target: Device name.
-        :param mode: CyBootloader mode (debug or release).
+        :param upgrade_mode: CyBootloader upgrade mode (overwrite, swap).
+        :param build_mode: CyBootloader build mode (debug or release).
         :param file_type: The type of the file (hex or jwt).
         :return: Filename.
         """
         data = CyBootloaderMapParser.get_json(CY_BOOTLOADER_MAP)
-        for json_target in data:
-            if json_target.lower().strip() == target.lower().strip():
-                for json_mode in data[json_target]:
-                    if mode == json_mode:
-                        return data[json_target][json_mode][file_type]
-        return None
+        path_schema = data['targets'][target.lower().strip()]
+        for k, v in data['path_schemas'].items():
+            if k == path_schema:
+                if upgrade_mode is None:
+                    upgrade_mode = v['default_mode']
+                return v['modes'][upgrade_mode][build_mode][file_type]
+        raise KeyError(
+            f'Failed to find data in {CY_BOOTLOADER_MAP} (target "{target}", '
+            f'upgrade mode "{upgrade_mode}", build mode "{build_mode}")'
+        )

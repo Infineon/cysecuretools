@@ -23,7 +23,7 @@ class MemoryMap_cyb06xx7(MemoryMapBase):
 
     @property
     def FLASH_SIZE(self):
-        return 0x000e0000
+        return 0x000E0000
 
     @property
     def PROVISION_JWT_PACKET_ADDRESS(self):
@@ -45,8 +45,9 @@ class MemoryMap_cyb06xx7(MemoryMapBase):
     def SMIF_MEM_MAP_START(self):
         return 0x18000000
 
-    def trailer_size(self):
-        return 0x200
+    @property
+    def VECTOR_TABLE_ADDR_ALIGNMENT(self):
+        return 0x400
 
     # SFB addresses
     @property

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright (c) 2019-2020 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,7 +18,8 @@ import abc
 
 class MemoryMapBase(abc.ABC):
     """
-    Base class for memory map representation. Each device memory map must implement its methods.
+    Base class for memory map representation. Each device memory map must
+    implement its methods.
     """
     @property
     @abc.abstractmethod
@@ -55,6 +56,7 @@ class MemoryMapBase(abc.ABC):
     def SMIF_MEM_MAP_START(self):
         raise NotImplementedError
 
+    @property
     @abc.abstractmethod
-    def trailer_size(self):
-        pass
+    def VECTOR_TABLE_ADDR_ALIGNMENT(self):
+        raise NotImplementedError

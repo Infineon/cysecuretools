@@ -136,8 +136,8 @@ def get_prov_details(tool, reg_map, key_id):
         prov_details = prov_details.strip()
         logger.debug('GetProvDetails syscall passed')
     else:
-        logger.error(f'GetProvDetails syscall error: {hex(response)}')
-        print_sfb_status(response)
+        logger.debug(f'GetProvDetails syscall error: {hex(response)}')
+        print_sfb_status(response, severity='debug')
         prov_details = None
 
     return is_exam_pass, prov_details
@@ -508,14 +508,25 @@ def ipc_struct_notify(tool, reg_map):
     tool.write32(reg_map.CYREG_IPC2_STRUCT_NOTIFY, 0x00000001)
 
 
-def print_sfb_status(status_code):
+def print_sfb_status(status_code, severity='error'):
     """
     Outputs SFB status description
     :param status_code: SFB status code
+    :param severity: The severity of the status message
     """
     try:
         status = sfb_status.sfb_status_codes[status_code]
-        logger.error(f'SFB status: {status["status"]}: {status["desc"]}')
+        msg = f'SFB status: {status["status"]}: {status["desc"]}'
+        if severity == 'error':
+            logger.error(msg)
+        elif severity == 'warning':
+            logger.warning(msg)
+        elif severity == 'info':
+            logger.info(msg)
+        elif severity == 'debug':
+            logger.debug(msg)
+        else:
+            raise ValueError(f'Invalid severity argument')
     except KeyError:
         logger.debug(f'Unexpected SFB status {hex(status_code)}')
 

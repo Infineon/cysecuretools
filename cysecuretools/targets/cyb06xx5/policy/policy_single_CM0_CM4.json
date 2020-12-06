@@ -1,4 +1,8 @@
 {
+    "policy": {
+        "platform": "psoc64",
+        "version": 1.0
+    },
     "debug" :
     {
         "m0p" : {
@@ -49,6 +53,7 @@
                 "id": 0,
                 "launch": 1,
                 "acq_win": 100,
+                "wdt_enable": false,
                 "monotonic": 0,
                 "clock_flags": 578,
                 "protect_flags": 1,
@@ -83,6 +88,7 @@
                 "monotonic": 0,
                 "smif_id": 0,
                 "acq_win": 100,
+                "wdt_enable": false,
                 "upgrade": true,
                 "version": "0.1",
                 "rollback_counter": 0,

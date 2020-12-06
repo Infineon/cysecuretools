@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright (c) 2019-2020 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,3 +19,4 @@ from cysecuretools.core.policy_validator_base import PolicyValidatorBase
 from cysecuretools.core.register_map_base import RegisterMapBase
 from cysecuretools.core.memory_map_base import MemoryMapBase
 from cysecuretools.core.target_director import TargetBuilder
+from cysecuretools.core.memory_area import MemoryArea

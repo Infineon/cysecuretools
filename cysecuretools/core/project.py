@@ -60,4 +60,4 @@ class ProjectInitializer(ABC):
         with open(ProjectInitializer.config_file) as f:
             json_str = f.read()
             data = json.loads(json_str)
-        return data['user_settings']['default_policy']
+        return os.path.abspath(data['user_settings']['default_policy'])

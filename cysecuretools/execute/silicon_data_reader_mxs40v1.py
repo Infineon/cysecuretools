@@ -35,3 +35,15 @@ class SiliconDataReaderMXS40v1:
         except KeyError:
             logger.error('Invalid response. \'die_id\' field not found')
         return die_id
+
+    def read_complete_status(self, tool):
+        data = read_silicon_data(tool, self.target)
+        if data is None:
+            logger.error('Failed to read silicon data')
+            return None
+        parser = SiliconDataParser(data)
+        try:
+            die_id = parser.get_complete_status()
+        except KeyError:
+            logger.error('Invalid response. \'complete\' field not found')
+        return die_id
