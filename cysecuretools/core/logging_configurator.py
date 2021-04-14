@@ -30,6 +30,10 @@ class LoggingConfigurator:
     LOG_FORMATTER = CustomFormatter()
 
     @staticmethod
+    def disable_logging():
+        logging.disable(logging.CRITICAL)
+
+    @staticmethod
     def set_logger_level(level):
         """
         Sets logging level (ERROR, WARNING, INFO, DEBUG)

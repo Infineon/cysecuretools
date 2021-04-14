@@ -128,9 +128,23 @@ def get_prov_details(tool, reg_map, key_id):
 
         i = 0
         prov_details = ''
+        # Save data in string format
         while i < read_hash_size:
-            # Save data in string format
-            hash_byte_chr = chr(tool.read8(read_hash_addr + i))
+            # Avoid race condition when the bootloader does flash
+            # erasing at the moment the tool reads JWT packet from
+            # the same sector
+            counter = 0
+            timeout = 10
+            while True:
+                try:
+                    hash_byte_chr = chr(tool.read8(read_hash_addr + i))
+                    break
+                except Exception as e:
+                    if counter < timeout:
+                        sleep(1)
+                        counter += 1
+                    else:
+                        raise e
             prov_details += hash_byte_chr
             i += 1
         prov_details = prov_details.strip()

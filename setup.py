@@ -20,17 +20,16 @@ setup(
     name='cysecuretools',
     version=version['__version__'],
     install_requires=[
-        'setuptools>=40.0,!=46.0,!=50.0,<51',
+        'setuptools==50.3.2',
         'psutil==5.7.2',
-        'cryptography>=2.4.2,<4',
-        'click>=7.0,<8',
-        'intelhex>=2.2.1,<3',
-        'python-jose>=3.0.1,<4',
-        'jsonschema>=3.0.0,<4',
+        'cryptography==3.3.2',
+        'click==7.1.2',
+        'intelhex==2.3.0',
+        'python-jose==3.2.0',
+        'jsonschema==3.2.0',
         'pyocd==0.27.3',
         'cbor==1.0.0',
-        'packaging>=20.7,<21',
-        'imgtool==1.7.0a1'
+        'packaging==20.9'
         ],
     description='Cypress secure tools for Python',
     long_description=readme + '\n\n' + changelog,
@@ -54,7 +53,7 @@ setup(
     packages=find_packages(),
     options={
         'bdist_wheel': {
-            'universal': True,
+            'python_tag':'py3',
         }
     }
 )

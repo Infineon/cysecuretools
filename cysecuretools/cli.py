@@ -48,12 +48,16 @@ def require_target():
 @click.option('-p', '--policy', type=click.File(), required=False,
               help='Provisioning policy file')
 @click.option('-v', '--verbose', is_flag=True, help='Provides debug-level log')
+@click.option('-q', '--quiet', is_flag=True, help='Quiet display option')
 @click.option('--logfile-off', is_flag=True, help='Avoids logging into file')
 @click.option('--no-interactive-mode', is_flag=True, hidden=True,
               help='Skips user interactive prompts')
-def main(ctx, target, policy, verbose, logfile_off, no_interactive_mode):
+@click.option('--skip-validation', is_flag=True, hidden=True,
+              help='Skips policy validation')
+def main(ctx, target, policy, verbose, quiet,
+         logfile_off, no_interactive_mode, skip_validation):
     """
-    Common options (e.g. -t, -p, -v) are common for all commands and must
+    Common options (e.g. -t, -p, -v, -q) are common for all commands and must
     precede them:
 
     \b
@@ -68,7 +72,9 @@ def main(ctx, target, policy, verbose, logfile_off, no_interactive_mode):
     \b
     For detailed description of using CySecureTools please refer to readme.md
     """
-    if verbose:
+    if quiet:
+        LoggingConfigurator.disable_logging()
+    elif verbose:
         LoggingConfigurator.set_logger_level(logging.DEBUG)
     ctx.ensure_object(dict)
     log_file = not logfile_off
@@ -82,7 +88,8 @@ def main(ctx, target, policy, verbose, logfile_off, no_interactive_mode):
             policy_path = policy.name if policy else None
         try:
             ctx.obj['TOOL'] = CySecureTools(target, policy_path, log_file,
-                                            no_interactive_mode)
+                                            no_interactive_mode,
+                                            skip_validation)
         except ValidationError:
             pass
         except Exception as e:
@@ -94,7 +101,8 @@ def main(ctx, target, policy, verbose, logfile_off, no_interactive_mode):
                 try:
                     ctx.obj['TOOL'] = CySecureTools(
                         target, log_file=log_file,
-                        skip_prompts=no_interactive_mode)
+                        skip_prompts=no_interactive_mode,
+                        skip_validation=skip_validation)
                 except ValidationError:
                     pass
                 except Exception as e:
@@ -103,7 +111,8 @@ def main(ctx, target, policy, verbose, logfile_off, no_interactive_mode):
         else:
             try:
                 ctx.obj['TOOL'] = CySecureTools(
-                    log_file=log_file, skip_prompts=no_interactive_mode)
+                    log_file=log_file, skip_prompts=no_interactive_mode,
+                    skip_validation=skip_validation)
             except Exception as e:
                 logger.error(e)
                 logger.debug(e, exc_info=True)
@@ -111,8 +120,8 @@ def main(ctx, target, policy, verbose, logfile_off, no_interactive_mode):
 
 
 @main.resultcallback()
-def process_pipeline(processors, target, policy, verbose, logfile_off,
-                     no_interactive_mode):
+def process_pipeline(processors, target, policy, verbose, quiet, logfile_off,
+                     no_interactive_mode, skip_validation):
     for func in processors:
         res = func()
         if not res:

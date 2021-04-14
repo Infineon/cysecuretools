@@ -83,6 +83,11 @@
                         "type": "STATUS_PARTITION",
                         "address": 0,
                         "size": 0
+                    },
+                    {
+                        "type": "SCRATCH",
+                        "address": 0,
+                        "size": 0
                     }
                 ]
             },
@@ -94,6 +99,7 @@
                 "launch": 0,
                 "monotonic": 0,
                 "smif_id": 0,
+                "smif_sector_size": 0,
                 "acq_win": 0,
                 "wdt_timeout": 0,
                 "wdt_enable": false,
@@ -123,6 +129,7 @@
                 "id": 0,
                 "monotonic": 0,
                 "smif_id": 0,
+                "smif_sector_size": 0,
                 "multi_image" : 0,
                 "upgrade": false,
                 "encrypt": false,

@@ -22,7 +22,6 @@ from cryptography.hazmat.primitives import serialization
 import cysecuretools.execute.jwt as jwt
 import cysecuretools.execute.keygen as keygen
 from cysecuretools.execute.version_helper import VersionHelper
-from cysecuretools.core.exceptions import ValidationError
 from cysecuretools.core.bootloader_provider import BootloaderProvider
 from cysecuretools.core.certificates.x509 import X509CertificateStrategy
 from cysecuretools.core.logging_formatter import CustomFormatter
@@ -67,7 +66,7 @@ class CySecureTools:
     PROGRAMMING_TOOL = 'pyocd'
 
     def __init__(self, target=None, policy=None, log_file=True,
-                 skip_prompts=False):
+                 skip_prompts=False, skip_validation=False):
         """
         Creates instance of the class
         :param target: Device manufacturing part number
@@ -75,7 +74,10 @@ class CySecureTools:
         :param log_file: Indicates whether to write log into a file
         :param skip_prompts: Indicates whether to skip user interactive
                prompts
+        :param skip_validation: Indicates whether to skip policy validation
         """
+        self.skip_validation = skip_validation
+
         if log_file:
             LoggingConfigurator.add_file_logging()
 
@@ -102,7 +104,7 @@ class CySecureTools:
             cwd = os.getcwd()
 
         if self.policy and not os.path.isfile(self.policy):
-            raise ValueError(f'Cannot find file "{self.policy}"')
+            raise ValueError(f'Cannot find policy file ({self.policy})')
 
         self.target = self._get_target(self.target_name, self.policy, cwd)
 
@@ -113,14 +115,6 @@ class CySecureTools:
         self.policy_validator = self.target.policy_validator
         self.policy_filter = self.target.policy_filter
         self.target_dir = self.target.target_dir
-
-        # Validate policy file
-        validation_state = self.policy_validator.validate(
-            skip=['pre_build', 'dap_disabling'],
-            skip_prompts=self.skip_prompts)
-        if validation_state in [ValidationStatus.ERROR,
-                                ValidationStatus.TERMINATED]:
-            raise ValidationError
 
         self.target.key_reader = self.target.key_reader(self.target)
         self.key_reader = self.target.key_reader
@@ -143,6 +137,9 @@ class CySecureTools:
         :param user_key_alg: User key algorithm
         :return: True if key(s) created successfully, otherwise False.
         """
+        if not self._validate_policy(['pre_build', 'dap_disabling']):
+            return False
+
         # Define key algorithm
         if user_key_alg is None:
             user_key_alg = self.target.key_algorithms[0]
@@ -213,6 +210,9 @@ class CySecureTools:
                (e.g. CoFM for coprocessor firmware). [max. 12 characters]
         :return: Signed (and encrypted if applicable) hex files path.
         """
+        if not self._validate_policy(['pre_build', 'dap_disabling']):
+            return None
+
         sign_tool = SignTool(self.target)
         result = sign_tool.sign_image(hex_file=hex_file,
                                       image_id=image_id,
@@ -227,10 +227,7 @@ class CySecureTools:
         Creates JWT packet for provisioning device.
         :return: True if packet created successfully, otherwise False.
         """
-        validation_state = self.policy_validator.validate(
-            skip_prompts=self.skip_prompts)
-        if validation_state in [ValidationStatus.ERROR,
-                                ValidationStatus.TERMINATED]:
+        if not self._validate_policy():
             return False
 
         filtered_policy = self.policy_filter.filter_policy()
@@ -260,10 +257,7 @@ class CySecureTools:
         :param ap: The access port used for provisioning
         :return: Provisioning result. True if success, otherwise False.
         """
-        validation_state = self.policy_validator.validate(
-            skip_prompts=self.skip_prompts)
-        if validation_state in [ValidationStatus.ERROR,
-                                ValidationStatus.TERMINATED]:
+        if not self._validate_policy():
             return False
 
         # Get bootloader program file
@@ -305,10 +299,7 @@ class CySecureTools:
                programming during reprovisioning
         :return: Provisioning result. True if success, otherwise False.
         """
-        validation_state = self.policy_validator.validate(
-            skip_prompts=self.skip_prompts)
-        if validation_state in [ValidationStatus.ERROR,
-                                ValidationStatus.TERMINATED]:
+        if not self._validate_policy():
             return False
 
         # Get bootloader program file
@@ -348,6 +339,9 @@ class CySecureTools:
         :param kwargs: Dictionary with the certificate fields
         :return The certificate object.
         """
+        if not self._validate_policy(['pre_build', 'dap_disabling']):
+            return None
+
         context = CertificateContext(X509CertificateStrategy())
 
         expected_fields = ['subject_name', 'country', 'state', 'organization',
@@ -390,6 +384,9 @@ class CySecureTools:
         :return True if the device is ready for provisioning,
                 otherwise False.
         """
+        if not self._validate_policy(['pre_build', 'dap_disabling']):
+            return False
+
         status = False
         if self.tool.connect(self.target_name, probe_id=probe_id, ap=ap):
             VersionHelper.log_version(self.tool, self.target)
@@ -419,6 +416,11 @@ class CySecureTools:
         :param image_type: The image type - BOOT or UPGRADE.
         :return: Address for specified image, size for specified image.
         """
+        address, size = None, None
+
+        if not self._validate_policy(['pre_build', 'dap_disabling']):
+            return address, size
+
         # Find keys that have to be generated
         data = self.policy_parser.get_image_data(image_type.upper(), image_id)
         if len(data) > 0:
@@ -426,8 +428,6 @@ class CySecureTools:
         else:
             logger.error(f'Cannot find image with id {image_id} and type '
                          f'\'{image_type}\' in the policy file')
-            address, size = None, None
-
         return address, size
 
     def create_image_certificate(self, image, key, output, version, image_id=0,
@@ -442,6 +442,9 @@ class CySecureTools:
         :param exp_date_str: Certificate expiration date.
         :return: True if certificate created successfully, otherwise False.
         """
+        if not self._validate_policy(['pre_build', 'dap_disabling']):
+            return False
+
         if key is None:
             policy_keys = self.policy_parser.get_keys(
                 image_type=ImageType.BOOTLOADER)
@@ -487,10 +490,7 @@ class CySecureTools:
         :param probe_id: Probe serial number.
                Used to read device public key from device.
         """
-        validation_state = self.policy_validator.validate(
-            skip=['dap_disabling'], skip_prompts=self.skip_prompts)
-        if validation_state in [ValidationStatus.ERROR,
-                                ValidationStatus.TERMINATED]:
+        if not self._validate_policy(['dap_disabling']):
             return False
 
         # Get host private key
@@ -610,10 +610,7 @@ class CySecureTools:
         :return: The JWT
         """
         logger.info(f'Signing file {os.path.abspath(json_file)}')
-        validation_state = self.policy_validator.validate(
-            skip=['dap_disabling'], skip_prompts=self.skip_prompts)
-        if validation_state in [ValidationStatus.ERROR,
-                                ValidationStatus.TERMINATED]:
+        if not self._validate_policy(['dap_disabling']):
             return False
 
         logger.debug(f'Private key id = {priv_key_id}')
@@ -679,6 +676,17 @@ class CySecureTools:
             dev_info = self.entr_exam.read_device_info(self.tool)
             self.tool.disconnect()
         return dev_info
+
+    def _validate_policy(self, skip_list=None):
+        if self.target.is_default_policy:
+            logger.warning(f'The policy is not specified. The default policy '
+                           f'will be used ({self.target.policy})')
+        self.policy_validator.skip_validation = self.skip_validation
+        validation_state = self.policy_validator.validate(
+            skip=skip_list,
+            skip_prompts=self.skip_prompts)
+        return validation_state not in [ValidationStatus.ERROR,
+                                        ValidationStatus.TERMINATED]
 
     def _get_target(self, target_name, policy, cwd):
         director = TargetDirector()

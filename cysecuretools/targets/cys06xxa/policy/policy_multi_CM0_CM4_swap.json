@@ -81,6 +81,11 @@
                         "type": "STATUS_PARTITION",
                         "address": 270303232,
                         "size": 32768
+                    },
+                    {
+                        "type": "SCRATCH",
+                        "address": 270270464,
+                        "size": 32768
                     }
                 ]
             },

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright (c) 2019-2021 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,6 +21,8 @@ class PolicyValidatorBase(ABC):
     Base class for the classes that implement policy validator.
     Each device-specific policy validator must implement its methods.
     """
+    skip_validation = False
+
     @abstractmethod
     def validate(self): pass
 

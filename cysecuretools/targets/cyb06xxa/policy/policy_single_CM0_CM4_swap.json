@@ -81,6 +81,11 @@
                         "type": "STATUS_PARTITION",
                         "address": 270319616,
                         "size": 16384
+                    },
+                    {
+                        "type": "SCRATCH",
+                        "address": 270270464,
+                        "size": 49152
                     }
                 ]
             },
@@ -112,12 +117,12 @@
                     {
                         "type": "BOOT",
                         "address": 268435456,
-                        "size": 860160
+                        "size": 917504
                     },
                     {
                         "type": "UPGRADE",
-                        "address": 269459456,
-                        "size": 860160
+                        "address": 269352960,
+                        "size": 917504
                     }
                 ]
             },
@@ -144,7 +149,7 @@
                     {
                         "type": "BOOT",
                         "address": 268500992,
-                        "size": 794624
+                        "size": 851968
                     }
                 ]
             }

@@ -81,6 +81,11 @@
                         "type": "STATUS_PARTITION",
                         "address": 270303232,
                         "size": 32768
+                    },
+                    {
+                        "type": "SCRATCH",
+                        "address": 405012480,
+                        "size": 786432
                     }
                 ]
             },
@@ -98,6 +103,7 @@
                 "launch": 16,
                 "monotonic": 0,
                 "smif_id": 1,
+                "smif_sector_size": 262144,
                 "acq_win": 100,
                 "wdt_timeout": 4000,
                 "wdt_enable": false,
@@ -112,12 +118,12 @@
                     {
                         "type": "BOOT",
                         "address": 268435456,
-                        "size": 1835008
+                        "size": 1867776
                     },
                     {
                         "type": "UPGRADE",
-                        "address": 402653184,
-                        "size": 1835008
+                        "address": 402883584,
+                        "size": 1867776
                     }
                 ]
             },
@@ -133,7 +139,7 @@
                 ],
                 "id": 16,
                 "monotonic": 8,
-                "smif_id": 1,
+                "smif_id": 0,
                 "upgrade": false,
                 "version": "0.1",
                 "rollback_counter": 0,
@@ -144,7 +150,7 @@
                     {
                         "type": "BOOT",
                         "address": 268500992,
-                        "size": 1769472
+                        "size": 1802240
                     }
                 ]
             }

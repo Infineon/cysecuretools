@@ -16,7 +16,7 @@ limitations under the License.
 import os
 import logging
 import pathlib
-import imgtool.main as imgtool
+import cysecuretools.execute.imgtool.main as imgtool
 from shutil import copy2
 from intelhex import hex2bin, bin2hex, IntelHex
 from cysecuretools.core.enums import ImageType
@@ -213,6 +213,7 @@ class SignTool:
         if encrypt_key is not None:
             args.append('--encrypt')
             args.append(encrypt_key)
+            args.append('--use-random-iv')
 
         if image_type != ImageType.BOOT.name:
             args.append('--pad')

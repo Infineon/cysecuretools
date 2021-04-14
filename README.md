@@ -40,6 +40,7 @@ This package contains security tools for creating keys, creating certificates, s
     - [Encrypted Bootloader](#encrypted-bootloader)
 - [Using Different On-Chip Debugger](#using-different-on-chip-debugger)
 - [Package Installation Directory](#package-installation-directory)
+- [Known Issues](#known-issues)
 - [License and Contributions](#license-and-contributions)
 
 # Features
@@ -1084,6 +1085,24 @@ Use the `pip` command to get the package location:
 ```bash
 pip show cysecuretools
 ```
+
+# Known Issues
+ 
+- During the installation of the package via _pip_ on Mac OS Big Sur, the following exception is raised:
+```
+  ...
+  distutils.errors.DistutilsError: Setup script exited with error: SandboxViolation:
+  mkdir('/private/var/root/Library/Caches/com.apple.python/private/tmp/easy_install-y8c1npmz', 511) {}
+  
+  The package setup script has attempted to modify files on your system
+  that are not within the EasyInstall build area, and has been aborted.
+
+  This package cannot be safely installed by EasyInstall, and may not
+  support alternate installation locations even if you run its setup
+  script by hand.  Please inform the package's author and the EasyInstall
+  maintainers to find out if a fix or workaround is available.
+```
+_Solution:_ Upgrade the `pip` package running the following command from the terminal: `python3 -m pip install --upgrade pip`.
 
 # License and Contributions
 The software is provided under the Apache-2.0 license. Contributions to this project are accepted under the same license.

@@ -55,6 +55,10 @@ class PolicyValidator(PolicyValidatorBase):
         :return Validation status
         """
         status = ValidationStatus.OK
+
+        if self.skip_validation is True:
+            return status
+
         skip_list = skip if skip else []
         # First stage validation
         with open(POLICY_SCHEMA) as f:
@@ -166,6 +170,31 @@ class PolicyValidator(PolicyValidatorBase):
                 result = self.validate_status_partition_size()
                 if not result:
                     status = ValidationStatus.ERROR
+
+        if self._continue_validation(status):
+            if self.stage == 'multi':
+                logger.debug('Validating multi-image smif_sector_size')
+                result = self.validate_multi_image_smif_sector_size()
+                if not result:
+                    status = ValidationStatus.ERROR
+
+        if self._continue_validation(status):
+            if self.parser.upgrade_mode() == 'swap':
+                result = self.validate_scratch_smif_alignment()
+                if not result:
+                    status = ValidationStatus.WARNING
+
+        if self._continue_validation(status):
+            if self.parser.upgrade_mode() == 'swap':
+                result = self.validate_scratch_area()
+                if not result:
+                    status = ValidationStatus.ERROR
+
+        if self._continue_validation(status):
+            logger.debug('Checking flash regions integrity')
+            result = self.validate_flash_gaps()
+            if not result:
+                status = ValidationStatus.WARNING
 
         if status == ValidationStatus.ERROR:
             logger.error('Policy validation finished with error')
@@ -431,7 +460,7 @@ class PolicyValidator(PolicyValidatorBase):
             for item in slot['resources']:
                 if item['type'] in ['BOOT', 'UPGRADE']:
                     app_area.append(AddressSize(item['address'], item['size']))
-                if item['type'] in ['FLASH_PC1_SPM', 'STATUS_PARTITION']:
+                if item['type'] in ['FLASH_PC1_SPM', 'STATUS_PARTITION', 'SCRATCH']:
                     res_area.append(AddressSize(item['address'], item['size']))
 
             # Validate overlaps in range of the slot
@@ -519,6 +548,11 @@ class PolicyValidator(PolicyValidatorBase):
                    res["type"].startswith("BOOT") or \
                    res["type"].startswith("STATUS_PARTITION"):
                     flash_res.append([res["address"], res["address"] + res["size"]])
+                if res["type"].startswith("SCRATCH"):
+                    if res["address"] >= self.memory_map.SMIF_MEM_MAP_START:
+                        smif_res.append([res["address"], res["address"] + res["size"]])
+                    else:
+                        flash_res.append([res["address"], res["address"] + res["size"]])
                 if item["upgrade"] and res["type"].startswith("UPGRADE"):
                     if item["smif_id"] == 0:
                         flash_res.append([res["address"], res["address"] + res["size"]])
@@ -659,7 +693,7 @@ class PolicyValidator(PolicyValidatorBase):
         """
         for slot in self.parser.json['boot_upgrade']['firmware']:
             for res in slot['resources']:
-                if res['type'] in ['BOOT', 'UPGRADE']:
+                if res['type'] in ['BOOT']:
                     address = int(res['address'])
                     if address % 1024 != 0:
                         logger.error(f'{res["type"]} slot address '
@@ -738,6 +772,9 @@ class PolicyValidator(PolicyValidatorBase):
         return result
 
     def validate_status_partition_size(self):
+        """
+        Validate minimal allowable size and availability of status partition
+        """
         result = True
 
         status_partition = self.parser.status_partition()
@@ -757,6 +794,153 @@ class PolicyValidator(PolicyValidatorBase):
                          f'sufficient size is {d} bytes')
             result = False
 
+        return result
+
+    def validate_multi_image_smif_sector_size(self):
+        """
+         Validates smif_sector_size for multi-image case.
+         :return: True if smif_sector_size are the same for all images
+         """
+        smif_sector_size_list = []
+
+        for slot in self.parser.json['boot_upgrade']['firmware']:
+            if slot['id'] == 0:
+                continue
+            if 'smif_id' in slot and slot['smif_id'] > 0:
+                if 'smif_sector_size' in slot:
+                    smif_sector_size_list.append(slot['smif_sector_size'])
+
+        smif_sector_size_set = set(smif_sector_size_list)
+        is_valid = len(smif_sector_size_set) < 2 or \
+                  (len(smif_sector_size_set) == 2 and 0 in smif_sector_size_set)
+
+        if not is_valid:
+            logger.error('smif_sector_size in multi-image case must be the same'
+                         ' for all images')
+
+        return is_valid
+
+    def validate_scratch_smif_alignment(self):
+        """
+        Validate slots alignment in external memory for swap:scratch mode
+        """
+        trailer_size = 512
+        result = True
+
+        for slot in self.parser.json['boot_upgrade']['firmware']:
+            if slot['id'] == 0:
+                continue
+            if 'smif_id' in slot and slot['smif_id'] > 0:
+                if 'smif_sector_size' in slot:
+                    smif_sector_size = slot['smif_sector_size']
+                else:
+                    smif_sector_size = 256*1024
+                    logger.warning(f'\'smif_sector_size\' field not found in '
+                                   f'policy. Assume 256K sector size for slot '
+                                   f'\'id\': {slot["id"]}')
+                    result=False
+
+                for res in slot['resources']:
+                    if res['type'] in ['UPGRADE']:
+                        address = res['address']
+                        size = res['size']
+
+                        # TODO: Remove after trailer size is 512 for
+                        #  the slots more than 1M
+                        if size > 0x100000:
+                            trailer_size = 1024
+
+                        if (address+size-trailer_size) % smif_sector_size != 0:
+                            tail_sector_size = (address+size) % smif_sector_size
+                            logger.warning(f'slot id={slot["id"]}')
+                            logger.warning(f'slot address={hex(address)}')
+                            logger.warning(f'slot size={hex(size)}')
+                            logger.warning(f'SWAP-scratch mode requires the '
+                                           f'image and the image trailer to be '
+                                           f'located in separate sectors. Move '
+                                           f' the image trailer (last '
+                                           f'{trailer_size} bytes of the slot) '
+                                           f'to the new physical sector in'
+                                           f'external memory. The current '
+                                           f'configuration uses '
+                                           f'{tail_sector_size} '
+                                           f'({hex(tail_sector_size)}) bytes of'
+                                           f' the last slot physical sector')
+                            result = False
+
+        return result
+ 
+    def validate_scratch_area(self):
+        """
+        Validate scratch_area to meet all necessary requirements
+        """
+        smif_found = False
+        sector_size = 512
+        smif_sector_size = 256*1024
+        smif_start_addr = self.memory_map.SMIF_MEM_MAP_START
+
+        scratch_area = self.parser.scratch_area()
+        if not scratch_area:
+            logger.error('Scratch area must be specified inside policy file '
+                         'in case of SWAP mode usage')
+            return False
+
+        for slot in self.parser.json['boot_upgrade']['firmware']:
+            if slot['id'] == 0:
+                continue
+            if 'smif_id' in slot and slot['smif_id'] > 0:
+                sector_size = slot.get('smif_sector_size', smif_sector_size)
+                smif_found = True
+
+        if scratch_area.address >= smif_start_addr and not smif_found:
+            sector_size = smif_sector_size
+            logger.warning('Scratch area in external memory, without any slots'
+                           ' there')
+
+        if scratch_area.address % sector_size != 0:
+            logger.error(f'Scratch area address is {hex(scratch_area.address)}'
+                         f', but it should be aligned to sector size of '
+                         f'{hex(sector_size)}')
+            return False
+
+        if scratch_area.size < sector_size:
+            logger.error(f'Scratch area size {hex(scratch_area.size)} is less '
+                         f'than sector size {hex(sector_size)}')
+            return False
+
+        return True
+
+    def validate_flash_gaps(self):
+        """
+        Finds unused sectors in the internal flash memory map
+        :return: True if there are no unused sectors, otherwise False
+        """
+
+        single_image = not self._is_multi_image()
+
+        flash_res = {}
+        for item in self.parser.json["boot_upgrade"]["firmware"]:
+            if single_image and item["id"] == 16:
+                continue
+            for res in item["resources"]:
+                if res["type"].startswith(("FLASH", "BOOT", "STATUS_PARTITION")):
+                    flash_res[res["address"]] = res["address"] + res["size"]
+                if res["type"].startswith("SCRATCH"):
+                    if res["address"] < self.memory_map.SMIF_MEM_MAP_START:
+                        flash_res[res["address"]] = res["address"] + res["size"]
+                if item["upgrade"] and res["type"].startswith("UPGRADE"):
+                    if item["smif_id"] == 0:
+                        flash_res[res["address"]] = res["address"] + res["size"]
+        flash_starts = sorted(flash_res.keys())
+        prev_key = 0
+        result = True
+        for key in flash_starts:
+            if prev_key > 0:
+                if key != flash_res[prev_key]:
+                    logger.warning(f"There is gap between regions {prev_key}:{flash_res[prev_key]} and "
+                                   f"{key}:{flash_res[key]} ({key - flash_res[prev_key]} bytes)")
+                    result = False
+            prev_key = key
         return result
 
     def _calc_status_partition_size(self, slot_name=None):

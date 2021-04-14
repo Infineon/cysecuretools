@@ -17,6 +17,7 @@ import os
 import json
 import logging
 from cysecuretools.execute.programmer.base import ProgrammerBase, ResetType, AP
+from pyocd.core.target import Target
 from pyocd.core.helpers import ConnectHelper
 from pyocd.flash.file_programmer import FileProgrammer
 from pyocd.flash.eraser import FlashEraser
@@ -197,7 +198,7 @@ class Pyocd(ProgrammerBase):
         if self.target is None:
             raise ValueError('Target is not initialized.')
         logger.debug(f'reset ({reset_type})')
-        self.target.reset(reset_type=reset_type)
+        self.target.reset(reset_type=self._pyocd_reset_type(reset_type))
 
     def reset_and_halt(self, reset_type=ResetType.SW):
         """
@@ -207,7 +208,8 @@ class Pyocd(ProgrammerBase):
         if self.target is None:
             raise ValueError('Target is not initialized.')
         logger.debug(f'reset_and_halt ({reset_type})')
-        self.target.reset_and_halt(reset_type=reset_type)
+        self.target.reset_and_halt(reset_type=self._pyocd_reset_type(
+            reset_type))
 
     def read8(self, address):
         """
@@ -385,3 +387,14 @@ class Pyocd(ProgrammerBase):
         """
         for i in range(len(self.target.cores)):
             self.target.cores[i].acquire_timeout = timeout
+
+    @staticmethod
+    def _pyocd_reset_type(reset_type: ResetType):
+        """ Maps internal ResetType value to the pyocd ResetType value """
+        if reset_type == ResetType.HW:
+            pyocd_reset_type = Target.ResetType.HW
+        elif reset_type == ResetType.SW:
+            pyocd_reset_type = Target.ResetType.SW
+        else:
+            raise ValueError(f'Unknown reset type {reset_type}')
+        return pyocd_reset_type

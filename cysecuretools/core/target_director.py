@@ -60,10 +60,13 @@ class TargetDirector:
         target.register_map = register_map
 
         # Policy parser
-        policy_file = self.builder.get_default_policy() if policy is None \
-            else policy
-        target.policy = policy_file
-        policy_parser = self._builder.get_policy_parser(policy_file)
+        if policy is None:
+            target.policy = self.builder.get_default_policy()
+            target.is_default_policy = True
+        else:
+            target.policy = policy
+            target.is_default_policy = False
+        policy_parser = self._builder.get_policy_parser(target.policy)
         target.policy_parser = policy_parser
 
         # Policy validator
@@ -108,6 +111,7 @@ class Target:
     def __init__(self):
         self._name = None
         self._policy = None
+        self._is_default_policy = None
         self._memory_map = None
         self._register_map = None
         self._policy_validator = None
@@ -139,6 +143,14 @@ class Target:
     @policy.setter
     def policy(self, policy):
         self._policy = policy
+
+    @property
+    def is_default_policy(self):
+        return self._is_default_policy
+
+    @is_default_policy.setter
+    def is_default_policy(self, value):
+        self._is_default_policy = value
 
     @property
     def memory_map(self):

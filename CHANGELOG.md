@@ -1,6 +1,11 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## 3.1.0
+### Added
+- SCRATCH with Status Partition swap mode
+- Small image slots support in the external memory
+
 ## 3.0.0
 ### Added
 - Image SWAP using Status Partition

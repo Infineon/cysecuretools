@@ -237,6 +237,11 @@
                                 "required": false,
                                 "type": "number"
                             },
+                            "smif_sector_size": {
+                                "id": "smif_sector_size",
+                                "required": false,
+                                "type": "number"
+                            },
                             "wdt_timeout": {
                                 "id": "wdt_timeout",
                                 "required": false,
@@ -302,7 +307,8 @@
                                                 "SMIF_DATA",
                                                 "BOOT",
                                                 "UPGRADE",
-                                                "STATUS_PARTITION"
+                                                "STATUS_PARTITION",
+                                                "SCRATCH"
                                             ],
                                             "id": "type",
                                             "required": true,

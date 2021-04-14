@@ -81,6 +81,11 @@
                         "type": "STATUS_PARTITION",
                         "address": 270303232,
                         "size": 32768
+                    },
+                    {
+                        "type": "SCRATCH",
+                        "address": 405274624,
+                        "size": 524288
                     }
                 ]
             },
@@ -97,6 +102,7 @@
                 "id": 1,
                 "monotonic": 0,
                 "smif_id": 1,
+                "smif_sector_size": 262144,
                 "acq_win": 100,
                 "wdt_timeout": 4000,
                 "wdt_enable": false,
@@ -112,12 +118,12 @@
                     {
                         "type": "BOOT",
                         "address": 268435456,
-                        "size": 786432
+                        "size": 933888
                     },
                     {
                         "type": "UPGRADE",
-                        "address": 402653184,
-                        "size": 786432
+                        "address": 402768384,
+                        "size": 933888
                     }
                 ]
             },
@@ -134,6 +140,7 @@
                 "id": 16,
                 "monotonic": 8,
                 "smif_id": 1,
+                "smif_sector_size": 262144,
                 "multi_image": 2,
                 "upgrade": true,
                 "version": "0.1",
@@ -144,13 +151,13 @@
                 "resources": [
                     {
                         "type": "BOOT",
-                        "address": 269221888,
-                        "size": 786432
+                        "address": 269369344,
+                        "size": 933888
                     },
                     {
                         "type": "UPGRADE",
-                        "address": 403439616,
-                        "size": 786432
+                        "address": 404079104,
+                        "size": 933888
                     }
                 ]
             }

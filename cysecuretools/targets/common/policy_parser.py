@@ -271,6 +271,17 @@ class PolicyParser(PolicyParserBase):
                         return MemoryArea(item['address'], item['size'])
         return None
 
+    def scratch_area(self) -> MemoryArea:
+        """
+        Get scratch area location
+        """
+        for slot in self.json['boot_upgrade']['firmware']:
+            if slot['id'] == 0:
+                for item in slot['resources']:
+                    if item['type'] == 'SCRATCH':
+                        return MemoryArea(item['address'], item['size'])
+        return None
+
     def device_public_key_path(self):
         """
         Gets device public key path.

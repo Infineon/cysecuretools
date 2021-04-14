@@ -217,6 +217,32 @@ def erase_smif(tool, target):
         tool.set_ap(ap)
 
 
+def erase_status_partition(tool, target):
+    memory_area = target.policy_parser.status_partition()
+    if memory_area is not None:
+        logger.info('Erase SWAP status partition memory region:')
+        ap = tool.get_ap()
+        tool.set_ap(AP.CMx)
+        logger.info(f'erasing address {hex(memory_area.address)}, '
+                    f'size {hex(memory_area.size)} ...')
+        tool.erase(memory_area.address, memory_area.size)
+        logger.info('Erasing complete')
+        tool.set_ap(ap)
+
+
+def erase_scratch_area(tool, target):
+    memory_area = target.policy_parser.scratch_area()
+    if memory_area is not None:
+        logger.info('Erase SCRATCH memory region:')
+        ap = tool.get_ap()
+        tool.set_ap(AP.CMx)
+        logger.info(f'erasing address {hex(memory_area.address)}, '
+                    f'size {hex(memory_area.size)} ...')
+        tool.erase(memory_area.address, memory_area.size)
+        logger.info('Erasing complete')
+        tool.set_ap(ap)
+
+
 def erase_slots(tool, target, slot_type, first_only=False):
     """
     Erases slot(s) of specific type.
@@ -271,7 +297,7 @@ def _provision_identity(tool, target: Target,
     _save_device_response(target, response)
 
     if not is_exam_pass:
-        logger.error('Unexpected TransitionToSecure syscall response')
+        logger.error('Unexpected ProvisionKeysAndPolicies syscall response')
         return ProvisioningStatus.FAIL
     else:
         return ProvisioningStatus.OK
@@ -292,6 +318,10 @@ def _provision_complete(tool, target: Target, prov_cmd_jwt, bootloader,
         flash_ops_allowed = cm0_open or ap == 'cm4'
 
     reg_map = target.register_map
+
+    if flash_ops_allowed:
+        erase_status_partition(tool, target)
+        erase_scratch_area(tool, target)
 
     # Read firmware status
     logger.info('Read FlashBoot firmware status:')
