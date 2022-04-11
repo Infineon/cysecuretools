@@ -1,6 +1,7 @@
 {
   "cy8cproto-064s1-sb": { "cm0": "cy8c64xx_cm0_full_flash", "cm4": "cy8c64xx_cm4_full_flash", "sysap": "cy8c64_sysap" },
   "cy8cproto-064b0s1-ble": { "cm0": "cy8c64xx_cm0_full_flash", "cm4": "cy8c64xx_cm4_full_flash", "sysap": "cy8c64_sysap" },
+  "cy8cproto-064b0s1-ssa": { "cm0": "cy8c64xx_cm0_full_flash", "cm4": "cy8c64xx_cm4_full_flash", "sysap": "cy8c64_sysap" },
   "cyb06xx7": { "cm0": "cy8c64xx_cm0_full_flash", "cm4": "cy8c64xx_cm4_full_flash", "sysap": "cy8c64_sysap" },
 
   "cy8cproto-064s2-sb": { "cm0": "cy8c64xa_cm0_full_flash", "cm4": "cy8c64xa_cm4_full_flash", "sysap": "cy8c64_sysap" },

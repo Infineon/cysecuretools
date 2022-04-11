@@ -23,16 +23,14 @@ from cryptography.hazmat.primitives import hashes
 from cryptography.hazmat.backends import default_backend
 from cryptography.hazmat.primitives import serialization
 from cysecuretools.execute.key_reader import load_key
-from cysecuretools.core.enums import KeyId
 from cysecuretools.core.strategy_context.cert_strategy_ctx \
     import CertificateStrategy
 from cysecuretools.core.target_director import Target
-from cysecuretools.execute.entrance_exam.exam_mxs40v1 \
-    import EntranceExamMXS40v1
-from cysecuretools.execute.provisioning_lib.cyprov_pem import PemKey
-from cysecuretools.targets.common.silicon_data_parser import SiliconDataParser
-from cysecuretools.execute.provision_device_mxs40v1 import read_silicon_data
-from cysecuretools.execute.version_helper import VersionHelper
+from cysecuretools.execute.provisioning_packet.lib.cyprov_pem import PemKey
+from cysecuretools.targets.common.p64.silicon_data_parser import SiliconDataParser
+from cysecuretools.targets.common.p64.enums import KeyId
+from cysecuretools.execute.provisioning.provision_device_mxs40v1 import read_silicon_data
+from ..connect_helper import ConnectHelper
 
 logger = logging.getLogger(__name__)
 
@@ -165,11 +163,9 @@ class X509CertificateStrategy(CertificateStrategy):
     def _save_to_file(certificate, encoding, filename):
         with open(filename, 'wb') as f:
             f.write(certificate.public_bytes(encoding))
-        logger.info(f'Certificate created: {filename}')
+        logger.info('Certificate created: %s', filename)
 
-    def default_certificate_data(self, tool, target: Target,
-                                 entrance_exam: EntranceExamMXS40v1,
-                                 probe_id=None):
+    def default_certificate_data(self, tool, target: Target, probe_id=None):
         """
         Gets a dictionary with the default values.
         Default certificate requires device to be connected to read
@@ -177,23 +173,21 @@ class X509CertificateStrategy(CertificateStrategy):
         fields
         :param tool: Programming tool to connect to device
         :param target: Target object
-        :param entrance_exam: The object used to execute entrance exam
-               before provisioning.
         :param probe_id: Probe ID. Need to be used if more than one
                device is connected to the computer.
         :return: Dictionary with the certificate fields.
         """
         # Read silicon data
-        if tool.connect(target.name, probe_id=probe_id, ap='sysap'):
-            VersionHelper.log_version(tool, target)
-            VersionHelper.verify_sfb_version(tool, target)
+        if ConnectHelper.connect(tool, target, probe_id=probe_id, ap='sysap'):
+            target.version_provider.log_version(tool)
+            target.version_provider.verify_fw_version(tool)
             data = read_silicon_data(tool, target)
             if data is None:
                 logger.error('Failed to read silicon data')
                 return None
 
             dev_pub_key = target.key_reader.read_public_key(tool, KeyId.DEVICE)
-            tool.disconnect()
+            ConnectHelper.disconnect(tool)
             if dev_pub_key is None:
                 return None
         else:
@@ -201,16 +195,16 @@ class X509CertificateStrategy(CertificateStrategy):
             return None
 
         # Get HSM private key
-        hsm_priv_key, hsm_pub_key = target.policy_parser.hsm_private_key()
+        hsm_priv_key, _ = target.policy_parser.hsm_private_key()
 
         # Get serial number
         silicon_data = SiliconDataParser(data)
         serial = int(silicon_data.get_serial())
         if serial <= 0:
             max_serial = 0x7FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF
-            logger.warning(f'Serial number created from die ID is {serial}, '
-                           f'setting serial number to maximum available value '
-                           f'{max_serial}')
+            logger.warning(
+                'Serial number created from die ID is %d, setting serial '
+                'number to maximum available value %d', serial, max_serial)
             serial = max_serial
 
         data = {

@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019-2020 Cypress Semiconductor Corporation
+Copyright (c) 2019-2021 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,13 +15,13 @@ limitations under the License.
 """
 import os
 import logging
-from collections import namedtuple
-from cysecuretools.core.enums import EntranceExamStatus, RegionHashStatus, ProtectionState
+from cysecuretools.core.enums import EntranceExamStatus, RegionHashStatus
 from cysecuretools.execute.sys_call import region_hash, read_lifecycle
 from cysecuretools.execute.programmer.base import AP
-from cysecuretools.execute.provisioning_lib.cyprov_crypto import Crypto
+from cysecuretools.execute.provisioning_packet.lib import Crypto
 from cysecuretools.core.target_director import Target
 from cysecuretools.core.entrance_exam_base import EntranceExam
+from cysecuretools.targets.common.p64.enums import ProtectionState
 
 logger = logging.getLogger(__name__)
 
@@ -33,12 +33,14 @@ SFB_VER_ERROR = 'Engineering Sample version of PSoC64 detected, the current ' \
 
 class EntranceExamMXS40v1(EntranceExam):
     def __init__(self, target: Target, **kwargs):
+        super().__init__(target, **kwargs)
         self.reg_map = target.register_map
-        self.voltage_tool = target.voltage_tool(target)
-        packet_dir = target.policy_parser.get_provisioning_packet_dir()
-        self.entrance_exam_jwt = os.path.abspath(os.path.join(
-            packet_dir, ENTRANCE_EXAM_JWT))
         self.target = target
+
+    @property
+    def entrance_exam_jwt(self):
+        packet_dir = self.target.policy_parser.get_provisioning_packet_dir()
+        return os.path.abspath(os.path.join(packet_dir, ENTRANCE_EXAM_JWT))
 
     def execute(self, tool):
         """
@@ -51,20 +53,21 @@ class EntranceExamMXS40v1(EntranceExam):
         logger.info('             ENTRANCE EXAM               ')
         logger.info('*****************************************')
 
-        reader = self.target.silicon_data_reader(self.target)
-        complete = reader.read_complete_status(tool)
+        complete = self.target.silicon_data_reader.read_complete_status(tool)
         exam_pass = not complete
         if not exam_pass:
             logger.error('Device has been previously provisioned')
 
         if exam_pass:
-            voltage = self.voltage_tool.get_voltage(tool=tool)
-            v_min = self.voltage_tool.voltage_level * 0.9
-            v_max = self.voltage_tool.voltage_level * 1.1
+            tool.examine_ap()
+            voltage = self.target.voltage_tool.get_voltage(tool)
+            v_min = self.target.voltage_tool.voltage_level * 0.9
+            v_max = self.target.voltage_tool.voltage_level * 1.1
             if voltage < v_min or voltage > v_max:
                 exam_pass = False
-                logger.error(f'Silicon voltage is out of range. Expected voltage '
-                             f'level is in range {v_min} V - {v_max} V\n')
+                logger.error(
+                    'Silicon voltage is out of range. Expected voltage level '
+                    'is in range %s V - %s V\n', v_min, v_max)
             else:
                 exam_pass = True
             tool.set_ap(AP.SYS)
@@ -94,12 +97,12 @@ class EntranceExamMXS40v1(EntranceExam):
         if exam_pass:
             for item in payload['region_hashes']:
                 logger.info('.' * 70)
-                logger.info(f'Verify {item["description"]}')
+                logger.info('Verify %s', item['description'])
                 logger.info('.' * 70)
-                logger.info(f'Address: {item["address"]}')
-                logger.info(f'Size:    {item["size"]}')
-                logger.info(f'Mode:    {item["hash_id"]}')
-                logger.info(f'Value:   {item["value"]}')
+                logger.info('Address: %s', item['address'])
+                logger.info('Size:    %s', item['size'])
+                logger.info('Mode:    %s', item['hash_id'])
+                logger.info('Value:   %s', item['value'])
                 syscall_status = region_hash(tool, self.reg_map)
                 if syscall_status == RegionHashStatus.OK:
                     logger.info('PASS\n')
@@ -130,7 +133,7 @@ class EntranceExamMXS40v1(EntranceExam):
             protection_state = ProtectionState(lifecycle).name
         except ValueError:
             protection_state = f'{ProtectionState.unknown.name} ({lifecycle})'
-        logger.info(f'Chip protection state: {protection_state.capitalize()}')
+        logger.info('Chip protection state: %s', protection_state.capitalize())
 
     def read_sfb_version(self, tool):
         jwt_text = Crypto.read_jwt(self.entrance_exam_jwt)
@@ -160,30 +163,6 @@ class EntranceExamMXS40v1(EntranceExam):
 
         return f'{maj_version}.{min_version}.{patch}.{build}'
 
-    def read_device_info(self, tool):
-        jwt_text = Crypto.read_jwt(self.entrance_exam_jwt)
-        json_data = Crypto.readable_jwt(jwt_text)
-        payload = json_data['payload']
-        silicon_id = None
-        silicon_rev = None
-        family_id = None
-        for item in payload['ahb_reads']:
-            if item['description'].startswith('SI_ID'):
-                address = int(item['address'], 0)
-                silicon_id = tool.read32(address) >> 16 & 0xFFFF
-                silicon_rev = tool.read32(address) >> 8 & 0xFF
-            if item['description'].startswith('FAMILY_ID'):
-                address = int(item['address'], 0)
-                mask = int(item['mask'], 0)
-                family_id = tool.read32(address) & mask
-            if silicon_id and silicon_rev and family_id:
-                break
-
-        DeviceInfo = namedtuple('DeviceInfo',
-                                'silicon_id silicon_rev family_id')
-        dev_info = DeviceInfo(silicon_id, silicon_rev, family_id)
-        return dev_info
-
     @staticmethod
     def verify_ahb_reads(tool, items, bits):
         """
@@ -198,7 +177,7 @@ class EntranceExamMXS40v1(EntranceExam):
         exam_pass = True
         for item in items:
             logger.info('.' * 70)
-            logger.info(f'Verify {item["description"]}')
+            logger.info('Verify %s', item['description'])
             logger.info('.' * 70)
 
             address = int(item['address'], 0)
@@ -213,9 +192,9 @@ class EntranceExamMXS40v1(EntranceExam):
                 ValueError('Invalid number of bits.')
 
             expected_value = value & mask
-            logger.info(f'Address: {item["address"]}')
-            logger.info(f'Expected value:     {hex(expected_value)}')
-            logger.info(f'Received value:     {hex(read_value)}')
+            logger.info('Address: %s', item["address"])
+            logger.info('Expected value:     0x%x', expected_value)
+            logger.info('Received value:     0x%x', read_value)
             if read_value == expected_value:
                 logger.info('PASS\n')
             else:

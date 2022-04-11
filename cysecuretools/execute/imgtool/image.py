@@ -1,6 +1,18 @@
 # Copyright 2018 Nordic Semiconductor ASA
 # Copyright 2017-2020 Linaro Limited
 # Copyright 2019-2020 Arm Limited
+# Copyright 2022 Cypress Semiconductor Corporation (an Infineon company)
+# or an affiliate of Cypress Semiconductor Corporation.  All rights reserved.
+#     Changes made to the original file:
+#     [Oct 6 2021]
+#         - Added image encryption scheme with random salt and AES
+#           initial vectors from HKDF tag
+#         - Added custom non-protected TLV support
+#         - Added option to skip adding non-protected TLV to
+#           the image
+#         - Added custom encryptor support
+#         - Added image_addr argument necessary for XIP encryption.
+#           Consider image_addr value in HKDF salt calculation
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -134,7 +146,7 @@ class Image():
                  slot_size=0, max_sectors=DEFAULT_MAX_SECTORS,
                  overwrite_only=False, endian="little", load_addr=0,
                  rom_fixed=None, erased_val=None, save_enctlv=False,
-                 security_counter=None):
+                 security_counter=None, image_addr=0):
 
         if load_addr and rom_fixed:
             raise click.UsageError("Can not set rom_fixed and load_addr at the same time")
@@ -160,6 +172,7 @@ class Image():
         self.hkdf_salt = None
         self.hkdf_len = 48
         self.enc_nonce = bytes([0] * 16)
+        self.image_addr = image_addr
 
         if security_counter == 'auto':
             # Security counter has not been explicitly provided,
@@ -231,12 +244,12 @@ class Image():
                                                   self.save_enctlv,
                                                   self.enctlv_len)
                 trailer_addr = (self.base_addr + self.slot_size) - trailer_size
-                padding = bytearray([self.erased_val] *
-                                    (trailer_size - len(boot_magic)))
+                padding_size = self.slot_size - (len(self.payload) + trailer_size)
+                padding = bytearray([self.erased_val] * (padding_size + trailer_size - len(boot_magic)))
                 if self.confirm and not self.overwrite_only:
                     padding[-MAX_ALIGN] = 0x01  # image_ok = 0x01
                 padding += boot_magic
-                h.puts(trailer_addr, bytes(padding))
+                h.puts(trailer_addr - padding_size, bytes(padding))
             h.tofile(path, 'hex')
         else:
             if self.pad:
@@ -269,9 +282,14 @@ class Image():
         else:
             newpk = X25519PrivateKey.generate()
             shared = newpk.exchange(enckey._get_public())
+
+        if (self.hkdf_salt is not None) and (self.image_addr > 0):
+            self.hkdf_salt = self.hkdf_salt[:28] + self.image_addr.to_bytes(
+                4, 'little')
         derived_key = HKDF(
-            algorithm=hashes.SHA256(), length=self.hkdf_len, salt=self.hkdf_salt,
-            info=b'MCUBoot_ECIES_v1', backend=default_backend()).derive(shared)
+            algorithm=hashes.SHA256(), length=self.hkdf_len,
+            salt=self.hkdf_salt, info=b'MCUBoot_ECIES_v1',
+            backend=default_backend()).derive(shared)
         if self.hkdf_salt is not None:
             key_nonce = derived_key[48:64]
             self.enc_nonce = derived_key[64:76] + bytes([0] * 4)
@@ -296,7 +314,8 @@ class Image():
         return cipherkey, ciphermac, pubk
 
     def create(self, key, public_key_format, enckey, dependencies=None,
-               sw_type=None, custom_tlvs=None, use_random_iv=False):
+               sw_type=None, custom_tlvs=None, use_random_iv=False,
+               skip_tlv_info=False, encryptor=None):
         self.enckey = enckey
 
         if use_random_iv:
@@ -351,8 +370,8 @@ class Image():
             dependencies_num = len(dependencies[DEP_IMAGES_KEY])
             protected_tlv_size += (dependencies_num * 16)
 
-        if custom_tlvs is not None:
-            for value in custom_tlvs.values():
+        if custom_tlvs is not None and custom_tlvs.get('protected'):
+            for value in custom_tlvs['protected'].values():
                 protected_tlv_size += TLV_SIZE + len(value)
 
         if protected_tlv_size != 0:
@@ -366,7 +385,8 @@ class Image():
         if self.enckey is not None:
             pad_len = len(self.payload) % 16
             if pad_len > 0:
-                pad = bytes(16 - pad_len)
+                pad_len = 16 - pad_len
+                pad = self.erased_val.to_bytes(1, byteorder='big') * pad_len
                 if isinstance(self.payload, bytes):
                     self.payload += pad
                 else:
@@ -403,8 +423,8 @@ class Image():
                                     )
                     prot_tlv.add('DEPENDENCY', payload)
 
-            if custom_tlvs is not None:
-                for tag, value in custom_tlvs.items():
+            if custom_tlvs is not None and custom_tlvs['protected']:
+                for tag, value in custom_tlvs['protected'].items():
                     prot_tlv.add(tag, value)
 
             protected_tlv_off = len(self.payload)
@@ -427,13 +447,16 @@ class Image():
                 tlv.add('PUBKEY', pub)
 
             # `sign` expects the full image payload (sha256 done internally),
-            # while `sign_digest` expects only the digest of the payload
-
+            # while `sign_digest` expects only the digest of the payload.
+            # If the specified key is a public key, add empty signature TLV.
             if hasattr(key, 'sign'):
                 sig = key.sign(bytes(self.payload))
-            else:
+                tlv.add(key.sig_tlv(), sig)
+            elif hasattr(key, 'sign_digest'):
                 sig = key.sign_digest(digest)
-            tlv.add(key.sig_tlv(), sig)
+                tlv.add(key.sig_tlv(), sig)
+            else:
+                tlv.add(key.sig_tlv(), bytes(key.sig_len()))
 
         # At this point the image was hashed + signed, we can remove the
         # protected TLVs from the payload (will be re-added later)
@@ -464,58 +487,69 @@ class Image():
                     tlv.add('ENCX25519', enctlv)
 
             nonce = self.enc_nonce
-            cipher = Cipher(algorithms.AES(plainkey), modes.CTR(nonce),
-                            backend=default_backend())
-            encryptor = cipher.encryptor()
             img = bytes(self.payload[self.header_size:])
-            self.payload[self.header_size:] = \
-                encryptor.update(img) + encryptor.finalize()
+            if encryptor is None:
+                cipher = Cipher(algorithms.AES(plainkey), modes.CTR(nonce),
+                                backend=default_backend())
+                encryptor = cipher.encryptor()
+                encdata = encryptor.update(img) + encryptor.finalize()
+            else:
+                encdata = encryptor.encrypt(
+                    img, nonce=nonce, plainkey=plainkey)
+            self.payload[self.header_size:] = encdata
 
         self.payload += prot_tlv.get()
-        self.payload += tlv.get()
+
+        if not skip_tlv_info:
+            if custom_tlvs is not None and custom_tlvs.get('unprotected'):
+                for tag, value in custom_tlvs['unprotected'].items():
+                    tlv.add(tag, value)
+            self.payload += tlv.get()
 
         self.check_trailer()
 
     def add_header(self, enckey, protected_tlv_size):
         """Install the image header."""
 
-        flags = 0
-        if enckey is not None:
-            flags |= IMAGE_F['ENCRYPTED']
-        if self.load_addr != 0:
-            # Indicates that this image should be loaded into RAM
-            # instead of run directly from flash.
-            flags |= IMAGE_F['RAM_LOAD']
-        if self.rom_fixed:
-            flags |= IMAGE_F['ROM_FIXED']
+        if self.header_size > 0:
+            flags = 0
+            if enckey is not None:
+                flags |= IMAGE_F['ENCRYPTED']
+            if self.load_addr != 0:
+                # Indicates that this image should be loaded into RAM
+                # instead of run directly from flash.
+                flags |= IMAGE_F['RAM_LOAD']
+            if self.rom_fixed:
+                flags |= IMAGE_F['ROM_FIXED']
 
-        e = STRUCT_ENDIAN_DICT[self.endian]
-        fmt = (e +
-               # type ImageHdr struct {
-               'I' +     # Magic    uint32
-               'I' +     # LoadAddr uint32
-               'H' +     # HdrSz    uint16
-               'H' +     # PTLVSz   uint16
-               'I' +     # ImgSz    uint32
-               'I' +     # Flags    uint32
-               'BBHI' +  # Vers     ImageVersion
-               'I'       # Pad1     uint32
-               )  # }
-        assert struct.calcsize(fmt) == IMAGE_HEADER_SIZE
-        header = struct.pack(fmt,
-                IMAGE_MAGIC,
-                self.rom_fixed or self.load_addr,
-                self.header_size,
-                protected_tlv_size,  # TLV Info header + Protected TLVs
-                len(self.payload) - self.header_size,  # ImageSz
-                flags,
-                self.version.major,
-                self.version.minor or 0,
-                self.version.revision or 0,
-                self.version.build or 0,
-                0)  # Pad1
-        self.payload = bytearray(self.payload)
-        self.payload[:len(header)] = header
+            e = STRUCT_ENDIAN_DICT[self.endian]
+            fmt = (e +
+                   # type ImageHdr struct {
+                   'I' +     # Magic    uint32
+                   'I' +     # LoadAddr uint32
+                   'H' +     # HdrSz    uint16
+                   'H' +     # PTLVSz   uint16
+                   'I' +     # ImgSz    uint32
+                   'I' +     # Flags    uint32
+                   'BBHI' +  # Vers     ImageVersion
+                   'I'       # Pad1     uint32
+                   )  # }
+            assert struct.calcsize(fmt) == IMAGE_HEADER_SIZE
+            header = struct.pack(fmt,
+                    IMAGE_MAGIC,
+                    self.rom_fixed or self.load_addr,
+                    self.header_size,
+                    protected_tlv_size,  # TLV Info header + Protected TLVs
+                    len(self.payload) - self.header_size,  # ImageSz
+                    flags,
+                    self.version.major,
+                    self.version.minor or 0,
+                    self.version.revision or 0,
+                    self.version.build or 0,
+                    int(format(self.erased_val, 'x') * 4, 16))  # Pad1
+
+            self.payload = bytearray(self.payload)
+            self.payload[:len(header)] = header
 
     def _trailer_size(self, write_size, max_sectors, overwrite_only, enckey,
                       save_enctlv, enctlv_len):

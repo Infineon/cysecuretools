@@ -18,7 +18,7 @@ import json
 import logging
 from jose import jws
 from jose.constants import ALGORITHMS
-from cysecuretools.execute.provisioning_lib.cyprov_crypto import Crypto
+from cysecuretools.execute.provisioning_packet.lib import Crypto
 
 logger = logging.getLogger(__name__)
 
@@ -33,7 +33,7 @@ def json_to_jwt(json_file, priv_key, output_file=None, alg='ES256'):
     :return: JWT token
     """
     try:
-        with open(json_file) as f:
+        with open(json_file, encoding='utf-8') as f:
             file_content = f.read()
             json_data = json.loads(file_content)
     except FileNotFoundError as e:
@@ -59,12 +59,12 @@ def create_jwt(payload, priv_key, output_file=None, alg='ES256'):
         raise ValueError(f'Unsupported algorithm {alg}')
 
     token = jws.sign(payload, priv_key, headers=headers, algorithm=algorithm)
-    logger.debug(f'Created JWT token: {token}')
+    logger.debug('Created JWT token: %s', token)
 
     if output_file:
-        with open(output_file, 'w') as f:
+        with open(output_file, 'w', encoding='utf-8') as f:
             f.write(token)
-        logger.debug(f'Saved JWT token to a file: {output_file}')
+        logger.debug('Saved JWT token to a file: %s', output_file)
     return token
 
 

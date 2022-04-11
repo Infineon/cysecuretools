@@ -16,7 +16,7 @@ limitations under the License.
 import abc
 
 
-class MemoryMapBase(abc.ABC):
+class MemoryMapBaseP64(abc.ABC):
     """
     Base class for memory map representation. Each device memory map must
     implement its methods.
@@ -53,10 +53,26 @@ class MemoryMapBase(abc.ABC):
 
     @property
     @abc.abstractmethod
-    def SMIF_MEM_MAP_START(self):
+    def EXTERNAL_MEM_START(self):
         raise NotImplementedError
 
     @property
     @abc.abstractmethod
     def VECTOR_TABLE_ADDR_ALIGNMENT(self):
+        raise NotImplementedError
+
+
+class MemoryMapBaseCYW20829(abc.ABC):
+    """
+    Base class for memory map representation. Each device memory map must
+    implement its methods.
+    """
+    @property
+    @abc.abstractmethod
+    def VECTOR_TABLE_ADDR_ALIGNMENT(self):
+        raise NotImplementedError
+
+    @property
+    @abc.abstractmethod
+    def MAX_SLOT_SIZE(self):
         raise NotImplementedError

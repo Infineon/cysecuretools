@@ -49,14 +49,20 @@ class LoggingConfigurator:
         """
         Adds file logger
         """
-        if ProjectInitializer.is_project():
-            cwd = os.getcwd()
-        else:
-            cwd = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        log_filename = datetime.now().strftime(
-            os.path.join(cwd, 'logs', 'cysecuretools_%Y-%m-%d_%H-%M-%S.log'))
+        log_filename = datetime.now().strftime(os.path.join(
+            LoggingConfigurator.get_log_dir(),
+            'cysecuretools_%Y-%m-%d_%H-%M-%S.log'))
         os.makedirs(os.path.dirname(log_filename), exist_ok=True)
         file_handler = logging.FileHandler(log_filename, mode='w+')
         file_handler.setLevel(logging.DEBUG)
         file_handler.setFormatter(LoggingConfigurator.LOG_FORMATTER)
         logger.root.addHandler(file_handler)
+
+    @staticmethod
+    def get_log_dir():
+        if ProjectInitializer.is_project():
+            cwd = os.path.join(os.getcwd(), 'logs')
+        else:
+            cwd = os.path.abspath(
+                os.path.join(os.path.dirname(__file__), '..', 'logs'))
+        return cwd

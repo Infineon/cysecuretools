@@ -21,8 +21,9 @@ class PolicyValidatorBase(ABC):
     Base class for the classes that implement policy validator.
     Each device-specific policy validator must implement its methods.
     """
+
     skip_validation = False
 
     @abstractmethod
-    def validate(self): pass
-
+    def validate(self, skip=None, skip_prompts=False):
+        """ Validates policy file """

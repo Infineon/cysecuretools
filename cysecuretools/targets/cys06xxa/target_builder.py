@@ -1,5 +1,5 @@
 """
-Copyright (c) 2020 Cypress Semiconductor Corporation
+Copyright (c) 2020-2021 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -19,26 +19,33 @@ from cysecuretools.core.enums import KeyAlgorithm
 from cysecuretools.targets.cyb06xxa.maps.memory_map import MemoryMap_cyb06xxa
 from cysecuretools.targets.cyb06xxa.maps.register_map import \
     RegisterMap_cyb06xxa
-from cysecuretools.targets.common.policy_filter import PolicyFilter
-from cysecuretools.targets.common.policy_parser import PolicyParser
-from cysecuretools.targets.common.policy_validator import PolicyValidator
-from cysecuretools.execute.provision_device_mxs40v1 import ProvisioningMXS40V1
-from cysecuretools.execute.provisioning_packet_mxs40v1 import \
-    ProvisioningPacketMXS40V1
+from cysecuretools.targets.common.p64.policy_filter import PolicyFilter
+from cysecuretools.targets.common.p64.policy_parser import PolicyParser
+from cysecuretools.targets.common.p64.policy_validator import PolicyValidator
+from cysecuretools.execute.provisioning import ProvisioningMXS40v1
+from cysecuretools.execute.provisioning_packet import ProvisioningPacketMXS40v1
 from cysecuretools.execute.entrance_exam.exam_mxs40v1 import \
     EntranceExamMXS40v1
-from cysecuretools.execute.project_init_mxs40v1 import \
+from cysecuretools.execute.project_init.project_init_mxs40v1 import \
     ProjectInitializerMXS40V1
-from cysecuretools.execute.voltage_tool_mxs40v1 import VoltageToolMXS40v1
-from cysecuretools.execute.key_reader import KeyReaderMXS40V1
-from cysecuretools.execute.silicon_data_reader_mxs40v1 import \
-    SiliconDataReaderMXS40v1
+from cysecuretools.execute.voltage_tool.voltage_tool_mxs40v1 import VoltageToolMXS40v1
+from cysecuretools.execute.key_reader_mxs40v1 import KeyReaderMXS40V1
+from cysecuretools.execute.silicon_data_reader import SiliconDataReaderMXS40v1
+from cysecuretools.execute.image_signing.signtool_mxs40v1 import \
+    SignToolMXS40v1
+from cysecuretools.execute.key_source.key_source_mxs40v1 import (
+    KeySourceMXS40v1)
 
 
 class CYS06xxA_Builder(TargetBuilder):
+    """ CYS06xxA target builder """
+
     def get_default_policy(self):
-        return os.path.join(self.target_dir, 'policy',
-                            'policy_single_CM0_CM4_swap.json')
+        return os.path.join(
+            self.target_dir, 'policy', 'policy_single_CM0_CM4_swap.json')
+
+    def get_ocds(self):
+        return ['pyocd']
 
     def get_memory_map(self):
         memory_map = MemoryMap_cyb06xxa()
@@ -61,10 +68,10 @@ class CYS06xxA_Builder(TargetBuilder):
         return policy_filter
 
     def get_provisioning_strategy(self):
-        return ProvisioningMXS40V1()
+        return ProvisioningMXS40v1()
 
     def get_provisioning_packet_strategy(self, policy_parser):
-        return ProvisioningPacketMXS40V1(policy_parser)
+        return ProvisioningPacketMXS40v1(policy_parser)
 
     def get_entrance_exam(self):
         return EntranceExamMXS40v1
@@ -83,3 +90,31 @@ class CYS06xxA_Builder(TargetBuilder):
 
     def get_key_algorithms(self):
         return [KeyAlgorithm.EC]
+
+    def get_sign_tool(self):
+        return SignToolMXS40v1
+
+    def get_key_source(self, **kwargs):
+        return KeySourceMXS40v1(kwargs['policy_parser'])
+
+    def get_bootloader_provider(self):
+        from cysecuretools.execute.bootloader_provider_mxs40v1 import (
+            BootloaderProviderMXS40v1)
+        return BootloaderProviderMXS40v1
+
+    def get_version_provider(self):
+        from cysecuretools.execute.version_provider.version_provider_mxs40v1 \
+            import VersionProviderMXS40v1
+        return VersionProviderMXS40v1
+
+    def get_debug_certificate(self):
+        """ N/A for MXS40v1 platform """
+        return None
+
+    def get_policy_generator(self, policy_parser):
+        """ N/A for MXS40v1 platform """
+        return None
+
+    def get_test_packages(self):
+        """ N/A for MXS40v1 platform """
+        return None

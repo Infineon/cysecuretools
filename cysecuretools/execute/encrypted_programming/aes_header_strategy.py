@@ -63,7 +63,7 @@ class AesHeaderStrategy(EncryptedProgrammingStrategy):
         """
         # Write keys ID and AES header
         out_file_path = os.path.abspath(out_file_encrypt)
-        with open(out_file_path, 'w') as f:
+        with open(out_file_path, 'w', encoding='utf-8') as f:
             f.write(str(host_key_id).zfill(2))
             f.write(str(dev_key_id).zfill(2) + '\n')
             f.write(aes_header + '\n')
@@ -72,7 +72,7 @@ class AesHeaderStrategy(EncryptedProgrammingStrategy):
         hex_data_dict = ih.todict()
         if 'start_addr' in hex_data_dict:
             del hex_data_dict['start_addr']
-        logger.debug(f'hex_data_dict={hex_data_dict}')
+        logger.debug('hex_data_dict=%s', hex_data_dict)
 
         # Add padding
         ih.padding = padding_value
@@ -88,19 +88,19 @@ class AesHeaderStrategy(EncryptedProgrammingStrategy):
 
         sorted_address_keys = sorted(data_to_program)
         for key in sorted_address_keys:
-            logger.debug('0x%08X: %02X' % (key, data_to_program[key]))
+            logger.debug('0x%08X: %02X', key, data_to_program[key])
 
-        logger.debug('Data bytes length: %s' % len(sorted_address_keys))
+        logger.debug('Data bytes length: %d', len(sorted_address_keys))
         if len(sorted_address_keys) % FLASH_ROW_SIZE != 0:
             logger.error('Data bytes length is not multiple '
-                         'by FLASH_ROW_SIZE (%s)' % FLASH_ROW_SIZE)
+                         'by FLASH_ROW_SIZE (%d)', FLASH_ROW_SIZE)
             return
 
         sorted_bytes_values = []
         for key in sorted_address_keys:
             sorted_bytes_values.append(data_to_program[key])
 
-        logger.debug('-' * 30 + ' Virgin rows ' + '-' * 30)
+        logger.debug('%s Virgin rows %s', '-' * 30, '-' * 30)
         address_row_bytes_dict = {}
         rows_of_bytes = list(AesHeaderStrategy.chunks_list(sorted_bytes_values,
                                                            FLASH_ROW_SIZE))
@@ -113,11 +113,11 @@ class AesHeaderStrategy(EncryptedProgrammingStrategy):
                 map(AesHeaderStrategy.hex_str_wo_header, rows_of_bytes[i])))
             logger.debug(out_data)
 
-        logger.debug('-' * 30 + ' Encrypted rows ' + '-' * 30)
+        logger.debug('%s Encrypted rows %s', '-' * 30, '-' * 30)
         addr_rows_bin = {}
         aes_key, aes_iv = read_key_from_file(aes_key_file)
         aes = AESCipherCBC(aes_key, aes_iv)
-        with open(out_file_path, 'a') as encrypted_rows_out:
+        with open(out_file_path, 'a', encoding='utf-8') as encrypted_rows_out:
             for i in range(len(flash_addresses)):
                 rows_in_binary_format = bytes(rows_of_bytes[i])
                 encrypted_row = aes.encrypt(rows_in_binary_format)
@@ -128,7 +128,7 @@ class AesHeaderStrategy(EncryptedProgrammingStrategy):
                                        addr_rows_bin[flash_addresses[i]].hex())
                 logger.debug(out_data)
                 encrypted_rows_out.write(out_data + '\n')
-        logger.info(f'Created encrypted image \'{out_file_path}\'')
+        logger.info("Created encrypted image '%s'", out_file_path)
 
     def program(self, tool, target, encrypted_image):
         return encrypted_programming.program(tool, target, encrypted_image)

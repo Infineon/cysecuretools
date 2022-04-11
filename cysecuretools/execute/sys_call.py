@@ -76,7 +76,7 @@ def region_hash(tool, reg_map):
         if response == sfb_status.get_code_by_name('CY_FB_INVALID_FLASH_OPERATION'):
             result = RegionHashStatus.FLASH_NOT_EMPTY
         else:
-            logger.error(f'RegionHash syscall error: {hex(response)}')
+            logger.error('RegionHash syscall error: 0x%x', response)
             print_sfb_status(response)
             result = RegionHashStatus.FAIL
 
@@ -139,7 +139,7 @@ def get_prov_details(tool, reg_map, key_id):
                 try:
                     hash_byte_chr = chr(tool.read8(read_hash_addr + i))
                     break
-                except Exception as e:
+                except RuntimeError as e:
                     if counter < timeout:
                         sleep(1)
                         counter += 1
@@ -150,7 +150,7 @@ def get_prov_details(tool, reg_map, key_id):
         prov_details = prov_details.strip()
         logger.debug('GetProvDetails syscall passed')
     else:
-        logger.debug(f'GetProvDetails syscall error: {hex(response)}')
+        logger.debug('GetProvDetails syscall error: 0x%x', response)
         print_sfb_status(response, severity='debug')
         prov_details = None
 
@@ -172,8 +172,8 @@ def provision_keys_and_policies(tool, filename, reg_map):
             logger.error('JWT packet too long')
             return False
 
-        logger.info(f'JWT packet size = {file_size}')
-        with open(filename, 'r+') as jwt_file:
+        logger.info('JWT packet size = %d', file_size)
+        with open(filename, 'r+', encoding='utf-8') as jwt_file:
             jwt_file.seek(0)
             content = jwt_file.read()
         jwt_chars = list(content)
@@ -226,8 +226,8 @@ def provision_keys_and_policies(tool, filename, reg_map):
         response = read_device_response(tool, reg_map)
     else:
         if filename:
-            logger.error(f'ProvisionKeysAndPolicies syscall error: '
-                         f'{hex(status)}')
+            logger.error(
+                'ProvisionKeysAndPolicies syscall error: 0x%x', status)
             print_sfb_status(status)
         else:
             syscall_invalid_arg = \
@@ -271,18 +271,18 @@ def encrypted_programming(tool, reg_map, mode, data, host_key_id=0,
               (dev_key_id << 8) + int(mode)
 
     logger.debug('Write registers:')
-    logger.debug(f'{hex(reg_map.CYREG_IPC2_STRUCT_DATA)} <- '
-                 f'{hex(sram_addr_claimed)}')
+    logger.debug('0x%x <- 0x%x',
+                 reg_map.CYREG_IPC2_STRUCT_DATA, sram_addr_claimed)
     tool.write32(reg_map.CYREG_IPC2_STRUCT_DATA, sram_addr_claimed)
 
-    logger.debug(f'{hex(sram_addr_claimed)} <- {hex(op_code)}')
+    logger.debug('0x%x <- 0x%x', sram_addr_claimed, op_code)
     tool.write32(sram_addr_claimed, op_code)
 
     scratch_addr = sram_addr_claimed + 0x08
-    logger.debug(f'{hex(sram_addr_claimed + 0x04)} <- {hex(scratch_addr)}')
+    logger.debug('0x%x <- 0x%x', sram_addr_claimed + 0x04, scratch_addr)
     tool.write32(sram_addr_claimed + 0x04, scratch_addr)
 
-    logger.debug(f'{hex(sram_addr_claimed + 0x08)} <- {hex(data_size >> 1)}')
+    logger.debug('0x%x <- 0x%x', sram_addr_claimed + 0x08, data_size >> 1)
     tool.write32(sram_addr_claimed + 0x08, data_size >> 1)
     scratch_addr = sram_addr_claimed + 0x0C
 
@@ -335,7 +335,7 @@ def encrypted_programming(tool, reg_map, mode, data, host_key_id=0,
         logger.debug('EncryptedProgramming syscall passed')
         return True
     else:
-        logger.error(f'EncryptedProgramming syscall error: {hex(response)}')
+        logger.error('EncryptedProgramming syscall error: 0x%x', response)
         print_sfb_status(response)
         return False
 
@@ -355,11 +355,11 @@ def dap_control(tool, reg_map, cpu_id, desired_state, jwt_not_required,
     :return: True if SysCall succeeds, otherwise False
     """
     if cpu_id == 0:
-        logger.debug(f'Config cm0 AP, desired state = {desired_state}')
+        logger.debug('Config cm0 AP, desired state = %d', desired_state)
     elif cpu_id == 1:
-        logger.debug(f'Config cm4 AP, desired state = {desired_state}')
+        logger.debug('Config cm4 AP, desired state = %d', desired_state)
     elif cpu_id == 2:
-        logger.debug(f'Config system AP, desired state = {desired_state}')
+        logger.debug('Config system AP, desired state = %d', desired_state)
     else:
         raise ValueError(f'Invalid CPU ID {cpu_id}')
 
@@ -382,8 +382,8 @@ def dap_control(tool, reg_map, cpu_id, desired_state, jwt_not_required,
             logger.error('JWT packet too long')
             return False
 
-        logger.debug(f'JWT packet size: {file_size}')
-        with open(filename, 'r+') as jwt_file:
+        logger.debug('JWT packet size: %d', file_size)
+        with open(filename, 'r+', encoding='utf-8') as jwt_file:
             jwt_file.seek(0)
             content = jwt_file.read()
         jwt_chars = list(content)
@@ -418,7 +418,7 @@ def dap_control(tool, reg_map, cpu_id, desired_state, jwt_not_required,
         logger.debug('DAP_Control SysCall passed')
         return True
     else:
-        logger.error(f'DAP_Control SysCall error: {hex(response)}')
+        logger.error('DAP_Control SysCall error: 0x%x', response)
         print_sfb_status(response)
         log_reg_value(tool, reg_map.CYREG_IPC2_STRUCT_DATA)
         log_reg_value(tool, reg_map.ENTRANCE_EXAM_SRAM_ADDR)
@@ -454,14 +454,14 @@ def read_device_response(tool, reg_map):
     scratch_addr = tool.read32(reg_map.ENTRANCE_EXAM_SRAM_ADDR + 0x04)
     resp_size = tool.read32(scratch_addr)
     resp_addr = tool.read32(scratch_addr + 0x04)
-    logger.debug(f'Device response address = {hex(resp_addr)}')
-    logger.debug(f'Device response size = {resp_size}')
+    logger.debug('Device response address = 0x%x', resp_addr)
+    logger.debug('Device response size = %d', resp_size)
     response = ''
     for i in range(resp_size):
         hash_byte_chr = chr(tool.read8(resp_addr + i))
         response += hash_byte_chr
     response = response.strip()
-    logger.info(f'Device response = \'{response}\'')
+    logger.info("Device response = '%s'", response)
     return response
 
 
@@ -486,7 +486,7 @@ def wait_acquire_ipc_struct(tool, reg_map, timeout=5000):
         raise TimeoutError('IPC structure release timeout')
 
     result = (ipc_acquire & (1 << 31)) != 0
-    logger.debug(f'wait_acquire_ipc_struct result \'{hex(result)}\'')
+    logger.debug("wait_acquire_ipc_struct result '0x%x'", result)
     return result
 
 
@@ -508,7 +508,7 @@ def wait_release_ipc_struct(tool, reg_map, timeout=1500):
     if count >= timeout:
         raise TimeoutError('IPC structure release timeout')
     result = (response & (1 << 31)) != 0
-    logger.debug(f'wait_release_ipc_struct result \'{hex(result)}\'')
+    logger.debug("wait_release_ipc_struct result '0x%x'", result)
     return result
 
 
@@ -540,13 +540,11 @@ def print_sfb_status(status_code, severity='error'):
         elif severity == 'debug':
             logger.debug(msg)
         else:
-            raise ValueError(f'Invalid severity argument')
+            raise ValueError('Invalid severity argument')
     except KeyError:
-        logger.debug(f'Unexpected SFB status {hex(status_code)}')
+        logger.debug('Unexpected SFB status 0x%x', status_code)
 
 
 def log_reg_value(tool, register):
-    """
-    Outputs register value for debugging
-    """
-    logger.debug(f'{hex(register)} {hex(tool.read32(register))}')
+    """ Outputs register value for debugging """
+    logger.debug('0x%x 0x%x', register, tool.read32(register))

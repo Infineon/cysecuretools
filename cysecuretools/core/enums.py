@@ -1,5 +1,5 @@
 """
-Copyright (c) 2018-2020 Cypress Semiconductor Corporation
+Copyright (c) 2018-2021 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,17 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 from enum import Enum, IntEnum
-
-
-class ProtectionState(IntEnum):
-    """
-    Provides set of device life-cycle stages.
-    """
-    unknown = 0
-    virgin = 1
-    normal = 2
-    secure = 3
-    dead = 4
+from collections import namedtuple
 
 
 class EntranceExamStatus(IntEnum):
@@ -43,6 +33,7 @@ class ProvisioningStatus(IntEnum):
     OK = 0
     FAIL = 1
     TERMINATED = 2
+    SKIPPED = 3
 
 
 class ValidationStatus(IntEnum):
@@ -50,13 +41,6 @@ class ValidationStatus(IntEnum):
     ERROR = 1,
     WARNING = 2,
     TERMINATED = 3
-
-
-class KeyId(IntEnum):
-    HSM = 4
-    OEM = 5
-    DEVICE = 1
-    GROUP = 12
 
 
 class KeyType(Enum):
@@ -72,6 +56,7 @@ class KeyAlgorithm:
     """
     EC = 'EC'
     RSA = 'RSA'
+    AES = 'AES'
 
 
 class ImageType(Enum):
@@ -81,3 +66,6 @@ class ImageType(Enum):
     BOOT = 'BOOT'
     UPGRADE = 'UPGRADE'
     BOOTLOADER = 'BOOTLOADER'
+
+
+KeyPair = namedtuple('KeyPair', 'private public')

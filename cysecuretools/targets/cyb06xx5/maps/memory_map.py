@@ -13,10 +13,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from cysecuretools.core import MemoryMapBase
+from cysecuretools.core import MemoryMapBaseP64
 
 
-class MemoryMap_cyb06xx5(MemoryMapBase):
+class MemoryMap_cyb06xx5(MemoryMapBaseP64):
     @property
     def FLASH_ADDRESS(self):
         return 0x10000000
@@ -42,9 +42,17 @@ class MemoryMap_cyb06xx5(MemoryMapBase):
         return 16
 
     @property
-    def SMIF_MEM_MAP_START(self):
+    def EXTERNAL_MEM_START(self):
         return 0x18000000
 
     @property
     def VECTOR_TABLE_ADDR_ALIGNMENT(self):
         return 0x400
+
+    @property
+    def MIN_INT_ERASE_SIZE(self):
+        return 0x200
+
+    @property
+    def MIN_EXT_ERASE_SIZE(self):
+        return 0x40000

@@ -1,5 +1,20 @@
 include README.md
 include cysecuretools/execute/programmer/pyocd_target_map.json
+include cysecuretools/execute/programmer/openocd_target_map.json
+include cysecuretools/settings.json
 recursive-include cysecuretools/targets *
 recursive-include cysecuretools/data *
 global-exclude .DS_Store
+global-exclude *policy_single_stage_CM4*.json
+exclude cysecuretools/targets/cyb06xxa/policy/policy_multi_CM0_CM4.json
+exclude cysecuretools/targets/cyb06xxa/policy/policy_multi_CM0_CM4_smif.json
+exclude cysecuretools/targets/cyb06xxa/policy/policy_single_CM0_CM4.json
+exclude cysecuretools/targets/cyb06xxa/policy/policy_single_CM0_CM4_smif.json
+exclude cysecuretools/targets/cys06xxa/policy/policy_multi_CM0_CM4.json
+exclude cysecuretools/targets/cys06xxa/policy/policy_multi_CM0_CM4_smif.json
+exclude cysecuretools/targets/cys06xxa/policy/policy_single_CM0_CM4.json
+exclude cysecuretools/targets/cys06xxa/policy/policy_single_CM0_CM4_smif.json
+exclude cysecuretools/targets/cyb06xxa/prebuilt/CyBootloader_Release *
+exclude cysecuretools/targets/cyb06xxa/prebuilt/CyBootloader_WithLogs *
+exclude cysecuretools/targets/cys06xxa/prebuilt/CyBootloader_Release *
+exclude cysecuretools/targets/cys06xxa/prebuilt/CyBootloader_WithLogs *

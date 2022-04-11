@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019-2020 Cypress Semiconductor Corporation
+Copyright (c) 2019-2022 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +17,8 @@ from cysecuretools.targets.cyb06xx7.target_builder import CYB06xx7_Builder
 from cysecuretools.targets.cyb06xxa.target_builder import CYB06xxA_Builder
 from cysecuretools.targets.cys06xxa.target_builder import CYS06xxA_Builder
 from cysecuretools.targets.cyb06xx5.target_builder import CYB06xx5_Builder
+from cysecuretools.targets.cyw20829.target_builder import CYW20829Builder
+
 
 target_map = {
     # PSoC64 1M
@@ -24,19 +26,29 @@ target_map = {
         'class': CYB06xx7_Builder,
         'family': 'PSoC64 Secure Boot Family',
         'display_name': 'PSoC64 1M',
-        'type': 'family'
+        'type': 'family',
+        'platform': 'psoc64'
     },
     'cy8cproto-064s1-sb': {
         'class': CYB06xx7_Builder,
         'family': 'PSoC64 Kit targets',
         'display_name': 'PSoC64 1M',
-        'type': 'kit'
+        'type': 'kit',
+        'platform': 'psoc64'
     },
     'cy8cproto-064b0s1-ble': {
         'class': CYB06xx7_Builder,
         'family': 'PSoC64 Kit targets',
         'display_name': 'PSoC64 1M',
-        'type': 'kit'
+        'type': 'kit',
+        'platform': 'psoc64'
+    },
+    'cy8cproto-064b0s1-ssa': {
+        'class': CYB06xx7_Builder,
+        'family': 'PSoC64 Kit targets',
+        'display_name': 'PSoC64 1M',
+        'type': 'kit',
+        'platform': 'psoc64'
     },
 
     # PSoC64 2M
@@ -44,25 +56,29 @@ target_map = {
         'class': CYB06xxA_Builder,
         'family': 'PSoC64 Kit targets',
         'display_name': 'PSoC64 2M',
-        'type': 'kit'
+        'type': 'kit',
+        'platform': 'psoc64'
     },
     'cy8ckit-064s0s2-4343w': {
         'class': CYS06xxA_Builder,
         'family': 'PSoC64 Kit targets',
         'display_name': 'PSoC64 2M',
-        'type': 'kit'
+        'type': 'kit',
+        'platform': 'psoc64'
     },
     'cyb06xxa': {
         'class': CYB06xxA_Builder,
         'family': 'PSoC64 Secure Boot Family',
         'display_name': 'PSoC64 2M',
-        'type': 'family'
+        'type': 'family',
+        'platform': 'psoc64'
     },
     'cys06xxa': {
         'class': CYS06xxA_Builder,
         'family': 'PSoC64 Standard Secure Family',
         'display_name': 'PSoC64 2M',
-        'type': 'family'
+        'type': 'family',
+        'platform': 'psoc64'
     },
 
     # PSoC64 512K
@@ -70,13 +86,24 @@ target_map = {
         'class': CYB06xx5_Builder,
         'family': 'PSoC64 Kit targets',
         'display_name': 'PSoC64 512K',
-        'type': 'kit'
+        'type': 'kit',
+        'platform': 'psoc64'
     },
     'cyb06xx5': {
         'class': CYB06xx5_Builder,
         'family': 'PSoC64 Secure Boot Family',
         'display_name': 'PSoC64 512K',
-        'type': 'family'
+        'type': 'family',
+        'platform': 'psoc64'
+    },
+
+    # CYW20829
+    'cyw20829': {
+        'class': CYW20829Builder,
+        'family': 'MXS40Sv2 Family',
+        'display_name': 'CYW20829',
+        'type': 'family',
+        'platform': 'mxs40sv2'
     },
 }
 
@@ -101,8 +128,8 @@ def get_target_builder(director, target_name):
     try:
         director.builder = target_map[target_name]['class']()
         return director.builder
-    except KeyError:
-        raise ValueError(f'Unknown target "{target_name}"')
+    except KeyError as e:
+        raise ValueError(f'Unknown target "{target_name}"') from e
 
 
 def targets_by_type(target_type):
@@ -112,11 +139,27 @@ def targets_by_type(target_type):
     return {k: v for k, v in target_map.items() if v['type'] == target_type}
 
 
+def targets_by_type_and_platform(target_type, platform):
+    """
+    Gets dictionary of targets based on specified platform
+    """
+    return {k: v for k, v in target_map.items() if v['type'] == target_type
+            and v['platform'] == platform}
+
+
 def target_names_by_type(target_type):
     """
     Gets list of target names of the specified type
     """
     return [k for k in targets_by_type(target_type).keys()]
+
+
+def target_names_by_type_and_platform(target_type, platform):
+    """
+    Gets list of target names based on specified platform
+    """
+    return [k for k in targets_by_type_and_platform(target_type,
+                                                    platform).keys()]
 
 
 def print_targets_extended():
@@ -126,3 +169,11 @@ def print_targets_extended():
     print('target|type|display_name|family')
     for k, v in target_map.items():
         print(f'{k}|{v["type"]}|{v["display_name"]}|{v["family"]}')
+
+
+def is_psoc64(target):
+    return target_map[target]['platform'] == 'psoc64'
+
+
+def is_mxs40sv2(target):
+    return target_map[target]['platform'] == 'mxs40sv2'

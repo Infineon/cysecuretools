@@ -2,6 +2,18 @@
 #
 # Copyright 2017-2020 Linaro Limited
 # Copyright 2019-2020 Arm Limited
+# Copyright 2022 Cypress Semiconductor Corporation (an Infineon company)
+# or an affiliate of Cypress Semiconductor Corporation.  All rights reserved.
+#     Changes made to the original file:
+#     [Feb 26 2021]
+#         - Added image encryption scheme with random salt and AES
+#           initial vectors from HKDF tag
+#         - Added custom non-protected TLV support
+#         - Added extend_image function
+#         - Added custom encryptor support
+#         - Added image_addr argument necessary for XIP encryption.
+#           Consider image_addr value in HKDF salt calculation
+#
 #
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -226,11 +238,42 @@ class BasedIntParamType(click.ParamType):
                       % value, param, ctx)
 
 
+def extend(align, version, header_size, slot_size, infile, outfile,
+           custom_protected_tlv=None, custom_tlv=None, pad_header=False,
+           pad=False, confirm=False, overwrite_only=False, endian='little',
+           encrypt=None, hex_addr=None, erased_val=None, use_random_iv=False,
+           skip_tlv_info=False):
+    """ Extends the image with TLVs. Optionally encrypts the image """
+    img = image.Image(version=decode_version(version), header_size=header_size,
+                      pad_header=pad_header, pad=pad, confirm=confirm,
+                      align=int(align), slot_size=slot_size,
+                      overwrite_only=overwrite_only, endian=endian,
+                      erased_val=erased_val)
+    img.load(infile)
+    enckey = load_key(encrypt) if encrypt else None
+
+    custom_tlvs = dict()
+    if custom_protected_tlv is not None:
+        custom_tlvs['protected'] = parse_tlvs(custom_protected_tlv)
+    if custom_tlv is not None:
+        custom_tlvs['unprotected'] = parse_tlvs(custom_tlv, True)
+
+    img.create(None, 'hash', enckey, custom_tlvs=custom_tlvs,
+               use_random_iv=use_random_iv, skip_tlv_info=skip_tlv_info)
+    img.save(outfile, hex_addr)
+
+
 @click.argument('outfile')
 @click.argument('infile')
 @click.option('--custom-tlv', required=False, nargs=2, default=[],
               multiple=True, metavar='[tag] [value]',
               help='Custom TLV that will be placed into protected area. '
+                   'Add "0x" prefix if the value should be interpreted as an '
+                   'integer, otherwise it will be interpreted as a string. '
+                   'Specify the option multiple times to add multiple TLVs.')
+@click.option('--custom-tlv-unprotected', required=False, nargs=2, default=[],
+              multiple=True, metavar='[tag] [value]',
+              help='Custom TLV that will be placed into non-protected area. '
                    'Add "0x" prefix if the value should be interpreted as an '
                    'integer, otherwise it will be interpreted as a string. '
                    'Specify the option multiple times to add multiple TLVs.')
@@ -293,6 +336,8 @@ class BasedIntParamType(click.ParamType):
 @click.option('--use-random-iv', default=False, is_flag=True,
               help='Use random Salt and IV (initial vectors) for the image '
               'encrypting scheme')
+@click.option('--image-addr', type=BasedIntParamType(), default=0,
+              help='Set base address of the image in the device memory.')
 @click.command(help='''Create a signed or unsigned image\n
                INFILE and OUTFILE are parsed as Intel HEX if the params have
                .hex extension, otherwise binary format is used''')
@@ -300,7 +345,8 @@ def sign(key, public_key_format, align, version, pad_sig, header_size,
          pad_header, slot_size, pad, confirm, max_sectors, overwrite_only,
          endian, encrypt, infile, outfile, dependencies, load_addr, hex_addr,
          erased_val, save_enctlv, security_counter, boot_record, custom_tlv,
-         rom_fixed, use_random_iv):
+         custom_tlv_unprotected, rom_fixed, use_random_iv, image_addr,
+         encryptor=None):
 
     if confirm:
         # Confirmed but non-padded images don't make much sense, because
@@ -312,7 +358,7 @@ def sign(key, public_key_format, align, version, pad_sig, header_size,
                       max_sectors=max_sectors, overwrite_only=overwrite_only,
                       endian=endian, load_addr=load_addr, rom_fixed=rom_fixed,
                       erased_val=erased_val, save_enctlv=save_enctlv,
-                      security_counter=security_counter)
+                      security_counter=security_counter, image_addr=image_addr)
     img.load(infile)
     key = load_key(key) if key else None
     enckey = load_key(encrypt) if encrypt else None
@@ -328,13 +374,23 @@ def sign(key, public_key_format, align, version, pad_sig, header_size,
     if pad_sig and hasattr(key, 'pad_sig'):
         key.pad_sig = True
 
-    # Get list of custom protected TLVs from the command-line
+    # Get list of custom TLVs from the command-line
+    custom_tlvs = dict()
+    custom_tlvs['protected'] = parse_tlvs(custom_tlv)
+    custom_tlvs['unprotected'] = parse_tlvs(custom_tlv_unprotected)
+
+    img.create(key, public_key_format, enckey, dependencies, boot_record,
+               custom_tlvs, use_random_iv=use_random_iv, encryptor=encryptor)
+    img.save(outfile, hex_addr)
+
+
+def parse_tlvs(custom_tlv, allow_predefined=False):
     custom_tlvs = {}
     for tlv in custom_tlv:
         tag = int(tlv[0], 0)
         if tag in custom_tlvs:
             raise click.UsageError('Custom TLV %s already exists.' % hex(tag))
-        if tag in image.TLV_VALUES.values():
+        if not allow_predefined and tag in image.TLV_VALUES.values():
             raise click.UsageError(
                 'Custom TLV %s conflicts with predefined TLV.' % hex(tag))
 
@@ -345,10 +401,7 @@ def sign(key, public_key_format, align, version, pad_sig, header_size,
             custom_tlvs[tag] = bytes.fromhex(value[2:])
         else:
             custom_tlvs[tag] = value.encode('utf-8')
-
-    img.create(key, public_key_format, enckey, dependencies, boot_record,
-               custom_tlvs, use_random_iv=use_random_iv)
-    img.save(outfile, hex_addr)
+    return custom_tlvs
 
 
 class AliasesGroup(click.Group):

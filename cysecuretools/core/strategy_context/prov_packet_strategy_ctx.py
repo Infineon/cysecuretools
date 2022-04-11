@@ -22,11 +22,15 @@ class ProvisioningPacketStrategy(ABC):
     of some algorithm.
     """
     @abstractmethod
-    def create(self, **kwargs):
-        pass
+    def create(self, target, **kwargs):
+        """ Creates provisioning packet """
+
+    @abstractmethod
+    def reverse_conversion(self, target, packets, output):
+        """ Converts provisioning packet back to policy """
 
 
-class ProvisioningPacketContext:
+class ProvisioningPacketCtx:
     """
     The Context defines the interface of interest to clients.
     """
@@ -47,8 +51,14 @@ class ProvisioningPacketContext:
         """
         self._strategy = strategy
 
-    def create(self, **kwargs):
+    def create(self, target, **kwargs):
         """
         Delegates work to the Strategy object.
         """
-        return self._strategy.create(**kwargs)
+        return self._strategy.create(target, **kwargs)
+
+    def reverse_conversion(self, target, packets, output):
+        """
+        Delegates work to the Strategy object.
+        """
+        return self._strategy.reverse_conversion(target, packets, output)

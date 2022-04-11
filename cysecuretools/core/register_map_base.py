@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright (c) 2019-2021 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,9 +16,10 @@ limitations under the License.
 import abc
 
 
-class RegisterMapBase(abc.ABC):
+class RegisterMapBaseP64(abc.ABC):
     """
-    Base class for register map representation. Each device register map must implement its methods.
+    Base class for register map representation. Each P64 device register
+    map must implement its methods.
     """
 
     #
@@ -127,3 +128,10 @@ class RegisterMapBase(abc.ABC):
     @abc.abstractmethod
     def CYREG_EFUSE_SECURE_HASH(self):
         raise NotImplementedError
+
+
+class RegisterMapBaseCYW20829(abc.ABC):
+    """
+    Base class for register map representation. Each CYW20829 device
+    register map must implement its methods.
+    """

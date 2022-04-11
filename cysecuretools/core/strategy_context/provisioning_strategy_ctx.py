@@ -1,5 +1,5 @@
 """
-Copyright (c) 2020 Cypress Semiconductor Corporation
+Copyright (c) 2020-2021 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,7 +22,7 @@ class ProvisioningStrategy(ABC):
     versions of some algorithm.
     """
     @abstractmethod
-    def provision(self, tool, target, entrance_exam, bootloader, **kwargs):
+    def provision(self, tool, target, bootloader, **kwargs):
         pass
 
     @abstractmethod
@@ -31,6 +31,10 @@ class ProvisioningStrategy(ABC):
 
     @abstractmethod
     def erase_flash(self, tool, target):
+        pass
+
+    @abstractmethod
+    def convert_to_rma(self, tool, target, **kwargs):
         pass
 
 
@@ -56,21 +60,28 @@ class ProvisioningContext:
         """
         self._strategy = strategy
 
-    def provision(self, tool, target, entrance_exam, bootloader, **kwargs):
+    def provision(self, tool, target, bootloader=None, **kwargs):
         """
         Delegates work to the Strategy object.
         """
-        return self._strategy.provision(tool, target, entrance_exam,
-                                        bootloader, **kwargs)
+        return self._strategy.provision(tool, target, bootloader=bootloader,
+                                        **kwargs)
 
-    def re_provision(self, tool, target, bootloader, **kwargs):
+    def re_provision(self, tool, target, bootloader=None, **kwargs):
         """
         Delegates work to the Strategy object.
         """
-        return self._strategy.re_provision(tool, target, bootloader, **kwargs)
+        return self._strategy.re_provision(tool, target, bootloader=bootloader,
+                                           **kwargs)
 
     def erase_flash(self, tool, target):
         """
         Delegates work to the Strategy object.
         """
         self._strategy.erase_flash(tool, target)
+
+    def convert_to_rma(self, tool, target, **kwargs):
+        """
+        Delegates work to the Strategy object.
+        """
+        return self._strategy.convert_to_rma(tool, target, **kwargs)

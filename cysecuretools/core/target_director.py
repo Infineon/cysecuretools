@@ -1,5 +1,5 @@
 """
-Copyright (c) 2019-2020 Cypress Semiconductor Corporation
+Copyright (c) 2019-2021 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,6 +15,8 @@ limitations under the License.
 """
 import os
 import inspect
+from abc import ABCMeta
+from collections import namedtuple
 from cysecuretools.core.target_builder import TargetBuilder
 
 
@@ -51,6 +53,8 @@ class TargetDirector:
         target.cwd = cwd
         target.target_dir = self._builder.target_dir
 
+        target.ocds = self._builder.get_ocds()
+
         # Memory map
         memory_map = self._builder.get_memory_map()
         target.memory_map = memory_map
@@ -60,8 +64,9 @@ class TargetDirector:
         target.register_map = register_map
 
         # Policy parser
+        target.default_policy = self._builder.get_default_policy()
         if policy is None:
-            target.policy = self.builder.get_default_policy()
+            target.policy = self._builder.get_default_policy()
             target.is_default_policy = True
         else:
             target.policy = policy
@@ -104,13 +109,53 @@ class TargetDirector:
         # Key algorithms
         target.key_algorithms = self._builder.get_key_algorithms()
 
+        # Sign tool
+        target.sign_tool = self._builder.get_sign_tool()
+
+        # Key source
+        target.key_source = self._builder.get_key_source(
+            policy_parser=policy_parser)
+
+        # Bootloader provider
+        target.bootloader_provider = self._builder.get_bootloader_provider()
+
+        # Version provider
+        target.version_provider = self._builder.get_version_provider()
+
+        # Debug certificate
+        target.debug_certificate = self._builder.get_debug_certificate()
+
+        # Policy generator
+        target.policy_generator = self._builder.get_policy_generator(
+            policy_parser)
+
+        # Python package name containing content for testing purpose
+        target.test_packages = self._builder.get_test_packages()
+
+        self._instantiate_types(target)
+
         return target
+
+    @staticmethod
+    def _instantiate_types(target):
+        """
+        Instantiates properties of a class type.
+        Some target parts use use the target as an input parameter
+        and must be instantiated when the target contains all parts
+        """
+        TypeObject = namedtuple('TypeObject', ['type', 'name'])
+        for t in [TypeObject(getattr(target, m), m) for m in dir(target) if
+                  not m.startswith('_')]:
+            if isinstance(t.type, ABCMeta) or isinstance(t.type, type):
+                setattr(target, t.name, t.type(target))
 
 
 class Target:
     def __init__(self):
         self._name = None
         self._policy = None
+        self._default_policy = None
+        self._ocds = None
         self._is_default_policy = None
         self._memory_map = None
         self._register_map = None
@@ -127,6 +172,13 @@ class Target:
         self._cwd = None
         self._silicon_data_reader = None
         self._key_algorithms = None
+        self._sign_tool = None
+        self._key_source = None
+        self._bootloader_provider = None
+        self._version_provider = None
+        self._debug_certificate = None
+        self._policy_generator = None
+        self._test_packages = None
 
     @property
     def name(self):
@@ -143,6 +195,22 @@ class Target:
     @policy.setter
     def policy(self, policy):
         self._policy = policy
+
+    @property
+    def default_policy(self):
+        return self._default_policy
+
+    @default_policy.setter
+    def default_policy(self, policy):
+        self._default_policy = policy
+
+    @property
+    def ocds(self):
+        return self._ocds
+
+    @ocds.setter
+    def ocds(self, ocds):
+        self._ocds = ocds
 
     @property
     def is_default_policy(self):
@@ -271,3 +339,59 @@ class Target:
     @key_algorithms.setter
     def key_algorithms(self, algorithms):
         self._key_algorithms = algorithms
+
+    @property
+    def sign_tool(self):
+        return self._sign_tool
+
+    @sign_tool.setter
+    def sign_tool(self, tool):
+        self._sign_tool = tool
+
+    @property
+    def key_source(self):
+        return self._key_source
+
+    @key_source.setter
+    def key_source(self, source):
+        self._key_source = source
+
+    @property
+    def bootloader_provider(self):
+        return self._bootloader_provider
+
+    @bootloader_provider.setter
+    def bootloader_provider(self, provider):
+        self._bootloader_provider = provider
+
+    @property
+    def version_provider(self):
+        return self._version_provider
+
+    @version_provider.setter
+    def version_provider(self, provider):
+        self._version_provider = provider
+
+    @property
+    def debug_certificate(self):
+        return self._debug_certificate
+
+    @debug_certificate.setter
+    def debug_certificate(self, debug_certificate):
+        self._debug_certificate = debug_certificate
+
+    @property
+    def policy_generator(self):
+        return self._policy_generator
+
+    @policy_generator.setter
+    def policy_generator(self, policy_generator):
+        self._policy_generator = policy_generator
+
+    @property
+    def test_packages(self):
+        return self._test_packages
+
+    @test_packages.setter
+    def test_packages(self, packages):
+        self._test_packages = packages

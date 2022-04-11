@@ -48,7 +48,7 @@
                 "bootloader_keys": [
                     {
                         "kid": 5,
-                        "key": "../../common/prebuilt/oem_state.json"
+                        "key": "../../common/p64/prebuilt/oem_state.json"
                     }
                 ],
                 "id": 0,
@@ -56,6 +56,7 @@
                 "acq_win": 100,
                 "wdt_timeout": 4000,
                 "wdt_enable": true,
+                "reset_after_failure": 0,
                 "monotonic": 0,
                 "clock_flags": 578,
                 "protect_flags": 1,
@@ -179,10 +180,10 @@
         "chain_of_trust": []
     },
     "pre_build": {
-        "oem_public_key": "../../common/prebuilt/oem_state.json",
-        "oem_private_key": "../../common/prebuilt/oem_state.json",
-        "hsm_public_key": "../../common/prebuilt/hsm_state.json",
-        "hsm_private_key": "../../common/prebuilt/hsm_state.json",
+        "oem_public_key": "../../common/p64/prebuilt/oem_state.json",
+        "oem_private_key": "../../common/p64/prebuilt/oem_state.json",
+        "hsm_public_key": "../../common/p64/prebuilt/hsm_state.json",
+        "hsm_private_key": "../../common/p64/prebuilt/hsm_state.json",
         "provision_group_private_key": false,
         "group_private_key": "../keys/grp_priv_key.json",
         "provision_device_private_key": false,

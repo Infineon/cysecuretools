@@ -14,15 +14,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 from cysecuretools.execute.programmer.pyocd_wrapper import Pyocd
+from cysecuretools.execute.programmer.openocd_wrapper import Openocd
 
 tools = {
-    'pyocd': Pyocd
+    'pyocd': Pyocd,
+    'openocd': Openocd
 }
 
 
 class ProgrammingTool:
     @staticmethod
-    def create(name):
+    def create(name, path=None):
+        """ Creates an instance of the on-chip debugger wrapper """
         tool_type = tools[name]
-        tool = tool_type()
+        tool = tool_type(name, path)
         return tool

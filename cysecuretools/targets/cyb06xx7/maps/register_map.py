@@ -13,10 +13,10 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from cysecuretools.core import RegisterMapBase
+from cysecuretools.core import RegisterMapBaseP64
 
 
-class RegisterMap_cyb06xx7(RegisterMapBase):
+class RegisterMap_cyb06xx7(RegisterMapBaseP64):
 
     #
     #  Entrance exam registers and constants

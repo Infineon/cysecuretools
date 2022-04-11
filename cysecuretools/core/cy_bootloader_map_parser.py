@@ -31,7 +31,7 @@ class CyBootloaderMapParser:
         :param filename: The JSON file.
         :return: JSON file as a dictionary.
         """
-        with open(filename) as f:
+        with open(filename, encoding='utf-8') as f:
             file_content = f.read()
             data = json.loads(file_content)
         return data

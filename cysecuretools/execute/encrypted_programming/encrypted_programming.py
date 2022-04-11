@@ -34,10 +34,10 @@ class EPMode(IntEnum):
 def program(tool, target, encrypted_image):
     tool.reset()
     encrypted_image_path = os.path.abspath(encrypted_image)
-    logger.info(f'Start encrypted programming of \'{encrypted_image_path}\':')
+    logger.info("Start encrypted programming of '%s':", encrypted_image_path)
 
     # Read keys ID and AES header
-    with open(encrypted_image, 'r') as f:
+    with open(encrypted_image, 'r', encoding='utf-8') as f:
         file_lines = f.readlines()
         host_key_id = int(file_lines[0].strip()[:2])
         dev_key_id = int(file_lines[0].strip()[2:4])
@@ -50,7 +50,7 @@ def program(tool, target, encrypted_image):
 
     # Init programming
     logger.debug('\nInit encrypted programming:')
-    logger.debug(f'AES header ({header_size}): {aes_header}')
+    logger.debug('AES header (%d): %s', header_size, aes_header)
     syscall_status = encrypted_programming(tool, target.register_map,
                                            EPMode.init, aes_header,
                                            host_key_id, dev_key_id)
@@ -60,7 +60,7 @@ def program(tool, target, encrypted_image):
     # Start programming
     logger.debug('\nStart encrypted programming:')
     text = ''
-    with open(encrypted_image, 'r') as f:
+    with open(encrypted_image, 'r', encoding='utf-8') as f:
         next(f)
         next(f)
         for line in f:
@@ -73,8 +73,8 @@ def program(tool, target, encrypted_image):
         addr = int(text[i:i + addr_bytes], 16)
         data = text[i + addr_bytes: i + addr_bytes + data_bytes]
 
-        logger.debug(f'\nRow address: {hex(addr)}')
-        logger.debug(f'Row data: {data}')
+        logger.debug('\nRow address: 0x%x', addr)
+        logger.debug('Row data: %s', data)
 
         syscall_status = encrypted_programming(tool, target.register_map,
                                                EPMode.data, data, 0, 0, addr)

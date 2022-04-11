@@ -16,26 +16,29 @@ limitations under the License.
 import os
 import json
 import logging
+from time import sleep
 from cysecuretools.execute.programmer.base import ProgrammerBase, ResetType, AP
 from pyocd.core.target import Target
 from pyocd.core.helpers import ConnectHelper
 from pyocd.flash.file_programmer import FileProgrammer
 from pyocd.flash.eraser import FlashEraser
 from pyocd import coresight
+from pyocd.core.exceptions import TransferError
 
 TARGET_MAP = os.path.join(os.path.dirname(__file__), 'pyocd_target_map.json')
 logger = logging.getLogger(__name__)
 
 
 class Pyocd(ProgrammerBase):
-    def __init__(self):
-        super(Pyocd, self).__init__()
+    def __init__(self, name, path=None):
+        super(Pyocd, self).__init__(name, path, require_path=False)
         self.session = None
         self.board = None
         self.target = None
         self.probe = None
         self.ap = None
         self._wait_for_target = None
+        self.probe_id = None
 
     @property
     def wait_for_target(self):
@@ -54,13 +57,14 @@ class Pyocd(ProgrammerBase):
         self._wait_for_target = value
 
     def connect(self, target_name=None, interface=None, probe_id=None,
-                ap='cm4', blocking=True):
+                ap='cm4', acquire=None, blocking=True):
         """
         Connects to target using default debug interface.
         :param target_name: The target name.
         :param interface: Debug interface.
         :param ap: The access port used for communication (cm0 or cm4).
         :param probe_id: Probe serial number.
+        :param acquire: Indicates whether to acquire device on connect
         :param blocking: Specifies whether to wait for a probe to be
                connected if there are no available probes.
         :return: True if connected successfully, otherwise False.
@@ -69,9 +73,9 @@ class Pyocd(ProgrammerBase):
             raise NotImplementedError
         else:
             if target_name:
-                logger.info(f'Target: {target_name}')
+                logger.info('Target: %s', target_name)
                 # Search for device in target map
-                with open(TARGET_MAP) as f:
+                with open(TARGET_MAP, encoding='utf-8') as f:
                     file_content = f.read()
                     json_data = json.loads(file_content)
                 for json_target in json_data:
@@ -99,18 +103,64 @@ class Pyocd(ProgrammerBase):
 
             self.target = self.board.target
             self.probe = self.session.probe
+            self.probe_id = self.probe.unique_id
             self.ap = ap
             self.set_ap(AP.SYS)
-            logger.info(f'Probe ID: {self.probe.unique_id}')
+            logger.info('Probe ID: %s', self.probe.unique_id)
             return True
 
     def disconnect(self):
-        """
-        Closes active connection.
-        """
+        """ Closes the active connection. """
+        
+        def close_session():
+            """
+            Close the session.
+            Uninits the board and disconnects then closes the probe.
+            """
+            # pylint: disable=protected-access
+            if self.session._closed:
+                return
+
+            logger.debug('uninit session %s', self)
+            if self.session._inited:
+                uninit_board()
+                self.session._inited = False
+
+            if self.probe.is_open:
+                self.probe.disconnect()
+                self.probe.close()
+
+            self.session._closed = True
+
+        def uninit_board():
+            """ Uninitialize the board."""
+            # pylint: disable=protected-access
+            if self.board._inited:
+                logger.debug('uninit board %s', self)
+                self.board.target.disconnect(False)
+                self.board._inited = False
+
+        logger.debug('disconnect::enter')
         if self.session is None:
             raise ValueError('Debug session is not initialized.')
-        self.session.close()
+
+        self.resume()
+        # Avoid race condition when the bootloader does flash
+        # operations at the moment the tool tries to disconnect
+        counter = 0
+        timeout = 10
+        while True:
+            try:
+                logger.debug('disconnect attempt #%d', counter)
+                close_session()
+                break
+            except TransferError as e:
+                if counter < timeout:
+                    sleep(1)
+                    counter += 1
+                else:
+                    raise e
+        logger.debug('disconnect::exit')
 
     def get_ap(self):
         """
@@ -121,7 +171,7 @@ class Pyocd(ProgrammerBase):
             ap = AP.SYS
         elif self.target.selected_core == self.target.cores[1]:
             ap = AP.CMx
-        logger.debug(f'AP: {ap}')
+        logger.debug('AP: %s', ap)
         return ap
 
     def set_ap(self, ap):
@@ -143,7 +193,7 @@ class Pyocd(ProgrammerBase):
             self.target.selected_core = 1
             self._start_core()
         elif ap == AP.CMx:
-            logger.info(f'Use {self.ap} AP')
+            logger.info('Use %s AP', self.ap)
             self.target.selected_core = 1
             self._start_core()
         else:
@@ -197,7 +247,7 @@ class Pyocd(ProgrammerBase):
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
-        logger.debug(f'reset ({reset_type})')
+        logger.debug('reset (%s)', reset_type)
         self.target.reset(reset_type=self._pyocd_reset_type(reset_type))
 
     def reset_and_halt(self, reset_type=ResetType.SW):
@@ -207,7 +257,7 @@ class Pyocd(ProgrammerBase):
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
-        logger.debug(f'reset_and_halt ({reset_type})')
+        logger.debug('reset_and_halt (%s)', reset_type)
         self.target.reset_and_halt(reset_type=self._pyocd_reset_type(
             reset_type))
 
@@ -220,7 +270,7 @@ class Pyocd(ProgrammerBase):
         if self.target is None:
             raise ValueError('Target is not initialized.')
         data = self.target.read_memory(address, transfer_size=8)
-        logger.debug(f'read8 ({hex(address)}): {hex(data)}')
+        logger.debug('read8 (0x%x): 0x%x', address, data)
         return data
 
     def read16(self, address):
@@ -233,7 +283,7 @@ class Pyocd(ProgrammerBase):
             raise ValueError('Target is not initialized.')
         if (address & 0x01) == 0:
             data = self.target.read_memory(address, transfer_size=16)
-            logger.debug(f'read16 ({hex(address)}): {hex(data)}')
+            logger.debug('read16 (0x%x): 0x%x', address, data)
             return data
         else:
             raise ValueError('Address not aligned.')
@@ -248,7 +298,7 @@ class Pyocd(ProgrammerBase):
             raise ValueError('Target is not initialized.')
         if (address & 0x03) == 0:
             data = self.target.read_memory(address, transfer_size=32)
-            logger.debug(f'read32 ({hex(address)}): {hex(data)}')
+            logger.debug('read32 (0x%x): 0x%x', address, data)
             return data
         else:
             raise ValueError('Address not aligned.')
@@ -261,7 +311,7 @@ class Pyocd(ProgrammerBase):
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
-        logger.debug(f'write8 ({hex(address)}): {hex(value)}')
+        logger.debug('write8 (0x%x): 0x%x', address, value)
         data = self.target.write_memory(address, value, transfer_size=8)
         return data
 
@@ -273,7 +323,7 @@ class Pyocd(ProgrammerBase):
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
-        logger.debug(f'write16 ({hex(address)}): {hex(value)}')
+        logger.debug('write16 (0x%x): 0x%x', address, value)
         data = self.target.write_memory(address, value, transfer_size=16)
         return data
 
@@ -285,7 +335,7 @@ class Pyocd(ProgrammerBase):
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
-        logger.debug(f'write32 ({hex(address)}): {hex(value)}')
+        logger.debug('write32 (0x%x): 0x%x', address, value)
         data = self.target.write_memory(address, value, transfer_size=32)
         return data
 
@@ -296,12 +346,9 @@ class Pyocd(ProgrammerBase):
         :return: The register value.
         """
         reg = reg_name.lower()
-        if reg in coresight.cortex_m.CORE_REGISTER:
-            value = self.target.read_core_register(reg)
-            logger.debug(f'read_reg ({reg_name}): {hex(value)}')
-            return value
-        else:
-            raise ValueError(f'Unknown core register {reg}.')
+        value = self.target.read_core_register(reg)
+        logger.debug('read_reg (%s): 0x%x', reg_name, value)
+        return value
 
     def write_reg(self, reg_name, value):
         """
@@ -311,11 +358,8 @@ class Pyocd(ProgrammerBase):
         :return: The register value.
         """
         reg = reg_name.lower()
-        if reg in coresight.cortex_m.CORE_REGISTER:
-            logger.debug(f'write_reg ({reg_name}): {hex(value)}')
-            self.target.write_core_register(reg, value)
-        else:
-            raise ValueError(f'Unknown core register {reg}.')
+        logger.debug('write_reg (%s): 0x%x', reg_name, value)
+        self.target.write_core_register(reg, value)
 
     def erase(self, address, size):
         """
@@ -330,7 +374,7 @@ class Pyocd(ProgrammerBase):
             raise ValueError('Address 0x%08x is not in flash.' % address)
         eraser = FlashEraser(self.session, FlashEraser.Mode.SECTOR)
         address_range = f"{hex(address)}-{hex(address + size)}"
-        logger.debug(f'erase {address_range}')
+        logger.debug('erase %s', address_range)
         eraser.erase([address_range])
 
     def program(self, filename, file_format=None, address=None):
@@ -346,7 +390,7 @@ class Pyocd(ProgrammerBase):
         if self.session is None:
             raise ValueError('Debug session is not initialized.')
         programmer = FileProgrammer(self.session, chip_erase='sector')
-        logger.debug(f'program {filename}')
+        logger.debug('program %s', filename)
         programmer.program(filename, base_address=address,
                            file_format=file_format)
 
@@ -360,8 +404,8 @@ class Pyocd(ProgrammerBase):
         if self.target is None:
             raise ValueError('Target is not initialized.')
         data = self.target.read_memory_block8(address, length)
-        logger.debug(f'Read block (address={hex(address)}, length={length}: '
-                     f'{data}')
+        logger.debug('Read block (address=0x%x, length=%s): %s',
+                     address, length, data)
         return data
 
     @staticmethod
@@ -377,8 +421,13 @@ class Pyocd(ProgrammerBase):
         :param value: Indicates whether to skip or not
         """
         for i in range(len(self.target.cores)):
-            logger.debug(f'core #{i}, skip_reset_and_halt = {value}')
+            logger.debug('core #%d, skip_reset_and_halt = %s', i, value)
             self.target.cores[i].skip_reset_and_halt = value
+
+    def examine_ap(self):
+        """
+        N/A for pyOCD
+        """
 
     def _set_acquire_timeout(self, timeout):
         """
@@ -398,3 +447,7 @@ class Pyocd(ProgrammerBase):
         else:
             raise ValueError(f'Unknown reset type {reset_type}')
         return pyocd_reset_type
+
+    def get_voltage(self):
+        """ Reads target voltage """
+        raise NotImplementedError

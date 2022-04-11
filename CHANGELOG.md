@@ -1,6 +1,29 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## 4.0.0
+### Added
+- Support of CYW20829 devices
+- Support Python 3.10
+- Signing images with HSM
+
+### Changed
+- Separated PSoC 64 and CYW20829 devices CLI
+- Updated PSoC 64 CyBootloader for 512k and 2M:
+  - added "reset_after_failure" feature
+  - decreased boot time
+- Protect PSA API from NSPE in PSoC 64 2M-S0 policy
+- Prevent signing of already signed images
+- Change MCUboot image header padding to erase value
+- Use CyBootloader from the project directory if the project exists
+- Updated dependencies packages to the latest versions
+- Use pyocd 0.32.3
+
+## 3.1.1
+### Changed
+- Fixed installation failure on macOS Big Sur and Apple M1 chip
+- Fixed installation failure in Python 3.9
+
 ## 3.1.0
 ### Added
 - SCRATCH with Status Partition swap mode

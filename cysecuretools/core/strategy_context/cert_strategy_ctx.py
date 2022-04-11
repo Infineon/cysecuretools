@@ -26,7 +26,7 @@ class CertificateStrategy(ABC):
         pass
 
     @abstractmethod
-    def default_certificate_data(self, tool, target, entrance_exam, probe_id):
+    def default_certificate_data(self, tool, target, probe_id):
         pass
 
 
@@ -58,9 +58,8 @@ class CertificateContext:
         return self._strategy.create_certificate(filename, encoding, overwrite,
                                                  **kwargs)
 
-    def default_certificate_data(self, tool, target, entrance_exam, probe_id):
+    def default_certificate_data(self, tool, target, probe_id):
         """
         Delegates work to the Strategy object.
         """
-        return self._strategy.default_certificate_data(tool, target,
-                                                       entrance_exam, probe_id)
+        return self._strategy.default_certificate_data(tool, target, probe_id)

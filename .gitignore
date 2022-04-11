@@ -3,4 +3,4 @@ __pycache__
 .idea
 logs
 output
-cysecuretools/targets/common/json/filtered.json
+cysecuretools/targets/common/p64/json/filtered.json

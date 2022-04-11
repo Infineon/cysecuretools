@@ -13,50 +13,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import os
 import json
 import logging
 from jose import jwk, exceptions
 from jose.constants import ALGORITHMS
+from cryptography.hazmat.backends import default_backend
+from cryptography.hazmat.primitives import serialization
+
 import cysecuretools.execute.keygen as keygen
-from cysecuretools.execute.provisioning_lib.cyprov_crypto import Crypto
-from cysecuretools.execute.provisioning_lib.cyprov_pem import PemKey
-from cysecuretools.execute.sys_call import get_prov_details
+from cysecuretools.execute.provisioning_packet.lib.cyprov_pem import PemKey
 
 logger = logging.getLogger(__name__)
-
-
-class KeyReaderMXS40V1:
-    def __init__(self, target):
-        self.target = target
-        self.policy_parser = target.policy_parser
-        self.policy_dir = self.policy_parser.policy_dir
-
-    def read_public_key(self, tool, key_id, key_format='jwk'):
-        passed, key = get_prov_details(tool, self.target.register_map, key_id)
-        if passed:
-            logger.debug(f'Public key (key_id={key_id}) read successfully')
-            logger.debug(f'{key}')
-            pub_key = json.loads(key)
-
-            if key_format == 'jwk':
-                return pub_key
-            elif key_format == 'pem':
-                return jwk_to_pem(pub_key)
-            else:
-                raise ValueError(f'Invalid key format \'{key_format}\'')
-        else:
-            logger.error(f'Cannot read public key (key_id={key_id})')
-            return None
-
-    def get_cypress_public_key(self):
-        """
-        Gets Cypress public key from cy_auth JWT packet.
-        :return: Cypress public key (JWK).
-        """
-        jwt_text = Crypto.read_jwt(self.policy_parser.get_cy_auth())
-        json_data = Crypto.readable_jwt(jwt_text)
-        return json_data["payload"]['cy_pub_key']
 
 
 def jwk_to_pem(json_key, private_key=False):
@@ -65,8 +32,8 @@ def jwk_to_pem(json_key, private_key=False):
     return pem_key
 
 
-def get_aes_key(key_size):
-    return keygen.generate_aes_key(key_size)
+def get_aes_key(key_size, fmt):
+    return keygen.generate_aes_key(key_size=key_size, fmt=fmt).private
 
 
 def load_key(key):
@@ -78,7 +45,7 @@ def load_key(key):
     priv_key = None
     pub_key = None
 
-    with open(key, 'r') as f:
+    with open(key, 'r', encoding='utf-8') as f:
         key_str = f.read()
 
     key_json = json.loads(key_str)
@@ -113,7 +80,7 @@ def load_key(key):
                 priv_key = None
                 pub_key = key_json
         except exceptions.JWKError:
-            logger.error(f'Failed to load key {key}')
+            logger.error('Failed to load key %s', key)
             priv_key = None
             pub_key = None
     else:
@@ -138,3 +105,15 @@ def load_key(key):
                 ValueError(f'Public key not found in {key}')
 
     return priv_key, pub_key
+
+
+def is_private_key(path):
+    with open(path, 'rb') as f:
+        raw_pem = f.read()
+    try:
+        serialization.load_pem_private_key(
+            raw_pem, password=None, backend=default_backend())
+        return True
+    except ValueError:
+        serialization.load_pem_public_key(raw_pem, backend=default_backend())
+        return False

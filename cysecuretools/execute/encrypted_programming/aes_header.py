@@ -1,5 +1,5 @@
 """
-Copyright (c) 2020 Cypress Semiconductor Corporation
+Copyright (c) 2020-2021 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -15,7 +15,8 @@ limitations under the License.
 """
 import copy
 import logging
-from cysecuretools.execute.encrypted_programming.aes_cipher import *
+from cysecuretools.execute.encrypted_programming.aes_cipher import (
+    AESCipherCBC, read_key_from_file)
 from cysecuretools.execute.encrypted_programming.ecc_kdf import EcdhKdf
 
 logger = logging.getLogger(__name__)
@@ -48,7 +49,7 @@ class AesHeader:
 
         aes_header = AesHeader._get_header_info(kdf_object, key_to_encrypt)
         aes_header_hex = aes_header.hex()
-        logger.debug(f'aes_header={aes_header_hex}')
+        logger.debug('aes_header=%s', aes_header_hex)
 
         return aes_header_hex
 
@@ -74,12 +75,12 @@ class AesHeader:
         for i in range(len(aes_key_iv_padding)):
             aes_key_iv_padding[i] = aes_key_iv_padding[i]
 
-        logger.debug('Key  (%2d): %s'
-                     % (len(key_encrypted), list(key_encrypted)))
-        logger.debug('Salt (%2d): %s'
-                     % (len(kdf_object.salt), list(kdf_object.salt)))
-        logger.debug('Info (%2d): %s'
-                     % (len(kdf_object.info), list(kdf_object.info)))
+        logger.debug(
+            'Key  (%2d): %s', len(key_encrypted), list(key_encrypted))
+        logger.debug(
+            'Salt (%2d): %s', len(kdf_object.salt), list(kdf_object.salt))
+        logger.debug(
+            'Info (%2d): %s', len(kdf_object.info), list(kdf_object.info))
 
         key_len = len(key_to_enc).to_bytes(1, 'little')
         aes_header = key_len + key_encrypted + kdf_object.salt + kdf_object.info
@@ -101,7 +102,6 @@ class AesHeader:
                 tmp_list.clear()
                 cnt = 1
                 tmp_list.append(in_list[i])
-        else:
-            if len(tmp_list) > 0:
-                res_list.append(tmp_list)
+        if len(tmp_list) > 0:
+            res_list.append(tmp_list)
         return res_list

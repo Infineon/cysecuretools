@@ -1,0 +1,18 @@
+{
+  "cy8cproto-064s1-sb": {"target": "psoc6_secure", "mcu": "psoc64.cpu"},
+  "cy8cproto-064b0s1-ble": {"target": "psoc6_secure", "mcu": "psoc64.cpu"},
+  "cy8cproto-064b0s1-ssa": {"target": "psoc6_secure", "mcu": "psoc64.cpu"},
+  "cyb06xx7": {"target": "psoc6_secure", "mcu": "psoc64.cpu"},
+
+  "cy8cproto-064s2-sb": {"target": "psoc6_2m_secure", "mcu": "psoc64.cpu"},
+  "cy8ckit-064b0s2-4343w": {"target": "psoc6_2m_secure", "mcu": "psoc64.cpu"},
+  "cy8ckit-064s0s2-4343w": {"target": "psoc6_2m_secure", "mcu": "psoc64.cpu"},
+  "cyb06xxa": {"target": "psoc6_2m_secure","mcu": "psoc64.cpu"},
+  "cys06xxa": {"target": "psoc6_2m_secure", "mcu": "psoc64.cpu"},
+
+  "cyb06445lqi-s3d42": {"target": "psoc6_512k_secure", "mcu": "psoc64.cpu"},
+  "cy8cproto-064b0s3": {"target": "psoc6_512k_secure", "mcu": "psoc64.cpu"},
+  "cyb06xx5": {"target": "psoc6_512k_secure", "mcu": "psoc64.cpu"},
+
+  "cyw20829": {"target": "cyw20829", "mcu": "cyw20829"}
+}

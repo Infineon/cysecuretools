@@ -13,10 +13,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from cysecuretools.core.policy_parser_base import PolicyParserBase
 from cysecuretools.core.policy_filter_base import PolicyFilterBase
 from cysecuretools.core.policy_validator_base import PolicyValidatorBase
-from cysecuretools.core.register_map_base import RegisterMapBase
-from cysecuretools.core.memory_map_base import MemoryMapBase
+from cysecuretools.core.register_map_base import \
+    RegisterMapBaseP64, \
+    RegisterMapBaseCYW20829
+from cysecuretools.core.memory_map_base import \
+    MemoryMapBaseP64, \
+    MemoryMapBaseCYW20829
 from cysecuretools.core.target_director import TargetBuilder
 from cysecuretools.core.memory_area import MemoryArea
+from cysecuretools.core.key_data import KeyData

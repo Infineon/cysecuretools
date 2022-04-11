@@ -18,7 +18,7 @@ from abc import ABCMeta, abstractmethod
 
 
 class ResetType(Enum):
-    SW = 1,
+    SW = 1
     HW = 2
 
 
@@ -32,11 +32,14 @@ class AP(Enum):
     CM0 = 'cm0'
     CM4 = 'cm4'
     CMx = 'cmx'
+    CM33 = 'cm33'
 
 
 class ProgrammerBase(metaclass=ABCMeta):
-    def __init__(self):
-        pass
+    def __init__(self, name, path, require_path=True):
+        self.name = name
+        self.tool_path = path
+        self.require_path = require_path
 
     @property
     def wait_for_target(self):
@@ -56,13 +59,14 @@ class ProgrammerBase(metaclass=ABCMeta):
 
     @abstractmethod
     def connect(self, target_name=None, interface=None, probe_id=None,
-                ap=None, blocking=True):
+                ap=None, acquire=True, blocking=True):
         """
         Connects to target.
         :param target_name: The target name.
         :param interface: Debug interface.
         :param probe_id: Probe serial number.
         :param ap: The access port used for communication.
+        :param acquire: Indicates whether to acquire device on connect
         :param blocking: Specifies whether to wait for a probe to be
                connected if there are no available probes
         :return: True if connected successfully, otherwise False.
@@ -85,7 +89,7 @@ class ProgrammerBase(metaclass=ABCMeta):
         raise NotImplementedError()
 
     @abstractmethod
-    def set_ap(self):
+    def set_ap(self, ap):
         """
         Sets access port.
         """
@@ -244,4 +248,16 @@ class ProgrammerBase(metaclass=ABCMeta):
         for pyOCD and likely should not be implemented for other tools
         :param value: Indicates whether to skip or not
         """
-        pass
+
+    def examine_ap(self):
+        """
+        Examines CMx (depending on selected ap for connection) AP
+        without reset. This is applicable for OpenOCD and likely should
+        not be implemented for other tools
+        """
+
+    @abstractmethod
+    def get_voltage(self):
+        """Reads target voltage
+        :@return Voltage value in Volts
+        """

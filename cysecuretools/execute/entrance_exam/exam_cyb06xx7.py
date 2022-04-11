@@ -17,7 +17,7 @@ import hashlib
 import logging
 from cysecuretools.core.target_director import Target
 from cysecuretools.core.enums import EntranceExamStatus
-from cysecuretools.execute.provisioning_lib.cyprov_crypto import Crypto
+from cysecuretools.execute.provisioning_packet.lib import Crypto
 from cysecuretools.execute.entrance_exam.exam_mxs40v1 import \
     EntranceExamMXS40v1
 
@@ -114,27 +114,27 @@ class EntranceExamCyb06xx7(EntranceExamMXS40v1):
             logger.debug('Read SFB TOC1 objects')
             for addr_value_pair in segments:
                 for address, read_size in addr_value_pair.items():
-                    logger.debug(f'Address: {hex(address)}, '
-                                 f'Size: {hex(read_size)}')
+                    logger.debug(
+                        'Address: 0x%x, Size: 0x%x', address, read_size)
                     if read_size != 0:
                         # Read bytes from specific address and calculate hash
                         # from it
                         data = tool.read(address, read_size)
                         binary = bytes(data)
-                        logger.debug(f'Data: {data}')
-                        logger.debug(f'Binary data: {binary}')
+                        logger.debug('Data: %s', data)
+                        logger.debug('Binary data: %s', binary)
                         sha256.update(binary)
                     else:
                         # Hash should be calculated from 'address' value
                         byte_list = address.to_bytes(self.word_size,
                                                      byteorder='little',
                                                      signed=False)
-                        logger.debug(f'Data: {address}')
-                        logger.debug(f'Binary data: {byte_list}')
+                        logger.debug('Data: %s', address)
+                        logger.debug('Binary data: %s', byte_list)
                         sha256.update(byte_list)
             sfb_hash = list(sha256.digest())
             sfb_hash = self._truncate_list(sfb_hash, truncate_to_bytes)
-            logger.debug(f'SFB hash: {sfb_hash}')
+            logger.debug('SFB hash: %s', sfb_hash)
         else:
             logger.error('No SecureFlashBoot TOC1 segments')
             sfb_hash = None
@@ -148,22 +148,22 @@ class EntranceExamCyb06xx7(EntranceExamMXS40v1):
 
         if len(sfb_hash) < self.asset_hash_len:
             logger.error(
-                f'Invalid length of SFB asset hash array {len(sfb_hash)}')
+                'Invalid length of SFB asset hash array %d', len(sfb_hash))
             return False
 
         for i in range(self.asset_hash_len):
             item = self._get_jwt_item_by_name(items, f'ASSET_HASH byte {i}')
 
             logger.info('.' * 70)
-            logger.info(f'Verify {item["description"]}')
+            logger.info('Verify %s', item['description'])
             logger.info('.' * 70)
 
             expected_value = int(item['value'], 0)
-            recieved_value = sfb_hash[i]
+            received_value = sfb_hash[i]
 
-            logger.info(f'Expected value:     {hex(expected_value)}')
-            logger.info(f'Received value:     {hex(recieved_value)}')
-            if recieved_value == expected_value:
+            logger.info('Expected value:     0x%x', expected_value)
+            logger.info('Received value:     0x%x', received_value)
+            if received_value == expected_value:
                 logger.info('PASS\n')
             else:
                 logger.info('FAIL\n')

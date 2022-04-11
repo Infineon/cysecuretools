@@ -1,5 +1,5 @@
 """
-Copyright (c) 2018-2020 Cypress Semiconductor Corporation
+Copyright (c) 2018-2021 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,6 +18,7 @@ import hashlib
 from datetime import datetime
 from click import BadParameter
 from intelhex import IntelHex
+from cysecuretools.core.json_helper import dump_json
 import cysecuretools.execute.jwt as jwt
 import cysecuretools.execute.sys_call as sys_call
 from cysecuretools.execute.key_reader import load_key
@@ -34,7 +35,7 @@ class ImageCertificate:
         self.priv_key, self.pub_key = load_key(self.key)
 
     @staticmethod
-    def validate_version(ctx, param, version_string):
+    def validate_version(_ctx, _param, version_string):
         """
         Returns input string if it has a valid format.
         Otherwise raises ValueError exception.
@@ -47,26 +48,28 @@ class ImageCertificate:
 
         try:
             if len(version_list) != len(version_format.split('.')):
-                raise ValueError(f'Version string must be in format {version_format}')
+                raise ValueError(
+                    f'Version string must be in format {version_format}')
 
             for item in version_list:
                 int(item)
 
         except ValueError as error:
-            raise BadParameter("{}".format(error))
+            raise BadParameter("{}".format(error)) from error
 
         return version_string
 
     @staticmethod
-    def validate_date(ctx, param, date_str):
+    def validate_date(_ctx, _param, date_str):
         """
         Returns input string if it has a valid format.
         Otherwise raises ValueError exception.
         """
         try:
             ImageCertificate.str_to_date(date_str)
-        except ValueError:
-            raise BadParameter(f'\'{date_str}\' does not match format \'Jan 1 2031\'')
+        except ValueError as e:
+            raise BadParameter(
+                f"'{date_str}' does not match format 'Jan 1 2031'") from e
         return date_str
 
     @staticmethod
@@ -118,6 +121,7 @@ class ImageCertificate:
         """
         Create JWT certificate
         """
+        dump_json(payload, os.path.splitext(self.output)[0] + '.json')
         jwt.create_jwt(payload, self.priv_key, self.output, 'ES256')
 
     def create(self):
