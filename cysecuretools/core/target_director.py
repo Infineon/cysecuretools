@@ -54,6 +54,7 @@ class TargetDirector:
         target.target_dir = self._builder.target_dir
 
         target.ocds = self._builder.get_ocds()
+        target.ocd_config = self._builder.get_ocd_config()
 
         # Memory map
         memory_map = self._builder.get_memory_map()
@@ -156,6 +157,7 @@ class Target:
         self._policy = None
         self._default_policy = None
         self._ocds = None
+        self._ocd_config = None
         self._is_default_policy = None
         self._memory_map = None
         self._register_map = None
@@ -211,6 +213,14 @@ class Target:
     @ocds.setter
     def ocds(self, ocds):
         self._ocds = ocds
+
+    @property
+    def ocd_config(self):
+        return self._ocd_config
+
+    @ocd_config.setter
+    def ocd_config(self, ocd_config):
+        self._ocd_config = ocd_config
 
     @property
     def is_default_policy(self):

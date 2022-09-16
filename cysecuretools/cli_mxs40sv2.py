@@ -497,17 +497,8 @@ def cmd_sign_image(ctx, image, erased_val, key_id, key_path, image_config,
 
         from .targets.common.mxs40sv2.enums import PolicyType
         policy_type = ctx.obj['TOOL'].policy_parser.get_policy_type()
-        if PolicyType.REPROVISIONING_SECURE == policy_type:
-            if update_key_id is None and update_key_path is None:
-                sys.stderr.write(
-                    "Either '--update-key-id' or '--update-key-path' option "
-                    "must be specified to sign the update data packets.\n")
-                sys.exit(2)
-            elif update_key_id and update_key_path:
-                sys.stderr.write(
-                    "The '--update-key-id' and '--update-key-path' options "
-                    "are mutually exclusive.\n")
-                sys.exit(2)
+        if policy_type == PolicyType.REPROVISIONING_SECURE:
+            validate_update_key(update_key_id, update_key_path)
 
     return process
 
@@ -549,10 +540,16 @@ def cmd_sign_image(ctx, image, erased_val, key_id, key_path, image_config,
               help='Use Overwrite mode instead of Swap')
 @click.option('--align', type=click.Choice(['1', '2', '4', '8']), default='8',
               help='Flash alignment')
+@click.option('--update-key-id', type=click.Choice(['0', '1']),
+              help='OEM private key ID used to sign the update data packet')
+@click.option('--update-key-path', type=click.Path(),
+              help='The key used to sign the update data packet. Overrides '
+                   'the --update-key-id option')
 @click.pass_context
 def cmd_extend_image(ctx, image, pubkey, erased_val, image_config, output,
                      protected_tlv, header_size, slot_size, hex_addr,
-                     image_format, pad, confirm, overwrite_only, align):
+                     image_format, pad, confirm, overwrite_only, align,
+                     update_key_id, update_key_path):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
@@ -565,13 +562,24 @@ def cmd_extend_image(ctx, image, pubkey, erased_val, image_config, output,
             header_size=header_size, skip_tlv_info=True,
             hex_addr=hex_addr, image_format=image_format, pad=pad,
             confirm=confirm, overwrite_only=overwrite_only,
-            align=align)
+            align=align,
+            update_key_id=
+            None if update_key_path or update_key_id is None else int(
+                update_key_id),
+            update_key_path=update_key_path
+        )
         return result is not None
 
     def validate_args():
         if image_format == 'bootrom_next_app' and not pubkey:
             sys.stderr.write("Error: Missing option '--pubkey'.\n")
             sys.exit(2)
+
+        from .targets.common.mxs40sv2.enums import PolicyType
+        if ctx.obj['TOOL'].policy_parser.json:
+            policy_type = ctx.obj['TOOL'].policy_parser.get_policy_type()
+            if policy_type == PolicyType.REPROVISIONING_SECURE:
+                validate_update_key(update_key_id, update_key_path)
 
     return process
 
@@ -722,6 +730,19 @@ def cmd_convert_to_rma(ctx, cert, probe_id, ap, testapps, testapps_si):
             cert=cert, probe_id=probe_id, ap=ap,
             testapps=test_pkg_type(testapps, testapps_si))
     return process
+
+
+def validate_update_key(update_key_id, update_key_path):
+    if update_key_id is None and update_key_path is None:
+        sys.stderr.write(
+            "Either '--update-key-id' or '--update-key-path' option "
+            "must be specified to sign the update data packets.\n")
+        sys.exit(2)
+    elif update_key_id and update_key_path:
+        sys.stderr.write(
+            "The '--update-key-id' and '--update-key-path' options "
+            "are mutually exclusive.\n")
+        sys.exit(2)
 
 
 def test_pkg_type(testapps=False, testapps_si=False):

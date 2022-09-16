@@ -41,6 +41,26 @@ class ProgrammerBase(metaclass=ABCMeta):
         self.tool_path = path
         self.require_path = require_path
 
+    def _start_core(self):
+        """
+        Writes infinite loop into RAM and starts core execution.
+        CM0 will not be able to execute sys calls in case it is in
+        undefined state.
+        """
+        start_core_program_address = 0x08000000
+        program_counter_address = 0x08000000
+        stack_pointer_address = 0x08001000
+        thumb_bit_address = 0x01000000
+        infinite_loop_code = 0xE7FEB662
+        self.halt()
+        # B662 - CPSIE I - Enable IRQ by clearing PRIMASK
+        # E7FE - B - Jump to address (argument is an offset)
+        self.write32(start_core_program_address, infinite_loop_code)
+        self.write_reg('pc', program_counter_address)
+        self.write_reg('sp', stack_pointer_address)
+        self.write_reg('xpsr', thumb_bit_address)
+        self.resume()
+
     @property
     def wait_for_target(self):
         """
@@ -59,7 +79,8 @@ class ProgrammerBase(metaclass=ABCMeta):
 
     @abstractmethod
     def connect(self, target_name=None, interface=None, probe_id=None,
-                ap=None, acquire=True, blocking=True):
+                ap=None, acquire=True, blocking=True, reset_and_halt=False,
+                power=None, voltage=None):
         """
         Connects to target.
         :param target_name: The target name.
@@ -69,6 +90,10 @@ class ProgrammerBase(metaclass=ABCMeta):
         :param acquire: Indicates whether to acquire device on connect
         :param blocking: Specifies whether to wait for a probe to be
                connected if there are no available probes
+        :param reset_and_halt: Indicates whether to do reset and halt
+               after connect
+        :param power: Target power
+        :param voltage: Target power voltage
         :return: True if connected successfully, otherwise False.
         """
         raise NotImplementedError()
@@ -228,10 +253,19 @@ class ProgrammerBase(metaclass=ABCMeta):
     @abstractmethod
     def read(self, address, length):
         """
-        Reads specified number of bytes from memory
+        Reads a block of unaligned bytes in memory
         :param address: The memory address where start reading
         :param length: Number of bytes to read
         :return: Values array
+        """
+        raise NotImplementedError()
+
+    @abstractmethod
+    def write(self, address, data):
+        """
+        Writes a block of unaligned bytes in memory
+        :param address: The memory address where start writing
+        :param data: Data block
         """
         raise NotImplementedError()
 

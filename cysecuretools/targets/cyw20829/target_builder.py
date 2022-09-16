@@ -44,6 +44,14 @@ class CYW20829Builder(TargetBuilder):
     def get_ocds(self):
         return ['openocd']
 
+    def get_ocd_config(self):
+        return {
+            'openocd': {
+                'before_init': 'cyw20829.cm33 configure -defer-examine',
+                'after_init': 'targets cyw20829.sysap'
+            }
+        }
+
     def get_memory_map(self):
         memory_map = MemoryMapCYW20829()
         return memory_map

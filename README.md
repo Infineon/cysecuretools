@@ -17,8 +17,12 @@ This package contains security tools for creating keys, creating certificates, s
 * General
   * Python 3.6 or later
 * For PSoC 64 devices
-  * [Installed the libusb driver](#installing-libusb-driver)
-  * Ensure the KitProg3 programming mode is **DAPLink**
+  * In case of use PyOCD:
+    * [Installed the libusb driver](#installing-libusb-driver) 
+    * Ensure the KitProg3 programming mode is **DAPLink**
+  * In case of use OpenOCD:
+    * [Installed Cypress OpenOCD](https://github.com/cypresssemiconductorco/openocd/releases)
+    * Ensure the KitProg3 programming mode is **CMSIS-DAP Bulk**
   * Ensure the power selection jumper is set to provide 2.5 V to the power supply pin related to eFuse power. This voltage level is required to blow eFuses
 * For CYW20829 devices
   * [Installed Cypress OpenOCD](https://github.com/cypresssemiconductorco/openocd/releases)
@@ -73,6 +77,26 @@ When using _pyOCD_ as a debugger, the log files contain messages sent by both to
 
 
 # Known issues
+- Using the policy from version 4.0.0 in projects created by version 4.1.0 causes the CY_FB_INVALID_IMG_JWT_SIGNATURE error during re-provisioning on PSoC64-2M devices:
+```
+  ...
+  ERROR : SFB status: CY_FB_INVALID_IMG_JWT_SIGNATURE: Invalid image certificate signature. Check the log for details
+```
+_Workaround_:
+1. Open the policy file. 
+2. Navigate to section 1 of the `boot_upgrade/firmware`. 
+3. Set `boot_auth` and `bootloader_keys` as follows:
+```
+"boot_auth": [
+    3
+],
+"bootloader_keys": [
+    {
+        "kid": 3,
+        "key": "../keys/cy_pub_key.json"
+    }
+]
+```
 - During the installation of the package via _pip_ on Mac OS Big Sur, the following exception is raised:
 ```
   ...

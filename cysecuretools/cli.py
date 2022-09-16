@@ -69,7 +69,7 @@ def main(ctx, target, policy, verbose, quiet,
     cysecuretools <COMMAND> --help
 
     \b
-    For detailed description of using CySecureTools please refer to readme.md
+    For detailed usage description refer to readme.md
     """
     if quiet:
         LoggingConfigurator.disable_logging()
@@ -109,6 +109,32 @@ def process_pipeline(processors, **_):
         res = func()
         if not res:
             raise click.ClickException('Failed processing!')
+
+
+@main.command('power-on', hidden=True, help='Turns the power on')
+@click.option('-v', '--voltage', type=click.INT,
+              help='Sets target power voltage in mV')
+@click.pass_context
+def cmd_power_on(ctx, voltage):
+    @process_handler()
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        return ctx.obj['TOOL'].power_on(voltage)
+
+    return process
+
+
+@main.command('power-off', hidden=True, help='Turns the power off')
+@click.pass_context
+def cmd_target_power_off(ctx):
+    @process_handler()
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        return ctx.obj['TOOL'].power_off()
+
+    return process
 
 
 @main.command('device-list', help='List of supported devices')

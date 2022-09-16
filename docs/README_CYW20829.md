@@ -299,9 +299,16 @@ Extends a firmware image with the protected TLV area and [mcuboot header](https:
 | --confirm                 | optional           | Adds Image OK byte to image trailer. Needed for MCUBoot image upgrade.|
 | --overwrite-only          | optional           | Sets Overwrite mode in MCUBoot image header instead of Swap.|
 | --align [1\|2\|4\|8]      | optional           | Sets flash alignment. The default value is 8.|
+| --update-key-id [0\|1]    | optional           | Sets OEM private key ID used to sign the update data packet.|
+| --update-key-path         | optional           | The key used to sign the update data packet. Overrides the --update-key-id option.|
 ### Usage example
+#### Unsigned image with metadata:
 ```bash
 $ cysecuretools -t cyw20829 -p policy/policy_secure.json extend-image -i image.bin -o image_extended.bin --protected-tlv 0x1A 0x1000 --protected-tlv 0x3E 0123456789 --pubkey keys/pub_key.pem
+```
+#### Unsigned image with metadata and update package:
+```bash
+$ cysecuretools -t cyw20829 -p policy/policy_reprovisioning_secure.json extend-image -i image.bin -o image_extended.bin --pubkey keys/pub_key.pem --update-key-id 0
 ```
 
 

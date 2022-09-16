@@ -53,9 +53,20 @@
 # Quick start
 ## 1. Set On-Chip debugger
 ```bash
+$ cysecuretools set-ocd --name <NAME> --path <PATH>
+```
+To use PyOCD only name may be specified:
+
+_Example_:
+```bash
 $ cysecuretools set-ocd --name pyocd
 ```
-_NOTE_: There is pyOCD support only for the PSoC 64 device.
+To use openocd specify both name and path to OpenOCD:
+
+_Example_:
+```bash
+$ cysecuretools set-ocd --name openocd --path <PATH>
+```
 
 ## 2. Define a target
 Run the following command and find the name of your target in the list of supported targets.

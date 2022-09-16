@@ -205,6 +205,12 @@ class PolicyValidator(PolicyValidatorBase):
             if not result:
                 status = ValidationStatus.WARNING
 
+        if self._continue_validation(status):
+            logger.debug('Checking partitions overlaps')
+            result = self.check_partitions_overlap_in_sectors()
+            if not result:
+                status = ValidationStatus.ERROR
+
         if status == ValidationStatus.ERROR:
             logger.error('Policy validation finished with error')
         elif status == ValidationStatus.WARNING:
@@ -499,6 +505,71 @@ class PolicyValidator(PolicyValidatorBase):
         if slot_overlaps:
             return self.check_overlaps(all_slots_addr)
 
+        return True
+
+    @staticmethod
+    def is_ram(item_type):
+        """
+        Checks whether the item is placed in ram
+        @param item_type: Name of the item
+        @return: True if the item is placed in ram, otherwise False
+        """
+        return item_type in ('SRAM_SPM_PRIV', 'SRAM_DAP')
+
+    def is_common_cm0_cm4_slot(self, slot_id, item_type):
+        """
+        Checks whether the item is in a common cm0/cm4 slot
+        @param slot_id: Id of the slot
+        @param item_type: Name of the item
+        @return: True if the item is placed in a common cm0/cm4 slot,
+        otherwise False
+        """
+        return not self.is_multi_image and slot_id == 16 and item_type == 'BOOT'
+
+    def check_partitions_overlap_in_sectors(self):
+        """
+        Checks whether partitions are placed in separate sector.
+        @return: True if partitions are placed in separate sector,
+        otherwise False
+        """
+        accessed_sectors = {'internal': [], 'external': []}
+        for slot in self.parser.json['boot_upgrade']['firmware']:
+            for item in slot['resources']:
+                # Skip current item in case the item
+                # is in ram or in common cm0/cm4 slot
+                if self.is_ram(item['type']) or \
+                        self.is_common_cm0_cm4_slot(slot['id'], item['type']):
+                    continue
+
+                # Getting sector size in case if the item 
+                # is in external memory
+                if item['address'] >= self.memory_map.EXTERNAL_MEM_START:
+                    memory_type = 'external'
+                    if 'smif_sector_size' in slot:
+                        sector_size = slot['smif_sector_size']
+                    else:
+                        sector_size = self.memory_map.MIN_EXT_ERASE_SIZE
+                else:
+                    memory_type = 'internal'
+                    sector_size = self.memory_map.MIN_INT_ERASE_SIZE
+
+                # Calculate the number of first and last sectors
+                # of the current partition and the total sectors number,
+                # that is occupied by the current partition
+                first_slot_sector = int(item['address'] / sector_size)
+                last_slot_sector = int((item['address'] + item['size'] - 1)
+                                       / sector_size)
+                sectors_number = last_slot_sector - first_slot_sector + 1
+
+                # Check whether there is a sector of current partition
+                # which is already occupied by another partition
+                for sector in range(sectors_number):
+                    if first_slot_sector + sector in accessed_sectors[memory_type]:
+                        logger.error('Partition with id %d overlaps another partition. '
+                                     'Every partition in policy should have '
+                                     'separate sectors', slot['id'])
+                        return False
+                    accessed_sectors[memory_type].append(first_slot_sector + sector)
         return True
 
     @staticmethod

@@ -202,6 +202,23 @@ class CySecureTools:
 
         return result
 
+    def power_on(self, voltage=2500):
+        """
+        Turns on the power and sets voltage.
+        :param voltage: Voltage level.
+        :return: True if the target power was successfully set,
+        False otherwise.
+        """
+        return ConnectHelper.power_on(self.tool, self.target, voltage)
+
+    def power_off(self):
+        """
+        Turns on the target and sets voltage.
+        :return: True if the target power was successfully powered off,
+        False otherwise.
+        """
+        return ConnectHelper.power_off(self.tool, self.target)
+
     def image_metadata(self, image, **kwargs):
         """
         Creates a complete MCUboot format image.
@@ -439,7 +456,7 @@ class CySecureTools:
 
         status = False
         if ConnectHelper.connect(self.tool, self.target, probe_id=probe_id,
-                                 ap=ap):
+                                 ap=ap, reset_and_halt=True):
 
             self.version_provider.log_version(self.tool)
             if not self.version_provider.verify_fw_version(self.tool):

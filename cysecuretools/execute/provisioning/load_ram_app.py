@@ -94,7 +94,7 @@ class RamAppLoader:
             logger.info(
                 "Programming '%s' application at address 0x%x (%s)",
                 self.app.name, self.app.image_address, self.app.image_path)
-            self.tool.program(
+            self.tool.program_ram(
                 self.app.image_path, address=self.app.image_address)
             logger.info('Programming complete')
             status = ProvisioningStatus.OK
@@ -114,7 +114,7 @@ class RamAppLoader:
                     "Programming '%s' application input parameters at address "
                     "0x%x (%s)", self.app.name, self.app.in_params_address,
                     self.app.in_params_path)
-                self.tool.program(self.app.in_params_path,
+                self.tool.program_ram(self.app.in_params_path,
                                   address=self.app.in_params_address)
                 logger.info('Programming complete')
             else:

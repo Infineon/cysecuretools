@@ -242,13 +242,13 @@ def extend(align, version, header_size, slot_size, infile, outfile,
            custom_protected_tlv=None, custom_tlv=None, pad_header=False,
            pad=False, confirm=False, overwrite_only=False, endian='little',
            encrypt=None, hex_addr=None, erased_val=None, use_random_iv=False,
-           skip_tlv_info=False):
+           skip_tlv_info=False, security_counter=None):
     """ Extends the image with TLVs. Optionally encrypts the image """
     img = image.Image(version=decode_version(version), header_size=header_size,
                       pad_header=pad_header, pad=pad, confirm=confirm,
                       align=int(align), slot_size=slot_size,
                       overwrite_only=overwrite_only, endian=endian,
-                      erased_val=erased_val)
+                      erased_val=erased_val, security_counter=security_counter)
     img.load(infile)
     enckey = load_key(encrypt) if encrypt else None
 

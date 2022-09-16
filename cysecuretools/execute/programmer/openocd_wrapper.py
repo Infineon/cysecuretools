@@ -1,5 +1,6 @@
 """
-Copyright (c) 2021 Cypress Semiconductor Corporation
+Copyright 2022 Cypress Semiconductor Corporation (an Infineon company)
+or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -20,7 +21,6 @@ import json
 import socket
 import signal
 import logging
-from pyocd import coresight
 from cysecuretools.execute.programmer.base import ProgrammerBase, ResetType, AP
 from cysecuretools.core.target_director import TargetDirector
 from cysecuretools.execute.programmer.openocd_server import OpenocdServer
@@ -33,6 +33,7 @@ class Openocd(ProgrammerBase):
     """
     OpenOCD wrapper for client side
     """
+
     _CMD_SUCCESS = 0
     _CMD_FAIL = -1
 
@@ -75,10 +76,14 @@ class Openocd(ProgrammerBase):
         N/A for OpenOCD
         """
 
-    def connect(self, target_name=None, interface=None, probe_id=None,
-                ap='cm4', acquire=None, blocking=None):
+    def connect(self, target_name=None,
+                interface=None, probe_id=None, ap='cm4', acquire=None,
+                blocking=None, reset_and_halt=False,
+                power=None, voltage=None):
         """
         Connects to target using default debug interface.
+        :param power: Indicates whether to on/off the KitProg3 power
+        :param voltage: The KitProg3 voltage level
         :param target_name: The target name.
         :param interface: Debug interface.
         :param probe_id: Probe serial number.
@@ -86,6 +91,8 @@ class Openocd(ProgrammerBase):
         :param acquire: Indicates whether to acquire device on connect
         :param blocking: Specifies whether to wait for a probe to be
                connected if there are no available probes.
+        :param reset_and_halt: Indicates whether to do reset and halt
+               after connect
         :return: True if connected successfully, otherwise False.
         """
         if interface:
@@ -124,7 +131,8 @@ class Openocd(ProgrammerBase):
         elif ap == 'cm33':
             self.connect_ap = AP.CM33
         else:
-            raise ValueError(f'Invalid access port value \'{ap}\'')
+            if not power:
+                raise ValueError(f'Invalid access port value \'{ap}\'')
 
         # Register the signal handlers
         # When TERMINATE or INT signal from the system will be received,
@@ -135,10 +143,14 @@ class Openocd(ProgrammerBase):
         # Configure OpenOCD server
         self.ocd_server = OpenocdServer(self.target, ocd_target_name,
                                         interface, probe_id,
-                                        tool_path=self.tool_path)
+                                        tool_path=self.tool_path,
+                                        power=power, voltage=voltage)
         self.probe_id = self.ocd_server.probe_id
         # Start GDB server and check if it is started
         server_started = self.ocd_server.start(ap, acquire)
+        # No need of further connection if the power command is sent
+        if power:
+            return server_started
         if server_started:
             # Connect to OpenOCD server
             if self.sock is None:
@@ -148,6 +160,14 @@ class Openocd(ProgrammerBase):
                 raise ValueError('Debug session has already initialized')
         else:
             return False
+        self.set_ap(self.connect_ap)
+        self.examine_ap()
+        if reset_and_halt:
+            self.reset_and_halt(reset_type=ResetType.HW)
+        if self.current_ap in [AP.CM0, AP.CM4]:
+            self._start_core()
+            self.set_ap(AP.SYS)
+
         return True
 
     def disconnect(self):
@@ -297,12 +317,9 @@ class Openocd(ProgrammerBase):
         :return: The register value.
         """
         reg = reg_name.lower()
-        if reg in coresight.cortex_m.CORE_REGISTER:
-            value = self._send('reg {0}'.format(reg_name))
-            logger.debug('read_reg (%s): 0x%x', reg_name, value)
-            return value
-        else:
-            raise ValueError(f'Unknown core register {reg}')
+        value = self._send('reg {0}'.format(reg))
+        logger.debug('read_reg (%s): 0x%x', reg, value)
+        return value
 
     def write_reg(self, reg_name, value):
         """
@@ -312,11 +329,8 @@ class Openocd(ProgrammerBase):
         :return: The register value.
         """
         reg = reg_name.lower()
-        if reg in coresight.cortex_m.CORE_REGISTER:
-            logger.debug('write_reg (%s): 0x%x', reg_name, value)
-            self._send('reg {0} {1:#x}'.format(reg_name, value))
-        else:
-            raise ValueError(f'Unknown core register {reg}')
+        logger.debug('write_reg (%s): 0x%x', reg, value)
+        self._send('reg {0} {1:#x}'.format(reg, value))
 
     def erase(self, address, size):
         """
@@ -334,8 +348,7 @@ class Openocd(ProgrammerBase):
         """
         Programs a file into flash.
         :param filename: Path to a file.
-        :param file_format: File format. Default is to use the file's
-               extension.
+        :param file_format: N/A for OpenOCD.
         :param address: Base address used for the address where to
                flash a binary.
         :return: True if programmed successfully, otherwise False.
@@ -347,10 +360,31 @@ class Openocd(ProgrammerBase):
         self.halt()
         if address:
             logger.debug("Programming '%s' to %s", filename, address)
-            self._send(f'load_image \"{filename}\" {address}')
+            self._send(f'flash write_image erase "{filename}" {address}')
         else:
             logger.debug("Programming '%s'", filename)
-            self._send(f'load_image \"{filename}\"')
+            self._send(f'flash write_image erase "{filename}"')
+
+    def program_ram(self, filename, file_format=None, address=None):
+        """
+        Programs a file into flash.
+        :param filename: Path to a file.
+        :param file_format: N/A for OpenOCD.
+        :param address: Base address used for the address where to
+               flash a binary.
+        :return: True if programmed successfully, otherwise False.
+        """
+        if self.sock is None:
+            raise ValueError('Debug session is not initialized')
+        # Remove Windows-style path separator
+        filename = filename.replace(os.sep, '/')
+        self.halt()
+        if address:
+            logger.debug("Programming '%s' to %s", filename, address)
+            self._send(f'load_image "{filename}" {address}')
+        else:
+            logger.debug("Programming '%s'", filename)
+            self._send(f'load_image "{filename}"')
 
     def _parse_read(self, cmd_response):
         """
@@ -391,7 +425,7 @@ class Openocd(ProgrammerBase):
 
         if self.verbose:
             logger.info('send -> %s', cmd)
-        
+
         # Append ocd_ prefix to each command
         cmd = ''.join([self.ocd_cmd_prefix, cmd])
         logger.debug("Sending command '%s'", cmd)
@@ -409,7 +443,7 @@ class Openocd(ProgrammerBase):
                                                                   os.linesep))
         cmd_message = cmd_message.rstrip()
         if cmd_message:
-            logger.info(cmd_message)
+            logger.debug(cmd_message)
         return cmd_message
 
     def _send_cmd(self, cmd):
@@ -421,7 +455,7 @@ class Openocd(ProgrammerBase):
         data = (cmd + self._command_token).encode("utf-8")
         self.sock.send(data)
         return self._receive()
-        
+
     def _receive(self):
         """
         Read from the stream until the token (\x1a) was received.
@@ -464,45 +498,63 @@ class Openocd(ProgrammerBase):
         :param ap: The AP name.
         """
         if ap == AP.CM0:
-            logger.info('Use cm0 AP')
+            logger.debug('Use cm0 AP')
             self._send(f'targets {self.mcu}.cm0')
         elif ap == AP.CM4:
-            logger.info('Use cm4 AP')
+            logger.debug('Use cm4 AP')
             self._send(f'targets {self.mcu}.cm4')
         elif ap == AP.CMx:
             if self.connect_ap == AP.CM0:
-                logger.info('Use cm0 AP')
+                logger.debug('Use cm0 AP')
                 self._send(f'targets {self.mcu}.cm0')
             elif self.connect_ap == AP.CM4:
-                logger.info('Use cm4 AP')
+                logger.debug('Use cm4 AP')
                 self._send(f'targets {self.mcu}.cm4')
             elif self.connect_ap == AP.CM33:
-                logger.info('Use system CM33 AP')
+                logger.debug('Use system CM33 AP')
                 self._send(f'targets {self.mcu}.cm33ap')
         elif ap == AP.CM33:
-            logger.info('Use system CM33 AP')
+            logger.debug('Use system CM33 AP')
             self._send(f'targets {self.mcu}.cm33ap')
         elif ap == AP.SYS:
-            logger.info('Use system AP')
+            logger.debug('Use system AP')
             self._send(f'targets {self.mcu}.sysap')
+        self._send('targets')
         self.current_ap = ap
 
     def read(self, address, length):
         """
-        Reads specified number of bytes from memory
+        Reads a block of unaligned bytes in memory
         :param address: The memory address where start reading
         :param length: Number of bytes to read
-        :return: Values array
+        :return: An array of byte values
         """
-        result = []
-        cmd_rsp = self._send('mdb 0x{0:x} {1}'.format(address, length)).strip()
-        logger.debug('Read block (address=0x%x, length=%s): %s',
-                     address, length, cmd_rsp)
-        lines = cmd_rsp.split(os.linesep)
-        for line in lines:
-            items = [int(i, 16) for i in self._parse_read(line).split()]
-            result.extend(items)
-        return result
+        cmd = 'read_memory 0x{0:x} 8 {1}'.format(address, length)
+        logger.debug(cmd)
+        response = self._send(cmd)
+        value = [int(i, 16) for i in response.split()]
+        return value
+
+    def write(self, address, data):
+        """
+        Write a block of unaligned bytes in memory
+        :param address: The memory address where start writing
+        :param data: An array of byte values
+        """
+        if self.sock is None:
+            raise ValueError('Target is not initialized.')
+
+        if isinstance(data, list) and all(isinstance(i, int) for i in data):
+            value = ' '.join([hex(i) for i in data])
+        elif isinstance(data, (bytes, bytearray)):
+            s = data.hex()
+            value = '0x' + ' 0x'.join([s[i:i + 2] for i in range(0, len(s), 2)])
+        else:
+            raise ValueError('Either int array or bytes is supported')
+
+        cmd = 'write_memory 0x{0:x} 8 {{{1}}}'.format(address, value)
+        logger.debug(cmd)
+        self._send(cmd)
 
     @staticmethod
     def get_probe_list():
@@ -528,8 +580,7 @@ class Openocd(ProgrammerBase):
         elif self.connect_ap == AP.SYS:
             ap = 'sysap'
 
-        logger.info('Examine %s AP', ap)
-        self._send(f'{self.mcu}.cpu.{ap} arp_examine')
+        self._send(f'{self.mcu}.{ap} arp_examine')
 
     def get_voltage(self):
         """Reads target voltage

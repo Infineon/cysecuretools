@@ -1,5 +1,5 @@
 """
-Copyright (c) 2020 Cypress Semiconductor Corporation
+Copyright (c) 2020-2022 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,10 +18,12 @@ import logging
 import enum
 import platform
 import time
-import psutil
 import atexit
 import subprocess
 from pathlib import Path
+
+import psutil
+
 from cysecuretools.core.logging_configurator import LoggingConfigurator
 from cysecuretools.core.ocd_settings import OcdSettings
 
@@ -50,7 +52,7 @@ class OcdAcquire(enum.IntEnum):
     DISABLE = 0
 
 
-class OcdConfig(object):
+class OcdConfig:
     """
         This is a class which contains configuration settings for OpenOCD.
 
@@ -107,7 +109,7 @@ class OcdConfig(object):
         # Set the name of the target device. Examples: psoc6, player
         # This is MANDATORY parameter
         self.target_device_name = None
-        
+
         # Set the limit the size of accessible Flash
         # This is OPTIONAL parameter
         self.flash_restriction_size = None
@@ -130,7 +132,7 @@ class OpenocdServer(OcdConfig):
     log_counter = 1
 
     def __init__(self, target, target_name=None, interface=None,
-                 probe_id=None, tool_path=None):
+                 probe_id=None, tool_path=None, power=None, voltage=None):
         """ Set initial basic configuration params for OpenOCD """
         if interface:
             raise NotImplementedError
@@ -139,6 +141,9 @@ class OpenocdServer(OcdConfig):
         self.inited = True
         self.server_proc = None  # TCL RPC server process
         self.openocd_cmd = ''    # command for OpenOCD configuration
+        self.before_init, self.after_init = self._get_ocd_config(target)
+        self.power = power
+        self.voltage = voltage
 
         os_name = platform.system()  # current OS type
         # Set OpenOCD execution filename
@@ -146,7 +151,7 @@ class OpenocdServer(OcdConfig):
             self._os_short_name = self._supported_os_short_names[os_name]
         else:
             self.inited = False
-            raise ValueError('Unsupported OS platform: {0}'.format(os_name))
+            raise ValueError(f'Unsupported OS platform: {os_name}')
 
         # Set OpenOCD executabe filename
         if self._os_short_name == 'win':
@@ -173,9 +178,21 @@ class OpenocdServer(OcdConfig):
         # Only SWD interface supported by now
         self.transport_select = OcdTransport.SWD.value
 
+    @staticmethod
+    def _get_ocd_config(target):
+        try:
+            before_init = target.ocd_config['openocd']['before_init']
+        except KeyError:
+            before_init = ''
+        try:
+            after_init = target.ocd_config['openocd']['after_init']
+        except KeyError:
+            after_init = ''
+        return before_init, after_init
+
     def _prepare_command(self, ap='sysap', acquire=None):
         """
-        This command configure the local OpeOCD server.
+        This command configure the local OpenOCD server.
         :return: None
         """
         openocd_exec_file = os.path.abspath(os.path.join(
@@ -185,7 +202,7 @@ class OpenocdServer(OcdConfig):
         if self.probe_id is None:
             set_probe_id_command = ''
         else:
-            set_probe_id_command = f'cmsis_dap_serial {self.probe_id}'
+            set_probe_id_command = f'adapter serial {self.probe_id}'
 
         self.openocd_cmd = [
             openocd_exec_file,
@@ -199,17 +216,22 @@ class OpenocdServer(OcdConfig):
         if ap == 'cm4':
             ap_config = 'set TARGET_AP cm4_ap'
 
-        enable_acquire = self.enable_acquire if acquire is None else int(acquire)
+        enable_acquire = 0 if self.power else self.enable_acquire \
+            if acquire is None else int(acquire)
 
         openocd_config_cmd = []
         if self.flash_restriction_size is not None:
             openocd_config_cmd += [f'set FLASH_RESTRICTION_SIZE {self.flash_restriction_size}']
 
+        if self.power:
+            volt = '' if self.power == 'off' else self.voltage
+            self.before_init += f'kitprog3 power_config {self.power} {volt}'
+
         openocd_config_cmd += [
             f'debug_level {self.debug_level}',
             f'set ENABLE_ACQUIRE {enable_acquire}',
             f'set ENABLE_POWER_SUPPLY {self.enable_power_supply}',
-            'set ACQUIRE_TIMEOUT 10',
+            'set ACQUIRE_TIMEOUT 5000',
             ap_config,
             'gdb_memory_map enable',
             'gdb_flash_program enable',
@@ -218,9 +240,9 @@ class OpenocdServer(OcdConfig):
             f'transport select {self.transport_select}',
             f'source [find target/{self.target_device_name}.cfg]',
             f'adapter speed {self.adapter_speed_khz}',
-            f'{self.target_device_name}.cm33 configure -defer-examine',
+            self.before_init,
             'init',
-            f'targets {self.target_device_name}.{ap}'
+            self.after_init
         ]
 
         # Remove empty elements from list
@@ -237,9 +259,9 @@ class OpenocdServer(OcdConfig):
         :return: True if server successfully started, otherwise False.
         """
         # Maximum time in seconds server should start after OpenOCD start
-        server_startup_time = 5
+        server_startup_time = 15
         log_dir = LoggingConfigurator.get_log_dir()
-        log_file = f'{log_dir}/openocd_{OpenocdServer.log_counter}.log'
+        logfile = f'{log_dir}/openocd_{OpenocdServer.log_counter}.log'
         OpenocdServer.log_counter += 1
         server_started = False
 
@@ -255,37 +277,72 @@ class OpenocdServer(OcdConfig):
 
             # Start OpenOCD server and redirect stdout to the file
             Path('logs').mkdir(parents=True, exist_ok=True)
-            with open(log_file, 'w', encoding='utf-8') as f:
+            with open(logfile, 'w', encoding='utf-8') as f:
                 self.server_proc = subprocess.Popen(self.openocd_cmd, stdout=f,
                                                     stderr=subprocess.STDOUT)
 
+            if self.power:
+                time.sleep(1)
+                return True
+
             # Check if server was started correctly
             start_time = time.time()
+            previous_output = []
             while time.time() - start_time < server_startup_time:
-                try:
-                    with open(log_file, 'r', encoding='utf-8') as log:
-                        lines = log.readlines()
-                        for line in lines:
-                            if 'Error' in line:
-                                server_started = False
-                                logger.error('Server ERROR: %s', line.rstrip())
-                            else:
-                                logger.info(line.rstrip())
-                            if 'Listening on port' in line:
-                                server_started = True
-                                break
-                    # Wait 1 second and check if server is running.
-                    time.sleep(1)
-                    if (self.server_proc.poll() is not None and
-                            not server_started) or server_started:
-                        break
-                except FileNotFoundError:
-                    logger.error('Server log file not found: %s', log_file)
+                time.sleep(0.1)
+                output = self._ocd_output(logfile)
+                if not output:
                     server_started = False
+                    break
+                new_output = self._new_ocd_output(output, previous_output)
+                previous_output = output
+
+                server_started = self._ocd_start_result(new_output)
+
+                if (self.server_proc.poll() is not None and
+                        not server_started) or server_started:
                     break
         else:
             logger.error('OpenOCD server is running now')
         return server_started
+
+    @staticmethod
+    def _ocd_output(logfile):
+        """Reads OpenOCD output from the logfile"""
+        log_file_read_time = 5
+        read_time = time.time()
+        lines = []
+        try:
+            with open(logfile, 'r', encoding='utf-8') as log:
+                while time.time() - read_time < log_file_read_time:
+                    lines = log.readlines()
+                    if lines:
+                        break
+                    time.sleep(0.2)
+        except FileNotFoundError:
+            logger.error('Server log file not found: %s', logfile)
+        return lines
+
+    @staticmethod
+    def _new_ocd_output(current_lines, previous_lines):
+        """From the OpenOCD output gets lines that are not in
+        the previous result
+        """
+        previous_set = set(previous_lines)
+        result = [x for x in current_lines if x not in previous_set]
+        return result
+
+    @staticmethod
+    def _ocd_start_result(lines):
+        """Analyzes OpenOCD output and returns the result of the start"""
+        for line in lines:
+            if 'Error' in line:
+                logger.error(line.rstrip())
+                return False
+            logger.info(line.rstrip())
+            if 'Listening on port' in line:
+                return True
+        return False
 
     def stop(self):
         """

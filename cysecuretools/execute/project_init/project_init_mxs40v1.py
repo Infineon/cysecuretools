@@ -17,7 +17,7 @@ import os
 import posixpath
 import json
 import logging
-import cysecuretools.core.jsonpath as jsonpath
+from cysecuretools.core import jsonpath
 from cysecuretools.core.project import ProjectInitializer
 
 logger = logging.getLogger(__name__)
@@ -36,21 +36,25 @@ project_files = {
         'entrance_exam.jwt',
     },
     'keys': {
+        'cy_pub_key.json',
         'hsm_state.json',
-        'oem_state.json',
-        'bootloader_pub_key.json'
+        'oem_state.json'
     }
 }
 
 
 class ProjectInitializerMXS40V1(ProjectInitializer):
+    """Project creation implementation for the MXS40v1 platform"""
+
     def __init__(self, target):
         super().__init__(target)
         self.common_prebuilt_dir_name = '../common/p64/prebuilt'
         self.default_policy_file_name = os.path.basename(os.path.normpath(
             target.policy))
-        self.keys_src = os.path.abspath(os.path.join(
+        self.common_keys_src = os.path.abspath(os.path.join(
             self.target_dir, self.common_prebuilt_dir_name))
+        self.target_keys_src = os.path.abspath(os.path.join(
+            self.target_dir, self.keys_dir_name))
         self.prebuilt_src = os.path.join(
             self.target_dir, self.prebuilt_dir_name)
 
@@ -70,7 +74,7 @@ class ProjectInitializerMXS40V1(ProjectInitializer):
         """
         if cwd:
             self.cwd = cwd
-        exist = list()
+        exist = []
 
         keys_dst = os.path.join(self.cwd, self.keys_dir_name)
         packets_dst = os.path.join(self.cwd, os.path.basename(
@@ -124,8 +128,11 @@ class ProjectInitializerMXS40V1(ProjectInitializer):
         :param keys_dst: Keys destination directory
         """
         self.copy_files(self._packets_src, packets_dst,
-                        project_files['packets'], False)
-        self.copy_files(self.keys_src, keys_dst, project_files['keys'])
+                        project_files['packets'], warn=False)
+        self.copy_files(self.common_keys_src, keys_dst, project_files['keys'],
+                        warn=False)
+        self.copy_files(self.target_keys_src, keys_dst, project_files['keys'],
+                        warn=False)
         self.copy_policies()
         self.copy_prebuilt()
         self.update_policies()
@@ -164,6 +171,7 @@ class ProjectInitializerMXS40V1(ProjectInitializer):
         self.copy_files(src, dst, files)
 
     def create_config_file(self):
+        """Creates a project configuration file"""
         rel_path = os.path.relpath(self.target.default_policy, self.target_dir)
         self.create_config(os.path.relpath(rel_path))
 
@@ -179,13 +187,13 @@ class ProjectInitializerMXS40V1(ProjectInitializer):
                 json_str = f.read()
                 policy = json.loads(json_str)
 
-            self.update_bootloader_keys_section(policy)
-            self.update_pre_build_section(policy)
+            self._update_bootloader_keys_section(policy)
+            self._update_pre_build_section(policy)
 
             with open(policy_path, 'w', encoding='utf-8') as f:
                 json.dump(policy, f, indent=4)
 
-    def update_pre_build_section(self, policy):
+    def _update_pre_build_section(self, policy):
         update_nodes = ['oem_public_key', 'oem_private_key', 'hsm_public_key',
                         'hsm_private_key']
         for k, v in policy['pre_build'].items():
@@ -194,7 +202,7 @@ class ProjectInitializerMXS40V1(ProjectInitializer):
                 new_path = posixpath.join('../', self.keys_dir_name, filename)
                 policy['pre_build'][k] = new_path
 
-    def update_bootloader_keys_section(self, policy):
+    def _update_bootloader_keys_section(self, policy):
         path = 'boot_upgrade.firmware.0.bootloader_keys.0.key'
         old_value = jsonpath.get_node_value(policy, path)
         filename = os.path.basename(os.path.normpath(old_value))

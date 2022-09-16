@@ -1,5 +1,6 @@
 """
-Copyright (c) 2018-2020 Cypress Semiconductor Corporation
+Copyright 2018-2022 Cypress Semiconductor Corporation (an Infineon company)
+or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -16,6 +17,7 @@ limitations under the License.
 import os
 import logging
 from time import sleep
+
 from cysecuretools.core.enums import RegionHashStatus
 import cysecuretools.data.mxs40v1.mxs40v1_sfb_status_codes as sfb_status
 
@@ -126,28 +128,23 @@ def get_prov_details(tool, reg_map, key_id):
         read_hash_size = tool.read32(scratch_addr + 0x00)
         read_hash_addr = tool.read32(scratch_addr + 0x04)
 
-        i = 0
-        prov_details = ''
-        # Save data in string format
-        while i < read_hash_size:
-            # Avoid race condition when the bootloader does flash
-            # erasing at the moment the tool reads JWT packet from
-            # the same sector
-            counter = 0
-            timeout = 10
-            while True:
-                try:
-                    hash_byte_chr = chr(tool.read8(read_hash_addr + i))
-                    break
-                except RuntimeError as e:
-                    if counter < timeout:
-                        sleep(1)
-                        counter += 1
-                    else:
-                        raise e
-            prov_details += hash_byte_chr
-            i += 1
-        prov_details = prov_details.strip()
+        # Avoid race condition when the bootloader does flash
+        # erasing at the moment the tool reads JWT packet from
+        # the same sector
+        counter = 0
+        timeout = 10
+        while True:
+            try:
+                data = tool.read(read_hash_addr, read_hash_size)
+                break
+            except RuntimeError as e:
+                if counter < timeout:
+                    sleep(1)
+                    counter += 1
+                else:
+                    raise e
+        prov_details = bytes(data).decode()
+        logger.debug("prov_details = '%s'", prov_details)
         logger.debug('GetProvDetails syscall passed')
     else:
         logger.debug('GetProvDetails syscall error: 0x%x', response)
@@ -202,9 +199,7 @@ def provision_keys_and_policies(tool, filename, reg_map):
     log_reg_value(tool, reg_map.ENTRANCE_EXAM_SRAM_ADDR + 0x08)
     scratch_addr = reg_map.ENTRANCE_EXAM_SRAM_ADDR + 0x0C
 
-    for char in jwt_chars:
-        tool.write8(scratch_addr, ord(char))
-        scratch_addr += 1
+    tool.write(scratch_addr, [ord(char) for char in jwt_chars])
 
     if not jwt_chars:
         sleep(1)
@@ -287,28 +282,21 @@ def encrypted_programming(tool, reg_map, mode, data, host_key_id=0,
     scratch_addr = sram_addr_claimed + 0x0C
 
     logger.debug('Clear RAM')
-    for i in range(0, 512):
-        tool.write8(scratch_addr, 0x00)
-        scratch_addr += 1
+    tool.write(scratch_addr, bytes(512))
 
     scratch_addr = sram_addr_claimed + 0x0C
 
     if mode_init == mode:
         logger.debug('Write AES header to RAM')
-        for i in range(0, len(data), 2):
-            b = int(data[i:i + 2], 16)
-            tool.write8(scratch_addr, b)
-            scratch_addr += 1
-
+        data_bytes = [int(data[i:i + 2], 16) for i in range(0, len(data), 2)]
+        tool.write(scratch_addr, data_bytes)
     elif mode_data == mode:
         tool.write32(sram_addr_claimed + 0x08, program_row_size)
         tool.write32(scratch_addr, addr)
         scratch_addr += 4
         logger.debug('Write data to RAM')
-        for i in range(0, len(data), 2):
-            b = int(data[i:i + 2], 16)
-            tool.write8(scratch_addr, b)
-            scratch_addr += 1
+        data_bytes = [int(data[i:i + 2], 16) for i in range(0, len(data), 2)]
+        tool.write(scratch_addr, data_bytes)
 
     # Read written data
     logger.debug('Read registers:')
@@ -397,9 +385,7 @@ def dap_control(tool, reg_map, cpu_id, desired_state, jwt_not_required,
         tool.write32(reg_map.ENTRANCE_EXAM_SRAM_ADDR + 0x08, file_size)
         scratch_addr = reg_map.ENTRANCE_EXAM_SRAM_ADDR + 0x0C
 
-        for char in jwt_chars:
-            tool.write8(scratch_addr, ord(char))
-            scratch_addr += 1
+        tool.write(scratch_addr, [ord(char) for char in jwt_chars])
 
         log_reg_value(tool, reg_map.ENTRANCE_EXAM_SRAM_ADDR)
         log_reg_value(tool, reg_map.ENTRANCE_EXAM_SRAM_ADDR + 0x04)
@@ -456,11 +442,8 @@ def read_device_response(tool, reg_map):
     resp_addr = tool.read32(scratch_addr + 0x04)
     logger.debug('Device response address = 0x%x', resp_addr)
     logger.debug('Device response size = %d', resp_size)
-    response = ''
-    for i in range(resp_size):
-        hash_byte_chr = chr(tool.read8(resp_addr + i))
-        response += hash_byte_chr
-    response = response.strip()
+    data = tool.read(resp_addr, resp_size)
+    response = bytes(data).decode()
     logger.info("Device response = '%s'", response)
     return response
 

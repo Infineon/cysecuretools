@@ -32,7 +32,8 @@ class ConnectHelper:
     @staticmethod
     def connect(tool: ProgrammerBase, target: Target,
                 probe_id=None, ap=None, acquire=True, blocking=True,
-                suppress_errors=False) -> bool:
+                suppress_errors=False, reset_and_halt=False,
+                power=None, voltage=None) -> bool:
         """ Checks for target/OCD compatibility and creates a connection """
 
         if tool.name not in target.ocds:
@@ -56,12 +57,45 @@ class ConnectHelper:
         if not ConnectHelper.connected:
             ConnectHelper.connected = tool.connect(
                 target.name, probe_id=probe_id, ap=ap, acquire=acquire,
-                blocking=blocking)
+                blocking=blocking, reset_and_halt=reset_and_halt,
+                power=power, voltage=voltage)
 
         if not ConnectHelper.connected:
             if tool.name == 'openocd' and not suppress_errors:
                 logger.error('OpenOCD server has not started')
         return ConnectHelper.connected
+
+    @staticmethod
+    def power_on(tool: ProgrammerBase, target: Target,
+                 voltage):
+        if tool.name != 'openocd':
+            logger.error("Incompatible command and on-chip debugger")
+            return False
+        logger.warning('ATTENTION! To avoid device destruction, make sure the '
+                       'external power is not connected. Continue? (y/n): ')
+        confirm = input()
+        if confirm.lower() == 'y':
+            if voltage is None:
+                voltage = 2500
+                logger.warning('Voltage is not specified. Default voltage '
+                               f'level will be used ({voltage} mV).')
+            if ConnectHelper.connect(tool, target, power='on',
+                                     voltage=voltage):
+                logger.info('Power on command sent')
+                return True
+        else:
+            return True
+        return False
+
+    @staticmethod
+    def power_off(tool: ProgrammerBase, target: Target):
+        if tool.name != 'openocd':
+            logger.error("Incompatible command and on-chip debugger")
+            return False
+        if ConnectHelper.connect(tool, target, power='off'):
+            logger.info('Power off command sent')
+            return True
+        return False
 
     @staticmethod
     def disconnect(tool: ProgrammerBase):

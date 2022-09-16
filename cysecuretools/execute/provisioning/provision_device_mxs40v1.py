@@ -210,8 +210,17 @@ def erase_smif(tool, target):
         ap = tool.get_ap()
         tool.set_ap(AP.CMx)
         for (addr, size) in smif_resources:
-            logger.info('erasing address 0x%x, size 0x%x ...', addr, size)
-            tool.erase(addr, size)
+            # Aligning start address to erase to minimal erase size of smif
+            actual_addr = addr - addr % target.memory_map.MIN_EXT_ERASE_SIZE
+            # Aligning size to erase to minimal erase size of smif
+            if size % target.memory_map.MIN_EXT_ERASE_SIZE == 0:
+                actual_size = size
+            else:
+                actual_size = size + target.memory_map.MIN_EXT_ERASE_SIZE - \
+                              size % target.memory_map.MIN_EXT_ERASE_SIZE
+            logger.info('erasing address 0x%x, size 0x%x ...', actual_addr,
+                        actual_size)
+            tool.erase(actual_addr, actual_size)
             logger.info('Erasing complete')
         tool.set_ap(ap)
 
@@ -387,7 +396,7 @@ def _provision_complete(tool, target: Target, prov_cmd_jwt, bootloader,
                 current_ap = tool.get_ap()
                 tool.set_ap(AP.CMx)
                 logger.info("Programming user application '%s':", app)
-                tool.halt()
+                tool.reset_and_halt(reset_type=ResetType.HW)
                 tool.program(app)
                 tool.set_ap(current_ap)
             else:

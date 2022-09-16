@@ -1,5 +1,6 @@
 """
-Copyright (c) 2019-2020 Cypress Semiconductor Corporation
+Copyright 2019-2022 Cypress Semiconductor Corporation (an Infineon company)
+or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,7 +23,6 @@ from pyocd.core.target import Target
 from pyocd.core.helpers import ConnectHelper
 from pyocd.flash.file_programmer import FileProgrammer
 from pyocd.flash.eraser import FlashEraser
-from pyocd import coresight
 from pyocd.core.exceptions import TransferError
 
 TARGET_MAP = os.path.join(os.path.dirname(__file__), 'pyocd_target_map.json')
@@ -57,7 +57,8 @@ class Pyocd(ProgrammerBase):
         self._wait_for_target = value
 
     def connect(self, target_name=None, interface=None, probe_id=None,
-                ap='cm4', acquire=None, blocking=True):
+                ap='cm4', acquire=None, blocking=True, reset_and_halt=False,
+                power=None, voltage=None):
         """
         Connects to target using default debug interface.
         :param target_name: The target name.
@@ -67,6 +68,10 @@ class Pyocd(ProgrammerBase):
         :param acquire: Indicates whether to acquire device on connect
         :param blocking: Specifies whether to wait for a probe to be
                connected if there are no available probes.
+        :param reset_and_halt: Indicates whether to do reset and halt
+               after connect
+        :param power: N/A for PyOCD
+        :param voltage: N/A for PyOCD
         :return: True if connected successfully, otherwise False.
         """
         if interface:
@@ -104,6 +109,10 @@ class Pyocd(ProgrammerBase):
             self.target = self.board.target
             self.probe = self.session.probe
             self.probe_id = self.probe.unique_id
+
+            if reset_and_halt:
+                self.reset_and_halt(reset_type=ResetType.HW)
+
             self.ap = ap
             self.set_ap(AP.SYS)
             logger.info('Probe ID: %s', self.probe.unique_id)
@@ -180,38 +189,24 @@ class Pyocd(ProgrammerBase):
         :param ap: The AP name.
         """
         if ap == AP.SYS:
-            logger.info('Use system AP')
+            logger.debug('Use system AP')
             if self.get_ap() != AP.SYS:
                 self._start_core()
             self.target.selected_core = 0
         elif ap == AP.CM0:
-            logger.info('Use cm0 AP')
+            logger.debug('Use cm0 AP')
             self.target.selected_core = 1
             self._start_core()
         elif ap == AP.CM4:
-            logger.info('Use cm4 AP')
+            logger.debug('Use cm4 AP')
             self.target.selected_core = 1
             self._start_core()
         elif ap == AP.CMx:
-            logger.info('Use %s AP', self.ap)
+            logger.debug('Use %s AP', self.ap)
             self.target.selected_core = 1
             self._start_core()
         else:
             raise ValueError('Invalid access port.')
-
-    def _start_core(self):
-        """
-        Writes infinite loop into RAM and starts core execution.
-        """
-        logger.debug('Start core')
-        self.halt()
-        # B662 - CPSIE I - Enable IRQ by clearing PRIMASK
-        # E7FE - B - Jump to address (argument is an offset)
-        self.write32(0x08000000, 0xE7FEB662)
-        self.write_reg('pc', 0x08000000)
-        self.write_reg('sp', 0x08001000)
-        self.write_reg('xpsr', 0x01000000)
-        self.resume()
 
     def set_frequency(self, value_khz):
         """
@@ -396,10 +391,10 @@ class Pyocd(ProgrammerBase):
 
     def read(self, address, length):
         """
-        Reads specified number of bytes from memory
+        Reads a block of unaligned bytes in memory
         :param address: The memory address where start reading
         :param length: Number of bytes to read
-        :return: Values array
+        :return: An array of byte values
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
@@ -407,6 +402,17 @@ class Pyocd(ProgrammerBase):
         logger.debug('Read block (address=0x%x, length=%s): %s',
                      address, length, data)
         return data
+
+    def write(self, address, data):
+        """
+        Writes a block of unaligned bytes in memory
+        :param address: The memory address where start writing
+        :param data: An array of byte values
+        """
+        if self.target is None:
+            raise ValueError('Target is not initialized.')
+        self.target.write_memory_block8(address, data)
+        logger.debug('Write block (address=0x%x): %s', address, data)
 
     @staticmethod
     def get_probe_list():

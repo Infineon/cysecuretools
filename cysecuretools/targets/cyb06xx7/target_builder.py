@@ -45,7 +45,15 @@ class CYB06xx7_Builder(TargetBuilder):
             self.target_dir, 'policy', 'policy_single_CM0_CM4.json')
 
     def get_ocds(self):
-        return ['pyocd']
+        return ['pyocd', 'openocd']
+
+    def get_ocd_config(self):
+        return {
+            'openocd': {
+                'before_init': '',
+                'after_init': 'targets'
+            }
+        }
 
     def get_memory_map(self):
         memory_map = MemoryMap_cyb06xx7()

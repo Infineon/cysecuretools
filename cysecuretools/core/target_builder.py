@@ -39,6 +39,10 @@ class TargetBuilder(ABC):
         """ Gets a list of supported On-Chip Debuggers """
 
     @abstractmethod
+    def get_ocd_config(self):
+        """ Gets a dictionary of On-Chip Debuggers configuration """
+
+    @abstractmethod
     def get_default_policy(self):
         """ Gets default policy file """
 

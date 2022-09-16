@@ -14,7 +14,3 @@ exclude cysecuretools/targets/cys06xxa/policy/policy_multi_CM0_CM4.json
 exclude cysecuretools/targets/cys06xxa/policy/policy_multi_CM0_CM4_smif.json
 exclude cysecuretools/targets/cys06xxa/policy/policy_single_CM0_CM4.json
 exclude cysecuretools/targets/cys06xxa/policy/policy_single_CM0_CM4_smif.json
-exclude cysecuretools/targets/cyb06xxa/prebuilt/CyBootloader_Release *
-exclude cysecuretools/targets/cyb06xxa/prebuilt/CyBootloader_WithLogs *
-exclude cysecuretools/targets/cys06xxa/prebuilt/CyBootloader_Release *
-exclude cysecuretools/targets/cys06xxa/prebuilt/CyBootloader_WithLogs *

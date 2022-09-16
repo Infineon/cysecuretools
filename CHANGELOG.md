@@ -1,6 +1,18 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## 4.1.0
+### Added
+- OpenOCD support for PSoC 64 devices
+- Creating update package in the unsigned image (_extend-image_ command)
+
+### Changed
+- Fixed installation failure using pip 22.1
+- CyBootloader 2.0.2.8102 for PSoC 64 2M:
+  - Improved performance of SWAP algorithm
+  - Image certificate signed with the Infineon key (id=3)
+  - Use Infineon key (id=3) for bootloader in the policy files
+
 ## 4.0.0
 ### Added
 - Support of CYW20829 devices

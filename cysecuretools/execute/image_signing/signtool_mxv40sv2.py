@@ -66,6 +66,8 @@ class SignToolMXS40Sv2(SignTool):
         overwrite_only = self._get_overwrite_only(image_format, kwargs)
         align = self._get_align(kwargs)
         image_version = self._get_image_version(kwargs)
+        update_key_id = kwargs.get('update_key_id')
+        update_key_path = kwargs.get('update_key_path')
 
         if 'bootrom_next_app' == image_format:
             if pubkey_data is None:
@@ -80,13 +82,32 @@ class SignToolMXS40Sv2(SignTool):
         for t, v in tlvs.items():
             protected_tlv.append((t, v))
 
+        nv_counter = None
+        if self.policy_parser.json:
+            policy_type = self.policy_parser.get_policy_type()
+            if policy_type == PolicyType.REPROVISIONING_SECURE:
+                nv_counter, update_packet = self._get_update_packet_data(
+                   update_key_id, update_key_path)
+                protected_tlv.append(update_packet)
+            else:
+                if update_key_id is not None or update_key_path:
+                    logger.warning(
+                        "The update key is specified, but the policy is not of "
+                        "the 'reprovisioning_secure' type. Update packet will "
+                        "not be added to the image")
+        else:
+            if update_key_id is not None or update_key_path:
+                raise RuntimeError("The 'reprovisioning_secure' policy is "
+                                   "required to create an update packet")
+
         try:
             imgtool.extend(align, image_version,
                            header_size, slot_size, image_path, output,
                            protected_tlv, tlv, pad_header=True, pad=pad,
                            confirm=confirm, overwrite_only=overwrite_only,
                            hex_addr=hex_addr, erased_val=erased_val,
-                           skip_tlv_info=skip_tlv_info)
+                           skip_tlv_info=skip_tlv_info,
+                           security_counter=nv_counter)
             logger.info('Image processed successfully (%s)', output)
         except Exception as e:
             logger.error('Failed to add data to the image')
@@ -179,17 +200,11 @@ class SignToolMXS40Sv2(SignTool):
             args['custom_tlv'].append(('0xf0', f'0x{pubkey_data}'))
 
         policy_type = self.policy_parser.get_policy_type()
-        if PolicyType.REPROVISIONING_SECURE == policy_type:
-            update_key_id = kwargs.get('update_key_id')
-            update_key_path = kwargs.get('update_key_path')
-            if update_key_id is None and update_key_path is None:
-                raise KeyError('Either update data packet key ID or key path '
-                               'must be specified')
-
-            if update_key_path is None:
-                update_key_path = self.key_source.get_key(update_key_id,
-                                                          'private')
-            self._set_reprovisioning_tlvs(args, update_key_id, update_key_path)
+        if policy_type == PolicyType.REPROVISIONING_SECURE:
+            nv_counter, update_packet = self._get_update_packet_data(
+                kwargs.get('update_key_id'), kwargs.get('update_key_path'))
+            args['security_counter'] = nv_counter
+            args['custom_tlv'].append(update_packet)
 
         try:
             self._call_imgtool_sign(args)
@@ -224,6 +239,24 @@ class SignToolMXS40Sv2(SignTool):
         else:
             logger.info('Image signed successfully (%s)', output)
         return output
+
+    def _get_update_packet_data(self, update_key_id, update_key_path):
+        if update_key_id is None and update_key_path is None:
+            raise KeyError('Either update data packet key ID or key path '
+                           'must be specified')
+        if update_key_path is None:
+            update_key_path = self.key_source.get_key(update_key_id, 'private')
+
+        nv_counter = self.policy_parser.get_nv_counter()
+        reprov_data = binascii.hexlify(self._reprovisioning_packet(
+            key_id=update_key_id, key_path=update_key_path)).decode()
+        return nv_counter, ('0x51', f'0x{reprov_data}')
+
+    def _reprovisioning_packet(self, **kwargs):
+        from ..provisioning_packet.provisioning_packet_mxs40sv2 import (
+            ProvisioningPacketMXS40Sv2)
+        packet = ProvisioningPacketMXS40Sv2(self.policy_parser)
+        return packet.reprovisioning_data(self.target.key_source, **kwargs)
 
     def _time_warning(self, pad, slot_size):
         if pad:
@@ -358,20 +391,6 @@ class SignToolMXS40Sv2(SignTool):
         else:
             header_size = self.mem_map.BOOTROM_NEXT_APP_HEADER_SIZE
         return header_size
-
-    def _set_reprovisioning_tlvs(self, args, key_id, key_path):
-        nv_counter = self.policy_parser.get_nv_counter()
-        reprov_data = binascii.hexlify(self._reprovisioning_packet(
-            key_id=key_id, key_path=key_path)).decode()
-        args['security_counter'] = nv_counter
-        args['custom_tlv'].append(('0x51', f'0x{reprov_data}'))
-        return args
-
-    def _reprovisioning_packet(self, **kwargs):
-        from ..provisioning_packet.provisioning_packet_mxs40sv2 import (
-            ProvisioningPacketMXS40Sv2)
-        packet = ProvisioningPacketMXS40Sv2(self.policy_parser)
-        return packet.reprovisioning_data(self.target.key_source, **kwargs)
 
     @staticmethod
     def _copy_input_image(image_path, suffix):

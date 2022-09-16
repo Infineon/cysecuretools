@@ -43,12 +43,12 @@
         "firmware": [
             {
                 "boot_auth": [
-                    5
+                    3
                 ],
                 "bootloader_keys": [
                     {
-                        "kid": 5,
-                        "key": "../../common/p64/prebuilt/oem_state.json"
+                        "kid": 3,
+                        "key": "../keys/cy_pub_key.json"
                     }
                 ],
                 "id": 0,
