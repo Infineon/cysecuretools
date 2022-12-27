@@ -30,7 +30,7 @@ setup(
     name='cysecuretools',
     version=version['__version__'],
     install_requires=[
-        'setuptools==59.6.0',
+        'setuptools==65.5.1',
         'psutil==5.9.0',
         'cryptography==36.0.1',
         'click==8.0.4',
