@@ -34,7 +34,11 @@ class ProvisioningStrategy(ABC):
         pass
 
     @abstractmethod
-    def convert_to_rma(self, tool, target, **kwargs):
+    def transit_to_rma(self, tool, target, cert, **kwargs):
+        pass
+
+    @abstractmethod
+    def open_rma(self, tool, target, cert):
         pass
 
 
@@ -80,8 +84,14 @@ class ProvisioningContext:
         """
         self._strategy.erase_flash(tool, target)
 
-    def convert_to_rma(self, tool, target, **kwargs):
+    def transit_to_rma(self, tool, target, cert, **kwargs):
         """
         Delegates work to the Strategy object.
         """
-        return self._strategy.convert_to_rma(tool, target, **kwargs)
+        return self._strategy.transit_to_rma(tool, target, cert, **kwargs)
+
+    def open_rma(self, tool, target, cert):
+        """
+        Delegates work to the Strategy object.
+        """
+        return self._strategy.open_rma(tool, target, cert)

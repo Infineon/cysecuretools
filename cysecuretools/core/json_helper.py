@@ -1,5 +1,6 @@
 """
-Copyright (c) 2020-2021 Cypress Semiconductor Corporation
+Copyright 2020-2022 Cypress Semiconductor Corporation (an Infineon company)
+or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -35,7 +36,7 @@ def replace(datadict, lookup_key, value):
     """ Sets value to all fields with the specified name """
     replaced_dict = deepcopy(datadict)
     for k, v in datadict.items():
-        if isinstance(v, (dict, list)):
+        if isinstance(v, dict):
             replaced_dict[k] = replace(datadict[k], lookup_key, value)
         if k == lookup_key:
             replaced_dict[k] = value

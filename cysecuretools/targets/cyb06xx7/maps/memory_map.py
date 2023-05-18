@@ -1,5 +1,6 @@
 """
-Copyright (c) 2019-2020 Cypress Semiconductor Corporation
+Copyright 2019-2023 Cypress Semiconductor Corporation (an Infineon company)
+or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -24,6 +25,18 @@ class MemoryMap_cyb06xx7(MemoryMapBaseP64):
     @property
     def FLASH_SIZE(self):
         return 0x000E0000
+
+    @property
+    def RAM_ADDR(self):
+        return 0x08000000
+
+    @property
+    def SRAM_ADDR(self):
+        return 0x0802c000
+
+    @property
+    def SRAM_SIZE(self):
+        return 0x00004000
 
     @property
     def PROVISION_JWT_PACKET_ADDRESS(self):

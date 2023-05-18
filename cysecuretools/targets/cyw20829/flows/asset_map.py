@@ -15,6 +15,7 @@ limitations under the License.
 """
 from cysecuretools.core.key_helper import get_key_bytearray
 from cysecuretools.core.key_helper import calc_key_hash
+from ...common.mxs40sv2.nv_counter_calc import NvCounterCalculator
 
 
 def asset_map(p, **kwargs):
@@ -198,7 +199,9 @@ def asset_map(p, **kwargs):
                 {
                     "name": "ANTI_ROLLBACK",
                     "shift": 0,
-                    "value": pow(2, p.get_nv_counter()) - 1
+                    "value": NvCounterCalculator.calculate(
+                        p.get_nv_counter(), p.get_bits_per_cnt(),
+                        kwargs.get('image_id'))
                 },
             ],
         },
@@ -209,8 +212,8 @@ def asset_map(p, **kwargs):
                     "name": "KEY_MANAGEMENT_0",
                     "shift": 0,
                     "value": calc_key_hash(p.get_pub_key_0_path()
-                                       if p.get_program_oem_key_0_hash()
-                                       else None)
+                                           if p.get_program_oem_key_0_hash()
+                                           else None)
                 },
             ],
         },

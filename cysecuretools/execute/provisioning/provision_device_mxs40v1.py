@@ -1,5 +1,5 @@
 """
-Copyright (c) 2018-2021 Cypress Semiconductor Corporation
+Copyright (c) 2018-2023 Cypress Semiconductor Corporation
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -22,9 +22,9 @@ from cysecuretools.core.connect_helper import ConnectHelper
 from cysecuretools.core.target_director import Target
 from cysecuretools.core.enums import (EntranceExamStatus, ProvisioningStatus)
 from cysecuretools.execute.provisioning_packet.lib.cyprov_pem import PemKey
-from cysecuretools.execute.sys_call \
-    import (provision_keys_and_policies, read_lifecycle, dap_control,
-            get_prov_details, FB_POLICY_JWT)
+from cysecuretools.execute.sys_call import (
+    provision_keys_and_policies, read_lifecycle, dap_control, get_prov_details,
+    transition_to_rma, open_rma, FB_POLICY_JWT)
 from cysecuretools.execute.programmer.base import AP
 from cysecuretools.execute.programmer.pyocd_wrapper import ResetType
 from cysecuretools.core.strategy_context.provisioning_strategy_ctx import \
@@ -44,8 +44,8 @@ logger = logging.getLogger(__name__)
 
 class ProvisioningMXS40v1(ProvisioningStrategy):
 
-    def provision(self, tool,
-                  target: Target, bootloader, **kwargs) -> ProvisioningStatus:
+    def provision(self, tool, target: Target, bootloader,
+                  **kwargs) -> ProvisioningStatus:
         """
         Programs Cypress Bootloader and calls system calls for device
         provisioning.
@@ -53,15 +53,9 @@ class ProvisioningMXS40v1(ProvisioningStrategy):
         :param target: The target object.
         :param bootloader: Path to Cypress Bootloader program file.
         :param kwargs: Dictionary with the following fields:
-               - ap: Access port to use
                - probe_id: Probe ID to use
         :return: Provisioning status.
         """
-        if 'ap' in kwargs:
-            ap = kwargs['ap']
-        else:
-            ap = 'cm0'
-
         if 'skip_prompts' in kwargs:
             skip_prompts = kwargs['skip_prompts']
         else:
@@ -79,7 +73,7 @@ class ProvisioningMXS40v1(ProvisioningStrategy):
         if status == ProvisioningStatus.OK:
             status = _provision_complete(tool, target,
                                          prov_packets['prov_cmd'], bootloader,
-                                         False, ap=ap, probe_id=probe_id)
+                                         False, ap='cm4', probe_id=probe_id)
 
         if status == ProvisioningStatus.OK:
             logger.info('*****************************************')
@@ -88,8 +82,8 @@ class ProvisioningMXS40v1(ProvisioningStrategy):
 
         return status
 
-    def re_provision(self, tool, target: Target, bootloader, **kwargs) \
-            -> ProvisioningStatus:
+    def re_provision(self, tool, target: Target, bootloader,
+                     **kwargs) -> ProvisioningStatus:
         """
         Programs Cypress Bootloader and calls system calls for device
         provisioning.
@@ -99,11 +93,8 @@ class ProvisioningMXS40v1(ProvisioningStrategy):
         :param kwargs: Dictionary with the following fields:
                - erase_boot: Indicates whether to erase BOOT slot
                - control_dap_cert: Certificate for AP control
-               - ap: Access port to use
-               - probe_id: Probe ID to use
         :return: Provisioning status.
         """
-        # Process keyword arguments
         if 'erase_boot' in kwargs:
             erase_boot = kwargs['erase_boot']
         else:
@@ -114,21 +105,16 @@ class ProvisioningMXS40v1(ProvisioningStrategy):
         else:
             control_dap_cert = None
 
-        if 'ap' in kwargs:
-            ap = kwargs['ap']
-        else:
-            ap = 'cm0'
-
         if 'probe_id' in kwargs:
             probe_id = kwargs['probe_id']
         else:
             probe_id = None
 
         prov_packets = self._get_re_provisioning_packet(target)
-        tool.reset_and_halt(ResetType.HW)
         status = _provision_complete(
             tool, target, prov_packets['prov_cmd'], bootloader, True,
-            erase_boot, control_dap_cert, ap, probe_id)
+            erase_boot=erase_boot, control_dap_cert=control_dap_cert,
+            probe_id=probe_id)
 
         if status == ProvisioningStatus.OK:
             logger.info('*****************************************')
@@ -145,9 +131,46 @@ class ProvisioningMXS40v1(ProvisioningStrategy):
         """
         erase_flash(tool, target)
 
-    def convert_to_rma(self, tool, target, **kwargs):
-        """ N/A for MXS40v1 platform """
-        raise NotImplementedError
+    def transit_to_rma(self, tool, target, cert, *_):
+        """Transits a part to the RMA LCS
+        @param tool: Programming/debugging tool used for communication
+        @param target: The target object
+        @param cert: JWT packet signed by the key mentioned in the debug/RMA
+                     section of the policy, with authentication object
+                     including valid DIE_ID range
+        """
+        if cert is None:
+            raise ValueError('Certificate not specified')
+        logger.info("Apply certificate '%s'", cert)
+        with open(cert, encoding='utf-8') as f:
+            cert_data = f.read()
+        if transition_to_rma(tool, target.memory_map, target.register_map,
+                             cert_data):
+            tool.reset()
+            logger.info('*****************************************')
+            logger.info('      TRANSITION TO RMA LCS PASSED       ')
+            logger.info('*****************************************\n')
+            return ProvisioningStatus.OK
+        return ProvisioningStatus.FAIL
+
+    def open_rma(self, tool, target, cert, **kwargs):
+        """Enables full access to device in RMA lifecycle stage
+        @param tool: Programming/debugging tool used for communication
+        @param target: The target object
+        @param cert: JWT packet signed by the key mentioned in the debug/RMA
+                     section of the policy, with authentication object
+                     including valid DIE_ID range
+        """
+        logger.info("Apply certificate '%s'", cert)
+        with open(cert, encoding='utf-8') as f:
+            cert_data = f.read()
+        if open_rma(tool, target.memory_map, target.register_map, cert_data):
+            logger.info('*****************************************')
+            logger.info('          FULL ACCESS ENABLED            ')
+            logger.info('        DO NOT RESET THE DEVICE          ')
+            logger.info('*****************************************\n')
+            return ProvisioningStatus.OK
+        return ProvisioningStatus.FAIL
 
     @staticmethod
     def _get_provisioning_packet(target):
@@ -195,7 +218,8 @@ def erase_flash(tool, target):
     size = target.memory_map.FLASH_SIZE
     logger.info('erasing address 0x%x, size 0x%x ...', addr, size)
     ap = tool.get_ap()
-    tool.set_ap(AP.CMx)
+    if ap == AP.SYS:
+        tool.set_ap(AP.CMx)
     tool.halt()
     tool.erase(addr, size)
     logger.info('Erasing complete')
@@ -208,7 +232,8 @@ def erase_smif(tool, target):
     if len(smif_resources) > 0:
         logger.info('Erase main smif slots:')
         ap = tool.get_ap()
-        tool.set_ap(AP.CMx)
+        if ap == AP.SYS:
+            tool.set_ap(AP.CMx)
         for (addr, size) in smif_resources:
             # Aligning start address to erase to minimal erase size of smif
             actual_addr = addr - addr % target.memory_map.MIN_EXT_ERASE_SIZE
@@ -230,7 +255,8 @@ def erase_status_partition(tool, target):
     if memory_area is not None:
         logger.info('Erase SWAP status partition memory region:')
         ap = tool.get_ap()
-        tool.set_ap(AP.CMx)
+        if ap == AP.SYS:
+            tool.set_ap(AP.CMx)
         logger.info('erasing address 0x%x, size 0x%x ...',
                     memory_area.address, memory_area.size)
         tool.erase(memory_area.address, memory_area.size)
@@ -243,7 +269,8 @@ def erase_scratch_area(tool, target):
     if memory_area is not None:
         logger.info('Erase SCRATCH memory region:')
         ap = tool.get_ap()
-        tool.set_ap(AP.CMx)
+        if ap == AP.SYS:
+            tool.set_ap(AP.CMx)
         logger.info('erasing address 0x%x, size 0x%x ...',
                     memory_area.address, memory_area.size)
         tool.erase(memory_area.address, memory_area.size)
@@ -265,7 +292,8 @@ def erase_slots(tool, target, slot_type, first_only=False):
     for addr, size in data:
         logger.info('erasing address 0x%x, size 0x%x ...', addr, size)
         ap = tool.get_ap()
-        tool.set_ap(AP.CMx)
+        if ap == AP.SYS:
+            tool.set_ap(AP.CMx)
         tool.halt()
         tool.erase(addr, size)
         logger.info('Erasing complete')
@@ -277,6 +305,7 @@ def erase_slots(tool, target, slot_type, first_only=False):
 def _provision_identity(tool, target: Target,
                         prov_identity_jwt, skip_prompts) -> ProvisioningStatus:
     lifecycle = read_lifecycle(tool, target.register_map)
+    tool.examine_ap()
 
     if lifecycle == ProtectionState.secure:
         status = target.entrance_exam.execute(tool)
@@ -311,20 +340,18 @@ def _provision_identity(tool, target: Target,
 
 
 def _provision_complete(tool, target: Target, prov_cmd_jwt, bootloader,
-                        re_provision, erase_boot=False,
-                        control_dap_cert=None, ap='cm0', probe_id=None) \
-        -> ProvisioningStatus:
-    flash_ops_allowed = True
-    if re_provision:
-        # Check whether cm0 is open
-        cm0_open = read_cm0_permissions(tool, target.register_map)
-        if cm0_open:
-            ConnectHelper.disconnect(tool)
-            ConnectHelper.connect(tool, target, probe_id=probe_id, ap='cm0')
-            tool.reset_and_halt(ResetType.HW)
-        flash_ops_allowed = cm0_open or ap == 'cm4'
-
+                        re_provision, erase_boot=False, control_dap_cert=None,
+                        probe_id=None, ap='cm0') -> ProvisioningStatus:
     reg_map = target.register_map
+    flash_ops_allowed = True
+
+    if re_provision:
+        is_cm0_open = read_cm0_permissions(tool, reg_map)
+        if is_cm0_open:
+            ConnectHelper.disconnect(tool)
+            ConnectHelper.connect(tool, target, probe_id=probe_id, ap=ap)
+            tool.examine_ap()
+        flash_ops_allowed = is_cm0_open
 
     if flash_ops_allowed:
         erase_status_partition(tool, target)
@@ -349,19 +376,18 @@ def _provision_complete(tool, target: Target, prov_cmd_jwt, bootloader,
         except KeyError:
             logger.debug('Unexpected SFB status 0x%x', received)
 
-    # Open cm0 AP
+    # Open cm0 AP with a certificate
     if control_dap_cert:
         logger.info('Opening cm0 AP')
-        cm_open = dap_control(tool, reg_map, 0, 1, False, control_dap_cert)
-        logger.info('cm0 AP %s', 'open' if cm_open else 'closed')
-        if cm_open:
-            logger.info('Use cm0 AP')
+        is_cm0_open = dap_control(tool, reg_map, 0, 1, False, control_dap_cert)
+        logger.info('cm0 AP %s', 'open' if is_cm0_open else 'closed')
+        if is_cm0_open:
             ConnectHelper.disconnect(tool)
             ConnectHelper.connect(tool, target, probe_id=probe_id, ap='cm0',
                                   acquire=False)
             tool.set_skip_reset_and_halt(True)
             tool.examine_ap()
-        flash_ops_allowed = cm_open
+        flash_ops_allowed = is_cm0_open
 
     if erase_boot:
         if flash_ops_allowed:
@@ -382,7 +408,10 @@ def _provision_complete(tool, target: Target, prov_cmd_jwt, bootloader,
     context = EncryptedProgrammingContext(AesHeaderStrategy)
 
     # Program user application
-    for encrypted, app in target.policy_parser.get_user_apps():
+    user_apps = target.policy_parser.get_user_apps()
+    if user_apps:
+        tool.reset()
+    for encrypted, app in user_apps:
         if not os.path.isabs(app):
             app = os.path.join(target.policy_parser.policy_dir, app)
         if encrypted:
@@ -394,10 +423,13 @@ def _provision_complete(tool, target: Target, prov_cmd_jwt, bootloader,
         else:
             if flash_ops_allowed:
                 current_ap = tool.get_ap()
-                tool.set_ap(AP.CMx)
+                if current_ap == AP.SYS:
+                    tool.set_ap(AP.CMx)
                 logger.info("Programming user application '%s':", app)
-                tool.reset_and_halt(reset_type=ResetType.HW)
+                tool.halt()
                 tool.program(app)
+                logger.info('Programming user application complete')
+                tool.resume()
                 tool.set_ap(current_ap)
             else:
                 logger.warning('Skip programming user application, '
@@ -420,21 +452,18 @@ def _provision_complete(tool, target: Target, prov_cmd_jwt, bootloader,
         elif bootloader is None:
             logger.warning('Skip programming bootloader')
         else:
-            sleep(3)
             current_ap = tool.get_ap()
-            tool.set_ap(AP.CMx)
+            if current_ap == AP.SYS:
+                tool.set_ap(AP.CMx)
             logger.info("Programming bootloader '%s':", bootloader)
             tool.halt()
             tool.program(bootloader)
             logger.info('Programming bootloader complete')
+            tool.resume()
             tool.set_ap(current_ap)
 
     if control_dap_cert:
         tool.set_skip_reset_and_halt(False)
-
-    if flash_ops_allowed and re_provision:
-        ConnectHelper.disconnect(tool)
-        ConnectHelper.connect(tool, target, probe_id=probe_id, ap=ap)
 
     tool.reset(ResetType.HW)
     sleep(3)
@@ -445,24 +474,18 @@ def _provision_complete(tool, target: Target, prov_cmd_jwt, bootloader,
     logger.info('Run provisioning syscall:')
     is_exam_pass, response = provision_keys_and_policies(tool, prov_cmd_jwt,
                                                          target.register_map)
+    tool.reset()
+
     if not is_exam_pass:
         return ProvisioningStatus.FAIL
 
     _save_device_response(target, response)
 
-    tool.reset()
-
     if not target.policy_parser.is_sys_ap_enabled():
-        if not target.policy_parser.is_cmx_ap_enabled(re_provision):
-            logger.info('All APs closed by policy. Final verification is '
-                        'unavailable.')
-            return ProvisioningStatus.OK
-        else:
-            tool.set_ap(AP.CMx)
+        logger.warning('System AP closed by policy. Final verification is '
+                       'not available')
+        return ProvisioningStatus.OK
 
-    logger.debug('Access through %s', tool.get_ap())
-
-    sleep(3)
     sfb_fw_status = tool.read32(reg_map.ENTRANCE_EXAM_FW_STATUS_REG)
     logger.info('FlashBoot firmware status = 0x%x', sfb_fw_status)
     is_exam_pass = sfb_fw_status == reg_map.FB_FW_STATUS_FIRMWARE_RUNNING_CM0
@@ -479,14 +502,14 @@ def read_cm0_permissions(tool, reg_map):
     if passed and len(data) > 0:
         policy = Crypto.readable_jwt(data)
         silicon_policy_parser = PolicyParser(policy['payload'])
-        cm0_open = silicon_policy_parser.is_cmx_ap_enabled(True)
-        logger.info('cm0 AP %s', 'open' if cm0_open else 'closed')
+        is_cm0_open = silicon_policy_parser.is_cmx_ap_enabled(True)
+        logger.info('cm0 AP %s', 'open' if is_cm0_open else 'closed')
     else:
         logger.error('Failed to read policy from device while getting AP '
                      'permission')
         logger.warning('Flash operations will be skipped')
-        cm0_open = False
-    return cm0_open
+        is_cm0_open = False
+    return is_cm0_open
 
 
 def _save_device_public_key(tool, target):
@@ -498,6 +521,8 @@ def _save_device_public_key(tool, target):
                 f.write(json.dumps(key, indent=4))
             pem = PemKey(jwk_path)
             pem.save(pem_path, private_key=False)
+    except TimeoutError:
+        raise
     except (KeyError, OSError, ValueError, TypeError) as e:
         logger.error('Failed to save device public key')
         logger.error(e)

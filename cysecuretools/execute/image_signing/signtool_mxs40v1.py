@@ -341,13 +341,6 @@ class SignToolMXS40v1(SignTool):
                 except OSError:
                     pass
 
-    @staticmethod
-    def _get_image_id(kwargs):
-        image_id = kwargs.get('image_id')
-        if image_id is None:
-            raise KeyError("Mandatory argument 'image_id' not specified")
-        return image_id
-
     def _get_min_erase_size(self, min_erase_size, slot_address):
         if self.mem_map.FLASH_ADDRESS <= slot_address < self.mem_map.FLASH_SIZE + \
                 self.mem_map.FLASH_ADDRESS:
@@ -374,6 +367,11 @@ class SignToolMXS40v1(SignTool):
         else:
             erased_val = self._default_erased_value(image_type)
         return erased_val
+
+    @staticmethod
+    def _get_image_id(kwargs):
+        image_id = kwargs.get('image_id')
+        return 1 if image_id is None else image_id
 
     @staticmethod
     def _get_image_type(kwargs):

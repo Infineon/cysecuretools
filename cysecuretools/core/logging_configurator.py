@@ -31,7 +31,13 @@ class LoggingConfigurator:
 
     @staticmethod
     def disable_logging():
+        """Disable all logging calls of severity 'CRITICAL' and below"""
         logging.disable(logging.CRITICAL)
+
+    @staticmethod
+    def enable_logging():
+        """Restore disabled logging"""
+        logging.disable(logging.NOTSET)
 
     @staticmethod
     def set_logger_level(level):

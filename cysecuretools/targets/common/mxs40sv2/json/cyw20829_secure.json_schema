@@ -8,19 +8,19 @@
             "id": "device_policy",
             "required": true,
             "type": "object",
-            "description" : "Device configuration parameters",
+            "description": "Device configuration parameters",
             "properties": {
                 "debug": {
                     "id": "debug",
                     "required": false,
                     "type": "object",
-                    "description" : "Debug access restrictions",
+                    "description": "Debug access restrictions",
                     "properties": {
                         "cpu": {
                             "id": "cpu",
                             "required": true,
                             "type": "object",
-                            "description" : "CM33 debug access port (DAP) access restrictions",
+                            "description": "CM33 debug access port (DAP) access restrictions",
                             "properties": {
                                 "ap_cm33": {
                                     "id": "ap_cm33",
@@ -28,10 +28,13 @@
                                     "type": "object",
                                     "description": "Configures the CM33 debug access port availability in the SECURE or NORMAL_NO_SECURE LCS",
                                     "properties": {
-                                        "value":
-                                        {
+                                        "value": {
                                             "type": "string",
-                                            "enum": ["Enable", "Disable", "Permanently Disable"]
+                                            "enum": [
+                                                "Enable",
+                                                "Disable",
+                                                "Permanently Disable"
+                                            ]
                                         }
                                     }
                                 },
@@ -41,10 +44,14 @@
                                     "type": "object",
                                     "description": "Configures the listen window time to acquire the CM33 debug access port in the SECURE or NORMAL_NO_SECURE LCS",
                                     "properties": {
-                                        "value":
-                                        {
+                                        "value": {
                                             "type": "string",
-                                            "enum": ["100 ms", "20 ms", "2 ms", "0 ms"]
+                                            "enum": [
+                                                "100 ms",
+                                                "20 ms",
+                                                "2 ms",
+                                                "0 ms"
+                                            ]
                                         }
                                     }
                                 },
@@ -54,10 +61,13 @@
                                     "type": "object",
                                     "description": "Configures the invasive debug of CM33 core",
                                     "properties": {
-                                        "value":
-                                        {
+                                        "value": {
                                             "type": "string",
-                                            "enum": ["Enable", "Disable", "Permanently Disable"]
+                                            "enum": [
+                                                "Enable",
+                                                "Disable",
+                                                "Permanently Disable"
+                                            ]
                                         }
                                     }
                                 },
@@ -67,10 +77,13 @@
                                     "type": "object",
                                     "description": "Configures the non-invasive debug of CM33 core",
                                     "properties": {
-                                        "value":
-                                        {
+                                        "value": {
                                             "type": "string",
-                                            "enum": ["Enable", "Disable", "Permanently Disable"]
+                                            "enum": [
+                                                "Enable",
+                                                "Disable",
+                                                "Permanently Disable"
+                                            ]
                                         }
                                     }
                                 },
@@ -80,10 +93,12 @@
                                     "type": "object",
                                     "description": "Configures the CM33 debug access port availability in the DEAD branch",
                                     "properties": {
-                                        "value":
-                                        {
+                                        "value": {
                                             "type": "string",
-                                            "enum": ["Enable", "Permanently Disable"]
+                                            "enum": [
+                                                "Enable",
+                                                "Permanently Disable"
+                                            ]
                                         }
                                     }
                                 },
@@ -93,10 +108,12 @@
                                     "type": "object",
                                     "description": "Configures the invasive debug of CM33 core in the DEAD branch",
                                     "properties": {
-                                        "value":
-                                        {
+                                        "value": {
                                             "type": "string",
-                                            "enum": ["Enable", "Permanently Disable"]
+                                            "enum": [
+                                                "Enable",
+                                                "Permanently Disable"
+                                            ]
                                         }
                                     }
                                 },
@@ -106,10 +123,12 @@
                                     "type": "object",
                                     "description": "Configures the non-invasive debug of CM33 core in the DEAD branch",
                                     "properties": {
-                                        "value":
-                                        {
+                                        "value": {
                                             "type": "string",
-                                            "enum": ["Enable", "Permanently Disable"]
+                                            "enum": [
+                                                "Enable",
+                                                "Permanently Disable"
+                                            ]
                                         }
                                     }
                                 }
@@ -119,7 +138,7 @@
                             "id": "system",
                             "required": true,
                             "type": "object",
-                            "description" : "System debug access port (DAP) access restrictions",
+                            "description": "System debug access port (DAP) access restrictions",
                             "properties": {
                                 "ap": {
                                     "id": "ap",
@@ -127,10 +146,13 @@
                                     "type": "object",
                                     "description": "Configures the System debug access port (DAP) availability in the SECURE or NORMAL_NO_SECURE LCS",
                                     "properties": {
-                                        "value":
-                                        {
+                                        "value": {
                                             "type": "string",
-                                            "enum": ["Enable", "Disable", "Permanently Disable"]
+                                            "enum": [
+                                                "Enable",
+                                                "Disable",
+                                                "Permanently Disable"
+                                            ]
                                         }
                                     }
                                 },
@@ -140,10 +162,12 @@
                                     "type": "object",
                                     "description": "Indicates that the MPC/PPC on the system access port must be programmed and locked according to the settings in the next fields",
                                     "properties": {
-                                        "value":
-                                        {
+                                        "value": {
                                             "type": "string",
-                                            "enum": ["Enable", "Disable"]
+                                            "enum": [
+                                                "Enable",
+                                                "Disable"
+                                            ]
                                         }
                                     }
                                 },
@@ -153,10 +177,18 @@
                                     "type": "object",
                                     "description": "Configures what portion of SRAM macro 0 is accessible through the System debug access port in the SECURE or NORMAL_NO_SECURE LCS. Only a portion of SRAM starting at the bottom of the area is exposed",
                                     "properties": {
-                                        "value":
-                                        {
+                                        "value": {
                                             "type": "string",
-                                            "enum": ["Entire region", "7/8", "3/4", "1/2", "1/4", "1/8", "1/16", "Nothing"]
+                                            "enum": [
+                                                "Entire region",
+                                                "7/8",
+                                                "3/4",
+                                                "1/2",
+                                                "1/4",
+                                                "1/8",
+                                                "1/16",
+                                                "Nothing"
+                                            ]
                                         }
                                     }
                                 },
@@ -166,10 +198,13 @@
                                     "type": "object",
                                     "description": "Configures what portion of the MMIO region is accessible through the System debug access port in the SECURE or NORMAL_NO_SECURE LCS",
                                     "properties": {
-                                        "value":
-                                        {
+                                        "value": {
                                             "type": "string",
-                                            "enum": ["All", "Only IPC", "No access"]
+                                            "enum": [
+                                                "All",
+                                                "Only IPC",
+                                                "No access"
+                                            ]
                                         }
                                     }
                                 },
@@ -179,10 +214,12 @@
                                     "type": "object",
                                     "description": "Configures the System debug access port (DAP) availability in the DEAD branch",
                                     "properties": {
-                                        "value":
-                                        {
+                                        "value": {
                                             "type": "string",
-                                            "enum": ["Enable", "Permanently Disable"]
+                                            "enum": [
+                                                "Enable",
+                                                "Permanently Disable"
+                                            ]
                                         }
                                     }
                                 },
@@ -192,10 +229,12 @@
                                     "type": "object",
                                     "description": "Indicates that the MPC/PPC on the system access port must be programmed and locked in the DEAD branch according to the next fields settings",
                                     "properties": {
-                                        "value":
-                                        {
+                                        "value": {
                                             "type": "string",
-                                            "enum": ["Enable", "Disable"]
+                                            "enum": [
+                                                "Enable",
+                                                "Disable"
+                                            ]
                                         }
                                     }
                                 },
@@ -205,10 +244,18 @@
                                     "type": "object",
                                     "description": "Configures what portion of SRAM macro 0 is accessible through the System debug access port in the DEAD branch. Only a portion of SRAM starting at the bottom of the area is exposed",
                                     "properties": {
-                                        "value":
-                                        {
+                                        "value": {
                                             "type": "string",
-                                            "enum": ["Entire region", "7/8", "3/4", "1/2", "1/4", "1/8", "1/16", "Nothing"]
+                                            "enum": [
+                                                "Entire region",
+                                                "7/8",
+                                                "3/4",
+                                                "1/2",
+                                                "1/4",
+                                                "1/8",
+                                                "1/16",
+                                                "Nothing"
+                                            ]
                                         }
                                     }
                                 },
@@ -218,10 +265,13 @@
                                     "type": "object",
                                     "description": "Configures what portion of the MMIO region is accessible through the system debug access port in the DEAD branch",
                                     "properties": {
-                                        "value":
-                                        {
+                                        "value": {
                                             "type": "string",
-                                            "enum": ["All", "Only IPC", "No access"]
+                                            "enum": [
+                                                "All",
+                                                "Only IPC",
+                                                "No access"
+                                            ]
                                         }
                                     }
                                 }
@@ -241,10 +291,18 @@
                             "description": "SMIF Configuration",
                             "type": "object",
                             "properties": {
-                                "value":
-                                {
+                                "value": {
                                     "type": "string",
-                                    "enum": ["SFDP 1.5 and above", "QER_1", "QER_2", "QER_3", "QER_4", "QER_5", "QER_6", "HCI mode"]
+                                    "enum": [
+                                        "SFDP 1.5 and above",
+                                        "QER_1",
+                                        "QER_2",
+                                        "QER_3",
+                                        "QER_4",
+                                        "QER_5",
+                                        "QER_6",
+                                        "HCI mode"
+                                    ]
                                 }
                             }
                         },
@@ -254,10 +312,12 @@
                             "description": "Chip Select",
                             "type": "object",
                             "properties": {
-                                "value":
-                                {
-                                   "type": "string",
-                                    "enum": ["CS0", "CS1"]
+                                "value": {
+                                    "type": "string",
+                                    "enum": [
+                                        "CS0",
+                                        "CS1"
+                                    ]
                                 }
                             }
                         },
@@ -267,10 +327,13 @@
                             "description": "Data width",
                             "type": "object",
                             "properties": {
-                                "value":
-                                {
+                                "value": {
                                     "type": "string",
-                                    "enum": ["1X", "2X", "4X"]
+                                    "enum": [
+                                        "1X",
+                                        "2X",
+                                        "4X"
+                                    ]
                                 }
                             }
                         },
@@ -280,10 +343,12 @@
                             "description": "Data Select",
                             "type": "object",
                             "properties": {
-                                "value":
-                                {
+                                "value": {
                                     "type": "string",
-                                    "enum": ["SEL0", "SEL1"]
+                                    "enum": [
+                                        "SEL0",
+                                        "SEL1"
+                                    ]
                                 }
                             }
                         },
@@ -293,10 +358,12 @@
                             "description": "Addressing Mode",
                             "type": "object",
                             "properties": {
-                                "value":
-                                {
+                                "value": {
                                     "type": "string",
-                                    "enum": ["3-byte", "4-byte"]
+                                    "enum": [
+                                        "3-byte",
+                                        "4-byte"
+                                    ]
                                 }
                             }
                         },
@@ -305,8 +372,7 @@
                             "required": false,
                             "description": "Enables SMIF encryption",
                             "properties": {
-                             	"value":
-                                {
+                                "value": {
                                     "type": "boolean"
                                 }
                             }
@@ -322,13 +388,31 @@
                         "nv_counter": {
                             "id": "nv_counter",
                             "required": false,
-                            "description": "Anti-rollback counter (supports up to 32 updates)",
+                            "description": "Anti-rollback counter. Each item of the 'value' array defines counter for each next application. Each 'bits_per_cnt' item defines number of bits for the next application counter (total bits number 32). IMPORTANT: 'bits_per_cnt' in the provisioning and reprovisioning policy files MUST BE the same",
                             "properties": {
-                             	"value":
-                                {
-                                    "type": "number",
-                                    "minimum": 0,
-                                    "maximum": 32
+                                "value": {
+                                    "anyOf": [
+                                        {
+                                            "type": "number",
+                                            "minimum": 0,
+                                            "maximum": 32
+                                        },
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "number",
+                                                "minimum": 0
+                                            }
+                                        }
+                                    ]
+                                },
+                                "bits_per_cnt": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 32
+                                    }
                                 }
                             }
                         },
@@ -337,8 +421,7 @@
                             "required": false,
                             "description": "Revokes OEM public key 0. The OEM public key 1 is used for image verification (this can be done only once). This option is not applicable if SMIF encryption is enabled",
                             "properties": {
-                             	"value":
-                                {
+                                "value": {
                                     "type": "boolean"
                                 }
                             }
@@ -348,8 +431,7 @@
                             "required": false,
                             "description": "Revokes ICV public key 0. The ICV public key 1 is used for service application verification (this can be done only once)",
                             "properties": {
-                             	"value":
-                                {
+                                "value": {
                                     "type": "boolean"
                                 }
                             }
@@ -367,10 +449,13 @@
                             "required": true,
                             "description": "The device LCS after the device is reset after service application completes execution",
                             "properties": {
-                             	"value":
-                                {
+                                "value": {
                                     "type": "string",
-                                    "enum": ["NORMAL", "NORMAL_NO_SECURE", "SECURE"]
+                                    "enum": [
+                                        "NORMAL",
+                                        "NORMAL_NO_SECURE",
+                                        "SECURE"
+                                    ]
                                 }
                             }
                         },
@@ -379,8 +464,7 @@
                             "required": false,
                             "description": "Programs OEM assets (SMIF_CONFIG, LISTEN_WINDOW, ACCESS RESTRICTIONS) and makes them immutable (this can be done only once)",
                             "properties": {
-                             	"value":
-                                {
+                                "value": {
                                     "type": "boolean"
                                 }
                             }
@@ -390,8 +474,7 @@
                             "required": false,
                             "description": "Programs the OEM key 0 hash and makes it immutable (this can be done only once)",
                             "properties": {
-                             	"value":
-                                {
+                                "value": {
                                     "type": "boolean"
                                 }
                             }
@@ -401,8 +484,7 @@
                             "required": false,
                             "description": "Programs the OEM key 1 hash and makes it immutable (this can be done only once)",
                             "properties": {
-                             	"value":
-                                {
+                                "value": {
                                     "type": "boolean"
                                 }
                             }
@@ -428,8 +510,7 @@
                             "required": false,
                             "description": "Path to the OEM public key 0",
                             "properties": {
-                                "value":
-                                {
+                                "value": {
                                     "type": "string"
                                 }
                             }
@@ -439,8 +520,7 @@
                             "required": false,
                             "description": "Path to the OEM public key 1",
                             "properties": {
-                                "value":
-                                {
+                                "value": {
                                     "type": "string"
                                 }
                             }
@@ -450,8 +530,7 @@
                             "required": false,
                             "description": "Path to the AES-128 key for image encryption",
                             "properties": {
-                                "value":
-                                {
+                                "value": {
                                     "type": "string"
                                 }
                             }
@@ -461,10 +540,10 @@
             }
         },
         "post_build": {
-        "id": "post_build",
-        "required": false,
-        "type": "object",
-        "description": "Post-build parameters",
+            "id": "post_build",
+            "required": false,
+            "type": "object",
+            "description": "Post-build parameters",
             "properties": {
                 "keys": {
                     "id": "keys",
@@ -477,8 +556,7 @@
                             "required": false,
                             "description": "Path to the OEM private key 0",
                             "properties": {
-                                "value":
-                                {
+                                "value": {
                                     "type": "string"
                                 }
                             }
@@ -488,8 +566,7 @@
                             "required": false,
                             "description": "Path to the OEM private key 1",
                             "properties": {
-                                "value":
-                                {
+                                "value": {
                                     "type": "string"
                                 }
                             }
@@ -499,8 +576,7 @@
                             "required": false,
                             "description": "Path to the AES-128 key for image encryption",
                             "properties": {
-                                "value":
-                                {
+                                "value": {
                                     "type": "string"
                                 }
                             }

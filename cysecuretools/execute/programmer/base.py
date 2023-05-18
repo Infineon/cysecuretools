@@ -1,5 +1,6 @@
 """
-Copyright (c) 2019 Cypress Semiconductor Corporation
+Copyright 2019-2023 Cypress Semiconductor Corporation (an Infineon company)
+or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -18,16 +19,19 @@ from abc import ABCMeta, abstractmethod
 
 
 class ResetType(Enum):
+    """Enumeration for reset types"""
     SW = 1
     HW = 2
 
 
 class Interface(Enum):
+    """Enumeration for communication interfaces"""
     SWD = 1
     JTAG = 2
 
 
 class AP(Enum):
+    """Enumeration for access ports"""
     SYS = 'sys'
     CM0 = 'cm0'
     CM4 = 'cm4'
@@ -36,30 +40,14 @@ class AP(Enum):
 
 
 class ProgrammerBase(metaclass=ABCMeta):
+    """Base class which is necessary to be implemented by the classes
+    providing communication with OCD
+    """
+
     def __init__(self, name, path, require_path=True):
         self.name = name
         self.tool_path = path
         self.require_path = require_path
-
-    def _start_core(self):
-        """
-        Writes infinite loop into RAM and starts core execution.
-        CM0 will not be able to execute sys calls in case it is in
-        undefined state.
-        """
-        start_core_program_address = 0x08000000
-        program_counter_address = 0x08000000
-        stack_pointer_address = 0x08001000
-        thumb_bit_address = 0x01000000
-        infinite_loop_code = 0xE7FEB662
-        self.halt()
-        # B662 - CPSIE I - Enable IRQ by clearing PRIMASK
-        # E7FE - B - Jump to address (argument is an offset)
-        self.write32(start_core_program_address, infinite_loop_code)
-        self.write_reg('pc', program_counter_address)
-        self.write_reg('sp', stack_pointer_address)
-        self.write_reg('xpsr', thumb_bit_address)
-        self.resume()
 
     @property
     def wait_for_target(self):
@@ -78,23 +66,22 @@ class ProgrammerBase(metaclass=ABCMeta):
         raise NotImplementedError
 
     @abstractmethod
-    def connect(self, target_name=None, interface=None, probe_id=None,
-                ap=None, acquire=True, blocking=True, reset_and_halt=False,
-                power=None, voltage=None):
+    def connect(self, target_name=None, interface=None, probe_id=None, ap=None,
+                acquire=True, blocking=True, power=None, voltage=None,
+                ignore_errors=False):
         """
         Connects to target.
-        :param target_name: The target name.
-        :param interface: Debug interface.
-        :param probe_id: Probe serial number.
-        :param ap: The access port used for communication.
-        :param acquire: Indicates whether to acquire device on connect
-        :param blocking: Specifies whether to wait for a probe to be
+        @param target_name: The target name.
+        @param interface: Debug interface.
+        @param probe_id: Probe serial number.
+        @param ap: The access port used for communication.
+        @param acquire: Indicates whether to acquire device on connect
+        @param blocking: Specifies whether to wait for a probe to be
                connected if there are no available probes
-        :param reset_and_halt: Indicates whether to do reset and halt
-               after connect
-        :param power: Target power
-        :param voltage: Target power voltage
-        :return: True if connected successfully, otherwise False.
+        @param power: Target power
+        @param voltage: Target power voltage
+        @param ignore_errors: Ignore errors and continue execution
+        @return: True if connected successfully, otherwise False.
         """
         raise NotImplementedError()
 
@@ -109,7 +96,7 @@ class ProgrammerBase(metaclass=ABCMeta):
     def get_ap(self):
         """
         Gets access port.
-        :return: Selected AP.
+        @return: Selected AP.
         """
         raise NotImplementedError()
 
@@ -124,7 +111,7 @@ class ProgrammerBase(metaclass=ABCMeta):
     def set_frequency(self, value_khz):
         """
         Sets probe frequency.
-        :param value_khz: Frequency in kHz.
+        @param value_khz: Frequency in kHz.
         """
         raise NotImplementedError()
 
@@ -146,7 +133,7 @@ class ProgrammerBase(metaclass=ABCMeta):
     def reset(self, reset_type=ResetType.SW):
         """
         Resets the target.
-        :param reset_type: The reset type.
+        @param reset_type: The reset type.
         """
         raise NotImplementedError()
 
@@ -154,7 +141,7 @@ class ProgrammerBase(metaclass=ABCMeta):
     def reset_and_halt(self, reset_type=ResetType.SW):
         """
         Resets the target and halts the CPU immediately after reset.
-        :param reset_type: The reset type.
+        @param reset_type: The reset type.
         """
         raise NotImplementedError()
 
@@ -162,8 +149,8 @@ class ProgrammerBase(metaclass=ABCMeta):
     def read8(self, address):
         """
         Reads 8-bit value from specified memory location.
-        :param address: The memory address to read.
-        :return: The read value.
+        @param address: The memory address to read.
+        @return: The read value.
         """
         raise NotImplementedError()
 
@@ -171,8 +158,8 @@ class ProgrammerBase(metaclass=ABCMeta):
     def read16(self, address):
         """
         Reads 16-bit value from specified memory location.
-        :param address: The memory address to read.
-        :return: The read value.
+        @param address: The memory address to read.
+        @return: The read value.
         """
         raise NotImplementedError()
 
@@ -180,8 +167,8 @@ class ProgrammerBase(metaclass=ABCMeta):
     def read32(self, address):
         """
         Reads 32-bit value from specified memory location.
-        :param address: The memory address to read.
-        :return: The read value.
+        @param address: The memory address to read.
+        @return: The read value.
         """
         raise NotImplementedError()
 
@@ -189,8 +176,8 @@ class ProgrammerBase(metaclass=ABCMeta):
     def write8(self, address, value):
         """
         Writes 8-bit value by specified memory location.
-        :param address: The memory address to write.
-        :param value: The 8-bit value to write.
+        @param address: The memory address to write.
+        @param value: The 8-bit value to write.
         """
         raise NotImplementedError()
 
@@ -198,8 +185,8 @@ class ProgrammerBase(metaclass=ABCMeta):
     def write16(self, address, value):
         """
         Writes 16-bit value by specified memory location.
-        :param address: The memory address to write.
-        :param value: The 16-bit value to write.
+        @param address: The memory address to write.
+        @param value: The 16-bit value to write.
         """
         raise NotImplementedError()
 
@@ -207,8 +194,8 @@ class ProgrammerBase(metaclass=ABCMeta):
     def write32(self, address, value):
         """
         Writes 32-bit value by specified memory location.
-        :param address: The memory address to write.
-        :param value: The 32-bit value to write.
+        @param address: The memory address to write.
+        @param value: The 32-bit value to write.
         """
         raise NotImplementedError()
 
@@ -216,8 +203,8 @@ class ProgrammerBase(metaclass=ABCMeta):
     def read_reg(self, reg_name):
         """
         Gets value of a core register.
-        :param reg_name: Core register name.
-        :return: The register value.
+        @param reg_name: Core register name.
+        @return: The register value.
         """
         raise NotImplementedError()
 
@@ -225,8 +212,8 @@ class ProgrammerBase(metaclass=ABCMeta):
     def write_reg(self, reg_name, value):
         """
         Sets value of a core register.
-        :param reg_name: Core register name.
-        :param value: The value to set.
+        @param reg_name: Core register name.
+        @param value: The value to set.
         """
         raise NotImplementedError()
 
@@ -234,8 +221,8 @@ class ProgrammerBase(metaclass=ABCMeta):
     def erase(self, address, size):
         """
         Erases entire device flash or specified sectors.
-        :param address: The memory location.
-        :param size: The memory size.
+        @param address: The memory location.
+        @param size: The memory size.
         """
         raise NotImplementedError()
 
@@ -243,10 +230,10 @@ class ProgrammerBase(metaclass=ABCMeta):
     def program(self, filename, file_format=None, address=None):
         """
         Programs a file into flash.
-        :param filename: Path to a file.
-        :param file_format: File format. Default is to use the file's extension.
-        :param address: Base address used for the address where to flash a binary.
-        :return: True if programmed successfully, otherwise False.
+        @param filename: Path to a file.
+        @param file_format: File format. Default is to use the file's extension.
+        @param address: Base address used for the address where to flash a binary.
+        @return: True if programmed successfully, otherwise False.
         """
         raise NotImplementedError()
 
@@ -254,9 +241,9 @@ class ProgrammerBase(metaclass=ABCMeta):
     def read(self, address, length):
         """
         Reads a block of unaligned bytes in memory
-        :param address: The memory address where start reading
-        :param length: Number of bytes to read
-        :return: Values array
+        @param address: The memory address where start reading
+        @param length: Number of bytes to read
+        @return: Values array
         """
         raise NotImplementedError()
 
@@ -264,8 +251,8 @@ class ProgrammerBase(metaclass=ABCMeta):
     def write(self, address, data):
         """
         Writes a block of unaligned bytes in memory
-        :param address: The memory address where start writing
-        :param data: Data block
+        @param address: The memory address where start writing
+        @param data: Data block
         """
         raise NotImplementedError()
 
@@ -280,7 +267,7 @@ class ProgrammerBase(metaclass=ABCMeta):
         """
         Sets skip_reset_and_halt property value. This is applicable
         for pyOCD and likely should not be implemented for other tools
-        :param value: Indicates whether to skip or not
+        @param value: Indicates whether to skip or not
         """
 
     def examine_ap(self):
@@ -293,5 +280,5 @@ class ProgrammerBase(metaclass=ABCMeta):
     @abstractmethod
     def get_voltage(self):
         """Reads target voltage
-        :@return Voltage value in Volts
+        @return Voltage value in Volts
         """

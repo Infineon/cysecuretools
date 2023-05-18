@@ -1,5 +1,5 @@
 """
-Copyright 2019-2022 Cypress Semiconductor Corporation (an Infineon company)
+Copyright 2019-2023 Cypress Semiconductor Corporation (an Infineon company)
 or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -57,22 +57,21 @@ class Pyocd(ProgrammerBase):
         self._wait_for_target = value
 
     def connect(self, target_name=None, interface=None, probe_id=None,
-                ap='cm4', acquire=None, blocking=True, reset_and_halt=False,
-                power=None, voltage=None):
+                ap='sysap', acquire=None, blocking=True, power=None,
+                voltage=None, ignore_errors=False):
         """
         Connects to target using default debug interface.
-        :param target_name: The target name.
-        :param interface: Debug interface.
-        :param ap: The access port used for communication (cm0 or cm4).
-        :param probe_id: Probe serial number.
-        :param acquire: Indicates whether to acquire device on connect
-        :param blocking: Specifies whether to wait for a probe to be
+        @param target_name: The target name.
+        @param interface: Debug interface.
+        @param probe_id: Probe serial number.
+        @param ap: The access port to be used for flash operations
+        @param acquire: Indicates whether to acquire device on connect
+        @param blocking: Specifies whether to wait for a probe to be
                connected if there are no available probes.
-        :param reset_and_halt: Indicates whether to do reset and halt
-               after connect
-        :param power: N/A for PyOCD
-        :param voltage: N/A for PyOCD
-        :return: True if connected successfully, otherwise False.
+        @param power: Indicates whether to on/off the KitProg3 power
+        @param voltage: The KitProg3 voltage level
+        @param ignore_errors: Ignore errors and continue execution
+        @return: True if connected successfully, otherwise False.
         """
         if interface:
             raise NotImplementedError
@@ -109,9 +108,6 @@ class Pyocd(ProgrammerBase):
             self.target = self.board.target
             self.probe = self.session.probe
             self.probe_id = self.probe.unique_id
-
-            if reset_and_halt:
-                self.reset_and_halt(reset_type=ResetType.HW)
 
             self.ap = ap
             self.set_ap(AP.SYS)
@@ -174,7 +170,7 @@ class Pyocd(ProgrammerBase):
     def get_ap(self):
         """
         Gets access port.
-        :return: Selected AP.
+        @return: Selected AP.
         """
         if self.target.selected_core == self.target.cores[0]:
             ap = AP.SYS
@@ -186,32 +182,27 @@ class Pyocd(ProgrammerBase):
     def set_ap(self, ap):
         """
         Sets access port.
-        :param ap: The AP name.
+        @param ap: The AP name.
         """
         if ap == AP.SYS:
             logger.debug('Use system AP')
-            if self.get_ap() != AP.SYS:
-                self._start_core()
             self.target.selected_core = 0
         elif ap == AP.CM0:
             logger.debug('Use cm0 AP')
             self.target.selected_core = 1
-            self._start_core()
         elif ap == AP.CM4:
             logger.debug('Use cm4 AP')
             self.target.selected_core = 1
-            self._start_core()
         elif ap == AP.CMx:
             logger.debug('Use %s AP', self.ap)
             self.target.selected_core = 1
-            self._start_core()
         else:
             raise ValueError('Invalid access port.')
 
     def set_frequency(self, value_khz):
         """
         Sets probe frequency.
-        :param value_khz: Frequency in kHz.
+        @param value_khz: Frequency in kHz.
         """
         if self.probe is None:
             raise ValueError('Debug probe is not initialized.')
@@ -238,7 +229,7 @@ class Pyocd(ProgrammerBase):
     def reset(self, reset_type=ResetType.SW):
         """
         Resets the target.
-        :param reset_type: The reset type.
+        @param reset_type: The reset type.
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
@@ -248,7 +239,7 @@ class Pyocd(ProgrammerBase):
     def reset_and_halt(self, reset_type=ResetType.SW):
         """
         Resets the target and halts the CPU immediately after reset.
-        :param reset_type: The reset type.
+        @param reset_type: The reset type.
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
@@ -259,8 +250,8 @@ class Pyocd(ProgrammerBase):
     def read8(self, address):
         """
         Reads 8-bit value from specified memory location.
-        :param address: The memory address to read.
-        :return: The read value.
+        @param address: The memory address to read.
+        @return: The read value.
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
@@ -271,8 +262,8 @@ class Pyocd(ProgrammerBase):
     def read16(self, address):
         """
         Reads 16-bit value from specified memory location.
-        :param address: The memory address to read.
-        :return: The read value.
+        @param address: The memory address to read.
+        @return: The read value.
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
@@ -286,8 +277,8 @@ class Pyocd(ProgrammerBase):
     def read32(self, address):
         """
         Reads 32-bit value from specified memory location.
-        :param address: The memory address to read.
-        :return: The read value.
+        @param address: The memory address to read.
+        @return: The read value.
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
@@ -301,8 +292,8 @@ class Pyocd(ProgrammerBase):
     def write8(self, address, value):
         """
         Writes 8-bit value by specified memory location.
-        :param address: The memory address to write.
-        :param value: The 8-bit value to write.
+        @param address: The memory address to write.
+        @param value: The 8-bit value to write.
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
@@ -313,8 +304,8 @@ class Pyocd(ProgrammerBase):
     def write16(self, address, value):
         """
         Writes 16-bit value by specified memory location.
-        :param address: The memory address to write.
-        :param value: The 16-bit value to write.
+        @param address: The memory address to write.
+        @param value: The 16-bit value to write.
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
@@ -325,8 +316,8 @@ class Pyocd(ProgrammerBase):
     def write32(self, address, value):
         """
         Writes 32-bit value by specified memory location.
-        :param address: The memory address to write.
-        :param value: The 32-bit value to write.
+        @param address: The memory address to write.
+        @param value: The 32-bit value to write.
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
@@ -337,8 +328,8 @@ class Pyocd(ProgrammerBase):
     def read_reg(self, reg_name):
         """
         Gets value of a core register.
-        :param reg_name: Core register name.
-        :return: The register value.
+        @param reg_name: Core register name.
+        @return: The register value.
         """
         reg = reg_name.lower()
         value = self.target.read_core_register(reg)
@@ -348,9 +339,9 @@ class Pyocd(ProgrammerBase):
     def write_reg(self, reg_name, value):
         """
         Sets value of a core register.
-        :param reg_name: Core register name.
-        :param value: The value to set.
-        :return: The register value.
+        @param reg_name: Core register name.
+        @param value: The value to set.
+        @return: The register value.
         """
         reg = reg_name.lower()
         logger.debug('write_reg (%s): 0x%x', reg_name, value)
@@ -359,8 +350,8 @@ class Pyocd(ProgrammerBase):
     def erase(self, address, size):
         """
         Erases entire device flash or specified sectors.
-        :param address: The memory location.
-        :param size: The memory size.
+        @param address: The memory location.
+        @param size: The memory size.
         """
         region = self.session.target.memory_map.get_region_for_address(address)
         if not region:
@@ -375,12 +366,12 @@ class Pyocd(ProgrammerBase):
     def program(self, filename, file_format=None, address=None):
         """
         Programs a file into flash.
-        :param filename: Path to a file.
-        :param file_format: File format. Default is to use the file's
+        @param filename: Path to a file.
+        @param file_format: File format. Default is to use the file's
                extension.
-        :param address: Base address used for the address where to
+        @param address: Base address used for the address where to
                flash a binary.
-        :return: True if programmed successfully, otherwise False.
+        @return: True if programmed successfully, otherwise False.
         """
         if self.session is None:
             raise ValueError('Debug session is not initialized.')
@@ -392,9 +383,9 @@ class Pyocd(ProgrammerBase):
     def read(self, address, length):
         """
         Reads a block of unaligned bytes in memory
-        :param address: The memory address where start reading
-        :param length: Number of bytes to read
-        :return: An array of byte values
+        @param address: The memory address where start reading
+        @param length: Number of bytes to read
+        @return: An array of byte values
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
@@ -406,8 +397,8 @@ class Pyocd(ProgrammerBase):
     def write(self, address, data):
         """
         Writes a block of unaligned bytes in memory
-        :param address: The memory address where start writing
-        :param data: An array of byte values
+        @param address: The memory address where start writing
+        @param data: An array of byte values
         """
         if self.target is None:
             raise ValueError('Target is not initialized.')
@@ -424,7 +415,7 @@ class Pyocd(ProgrammerBase):
     def set_skip_reset_and_halt(self, value):
         """
         Sets skip_reset_and_halt property value
-        :param value: Indicates whether to skip or not
+        @param value: Indicates whether to skip or not
         """
         for i in range(len(self.target.cores)):
             logger.debug('core #%d, skip_reset_and_halt = %s', i, value)
@@ -438,7 +429,7 @@ class Pyocd(ProgrammerBase):
     def _set_acquire_timeout(self, timeout):
         """
         Sets acquire_timeout property value
-        :param timeout: Timeout in seconds
+        @param timeout: Timeout in seconds
         """
         for i in range(len(self.target.cores)):
             self.target.cores[i].acquire_timeout = timeout

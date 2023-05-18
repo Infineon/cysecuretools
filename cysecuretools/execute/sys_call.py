@@ -1,5 +1,5 @@
 """
-Copyright 2018-2022 Cypress Semiconductor Corporation (an Infineon company)
+Copyright 2018-2023 Cypress Semiconductor Corporation (an Infineon company)
 or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -29,6 +29,8 @@ PROVISIONING_OPCODE = 0x33
 ENCRYPTED_PROGRAMMING_OPCODE = 0x34
 GET_PROV_DETAILS_OPCODE = 0x37
 SET_DAP_CONTROL_OPCODE = 0x3A
+TRANSITION_TO_RMA_OPCODE = 0x3B
+OPEN_RMA_OPCODE = 0x29
 
 # GetProvDetails SysCall codes
 FB_POLICY_JWT = 0x100
@@ -83,6 +85,82 @@ def region_hash(tool, reg_map):
             result = RegionHashStatus.FAIL
 
     return result
+
+
+def transition_to_rma(tool, mem_map, reg_map, cert):
+    """
+    Converts parts from SECURE to RMA lifecycle stage
+    @param tool: Programming/debugging tool.
+    @param mem_map: Device memory map.
+    @param reg_map: Device register map.
+    @param cert: JWT packet signed by the key mentioned in the debug/RMA
+           section of the policy, with authentication object including
+           valid DIE_ID range.
+    :return: True if the SysCall succeeds, otherwise False.
+    """
+    return _rma_syscall(tool, mem_map, reg_map, cert, 'TransitionToRMA')
+
+
+def open_rma(tool, mem_map, reg_map, cert):
+    """
+    Enables full access to device in RMA lifecycle stage.
+    @param tool: Programming/debugging tool.
+    @param mem_map: Device memory map.
+    @param reg_map: Device register map.
+    @param cert: JWT packet signed by the key mentioned in the debug/RMA
+           section of the policy, with authentication object including
+           valid DIE_ID range.
+    :return: True if the SysCall succeeds, otherwise False.
+    """
+    return _rma_syscall(tool, mem_map, reg_map, cert, 'OpenRMA')
+
+
+def _rma_syscall(tool, mem_map, reg_map, cert, syscall_name):
+    """
+    Executes RMA system call.
+    @param tool: Programming/debugging tool.
+    @param reg_map: Device register map.
+    @param cert: JWT packet signed by the key mentioned in the debug/RMA
+           section of the policy, with authentication object including
+           valid DIE_ID range.
+    @param syscall_name: SysCall name - TransitionToRMA or OpenRMA.
+    :return: True if the SysCall succeeds, otherwise False.
+    """
+    if len(cert) > mem_map.SRAM_SIZE:
+        logger.error('JWT packet size (%s) exceeds SRAM_SCRATCH2 size (%s)',
+                     len(cert), mem_map.SRAM_SIZE)
+        return False
+
+    if syscall_name == 'TransitionToRMA':
+        op_code = TRANSITION_TO_RMA_OPCODE << 24
+        sram_scratch_addr = mem_map.SRAM_ADDR
+    elif syscall_name == 'OpenRMA':
+        op_code = OPEN_RMA_OPCODE << 24
+        sram_scratch_addr = mem_map.RAM_ADDR
+    else:
+        raise ValueError(f"Invalid SysCall name '{syscall_name}'")
+    sram_scratch2_addr = sram_scratch_addr + 0x08
+
+    if not wait_acquire_ipc_struct(tool, reg_map):
+        raise TimeoutError('Acquire IPC struct timeout')
+
+    logger.debug('Start %s syscall', syscall_name)
+    tool.write32(reg_map.CYREG_IPC2_STRUCT_DATA, sram_scratch_addr)
+    tool.write32(sram_scratch_addr, op_code)
+    tool.write32(sram_scratch_addr + 0x04, sram_scratch2_addr)
+    tool.write32(sram_scratch2_addr, len(cert))
+    tool.write(sram_scratch2_addr + 0x04, [ord(char) for char in list(cert)])
+
+    ipc_struct_notify(tool, reg_map)
+    wait_release_ipc_struct(tool, reg_map)
+    response = tool.read32(sram_scratch_addr)
+
+    if (response & 0xFF000000) == 0xa0000000:
+        logger.debug('%s syscall passed', syscall_name)
+        return True
+    logger.error('%s syscall error: 0x%x', syscall_name, response)
+    print_sfb_status(response)
+    return False
 
 
 def get_prov_details(tool, reg_map, key_id):
@@ -163,6 +241,7 @@ def provision_keys_and_policies(tool, filename, reg_map):
     :return: Tuple with the syscall result and device response
     """
     logger.debug('Start ProvisionKeysAndPolicies syscall')
+    logger.debug("Apply JWT '%s'", filename)
     if filename:
         file_size = os.path.getsize(filename)
         if file_size > reg_map.ENTRANCE_EXAM_SRAM_SIZE:
@@ -364,6 +443,7 @@ def dap_control(tool, reg_map, cpu_id, desired_state, jwt_not_required,
         logger.debug('JWT is required')
         if not filename:
             raise ValueError('JWT certificate is required but not specified')
+        logger.info("Apply certificate '%s'", filename)
 
         file_size = os.path.getsize(filename)
         if file_size > reg_map.ENTRANCE_EXAM_SRAM_SIZE:
@@ -473,13 +553,13 @@ def wait_acquire_ipc_struct(tool, reg_map, timeout=5000):
     return result
 
 
-def wait_release_ipc_struct(tool, reg_map, timeout=1500):
+def wait_release_ipc_struct(tool, reg_map, timeout=300):
     """
     Wait for release IPC structure.
-    :param tool: Programming/debugging tool.
-    :param reg_map: Device register map.
-    :param timeout: Timeout to release structure.
-    :return: IPC acquire status (True or False)
+    @param tool: Programming/debugging tool.
+    @param reg_map: Device register map.
+    @param timeout: Timeout to release structure.
+    @return: IPC acquire status (True or False)
     """
     logger.debug('Start wait_release_ipc_struct')
     response = 0x80000000
@@ -490,16 +570,16 @@ def wait_release_ipc_struct(tool, reg_map, timeout=1500):
         sleep(0.2)
     if count >= timeout:
         raise TimeoutError('IPC structure release timeout')
-    result = (response & (1 << 31)) != 0
+    result = response & (1 << 31)
     logger.debug("wait_release_ipc_struct result '0x%x'", result)
-    return result
+    return result != 0
 
 
 def ipc_struct_notify(tool, reg_map):
     """
     IPC_STRUCT[ipc_id].IPC_NOTIFY
-    :param tool: Programming/debugging tool.
-    :param reg_map: Device register map.
+    @param tool: Programming/debugging tool.
+    @param reg_map: Device register map.
     """
     logger.debug('ipc_struct_notify')
     tool.write32(reg_map.CYREG_IPC2_STRUCT_NOTIFY, 0x00000001)

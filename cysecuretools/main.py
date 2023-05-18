@@ -1,5 +1,6 @@
 """
-Copyright (c) 2019-2021 Cypress Semiconductor Corporation
+Copyright 2019-2022 Cypress Semiconductor Corporation (an Infineon company)
+or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -17,6 +18,7 @@ import json
 import logging
 import os
 import sys
+
 from cryptography.hazmat.primitives import serialization
 
 import cysecuretools.execute.jwt as jwt
@@ -46,6 +48,7 @@ from .targets import print_targets, get_target_builder, is_psoc64, is_mxs40sv2
 from cysecuretools.core.logging_configurator import LoggingConfigurator
 from .core.ocd_settings import OcdSettings
 from .core.connect_helper import ConnectHelper
+from .core.deprecated import deprecated
 
 # Initialize logger
 logging.root.setLevel(logging.DEBUG)
@@ -64,15 +67,16 @@ class CySecureTools:
     """
 
     def __init__(self, target=None, policy=None, log_file=True,
-                 skip_prompts=False, skip_validation=False):
+                 skip_prompts=False, skip_validation=False, rev=None):
         """
         Creates instance of the class
-        :param target: Device manufacturing part number
-        :param policy: Provisioning policy file
-        :param log_file: Indicates whether to write log into a file
-        :param skip_prompts: Indicates whether to skip user interactive
+        @param target: Device manufacturing part number
+        @param policy: Provisioning policy file
+        @param log_file: Indicates whether to write log into a file
+        @param skip_prompts: Indicates whether to skip user interactive
                prompts
-        :param skip_validation: Indicates whether to skip policy validation
+        @param skip_validation: Indicates whether to skip policy validation
+        @param rev: Device revision
         """
         self.skip_validation = skip_validation
 
@@ -104,7 +108,9 @@ class CySecureTools:
                 self.policy = ProjectInitializer.get_default_policy()
             cwd = os.getcwd()
 
-        self.target = self._get_target(self.target_name, self.policy, cwd)
+        self.target = self._get_target(self.target_name, self.policy, cwd,
+                                       rev=rev)
+
         self.policy = self.target.policy
         self.policy_parser = self.target.policy_parser
         self.version_provider = self.target.version_provider
@@ -258,7 +264,7 @@ class CySecureTools:
         """
         self.target.sign_tool.add_signature(image, signature, output)
 
-    def sign_image(self, image, image_id=1, **kwargs):
+    def sign_image(self, image, image_id=None, **kwargs):
         """
         Signs firmware image with the key specified in the policy file.
         :param image: User application file.
@@ -267,9 +273,8 @@ class CySecureTools:
         """
         if not self._validate_policy(['pre_build', 'dap_disabling']):
             return None
-        result = self.target.sign_tool.sign_image(image, image_id=image_id,
-                                                  **kwargs)
-        return result
+        return self.target.sign_tool.sign_image(image, image_id=image_id,
+                                                **kwargs)
 
     def extend_image(self, image, **kwargs):
         """
@@ -280,8 +285,7 @@ class CySecureTools:
         if not is_mxs40sv2(self.target_name):
             raise ValueError(
                 'Method is not compatible with the selected target')
-        result = self.target.sign_tool.extend_image(image, **kwargs)
-        return result
+        return self.target.sign_tool.extend_image(image, **kwargs)
 
     def create_provisioning_packet(self, **kwargs):
         """
@@ -328,9 +332,10 @@ class CySecureTools:
 
         if ConnectHelper.connect(self.tool, self.target, probe_id=probe_id,
                                  ap=ap):
-            self.version_provider.log_version(self.tool)
-            if not self.version_provider.verify_fw_version(self.tool):
+            if not self.version_provider.check_compatibility(self.tool):
+                ConnectHelper.disconnect(self.tool)
                 return False
+            self.version_provider.log_version(self.tool)
 
             context = ProvisioningContext(self.target.provisioning_strategy)
             status = context.provision(
@@ -350,9 +355,9 @@ class CySecureTools:
     def re_provision_device(self, probe_id=None, ap='sysap', **kwargs):
         """
         Executes device re-provisioning
-        :param probe_id: Probe serial number.
-        :param ap: The access port used for re-provisioning
-        :return: Provisioning result. True if success, otherwise False.
+        @param probe_id: Probe serial number.
+        @param ap: The access port used for re-provisioning
+        @return: Provisioning result. True if success, otherwise False.
         """
         if not self._validate_policy():
             return False
@@ -372,13 +377,14 @@ class CySecureTools:
         if ConnectHelper.connect(self.tool, self.target, probe_id=probe_id,
                                  ap=ap):
 
-            self.version_provider.log_version(self.tool)
-            if not self.version_provider.verify_fw_version(self.tool):
+            if not self.version_provider.check_compatibility(self.tool):
+                ConnectHelper.disconnect(self.tool)
                 return False
+            self.version_provider.log_version(self.tool)
 
             status = context.re_provision(
                 self.tool, self.target,
-                bootloader=bootloader, probe_id=self.tool.probe_id, ap=ap, **kwargs)
+                bootloader=bootloader, probe_id=self.tool.probe_id, **kwargs)
             ConnectHelper.disconnect(self.tool)
         else:
             status = ProvisioningStatus.FAIL
@@ -437,7 +443,7 @@ class CySecureTools:
         return context.create_certificate(cert_name, cert_encoding,
                                           overwrite=overwrite, **kwargs)
 
-    def entrance_exam(self, probe_id=None, ap='cm4', erase_flash=False):
+    def entrance_exam(self, probe_id=None, ap='sysap', erase_flash=False):
         """
         Checks device life-cycle, Flashboot firmware and Flash state.
         :param probe_id: Probe serial number.
@@ -455,17 +461,17 @@ class CySecureTools:
             return False
 
         status = False
-        if ConnectHelper.connect(self.tool, self.target, probe_id=probe_id,
-                                 ap=ap, reset_and_halt=True):
+        if ConnectHelper.connect(self.tool, self.target,
+                                 probe_id=probe_id, ap=ap):
 
-            self.version_provider.log_version(self.tool)
-            if not self.version_provider.verify_fw_version(self.tool):
+            if not self.version_provider.check_compatibility(self.tool):
+                ConnectHelper.disconnect(self.tool)
                 return False
+            self.version_provider.log_version(self.tool)
 
             context = ProvisioningContext(self.target.provisioning_strategy)
-            if erase_flash:
-                context.erase_flash(self.tool, self.target)
-            status = self.target.entrance_exam.execute(self.tool)
+            status = self.target.entrance_exam.execute(self.tool,
+                                                       erase_flash=erase_flash)
             if status == EntranceExamStatus.FLASH_NOT_EMPTY:
                 if self.skip_prompts:
                     logger.error('Entrance exam failed. '
@@ -589,8 +595,11 @@ class CySecureTools:
         connected = ConnectHelper.connect(self.tool, self.target, ap='sysap',
                                           probe_id=probe_id, blocking=False)
         if connected:
+            if not self.version_provider.check_compatibility(
+                    self.tool, check_si_rev=False):
+                ConnectHelper.disconnect(self.tool)
+                return False
             self.version_provider.log_version(self.tool)
-            self.version_provider.verify_fw_version(self.tool)
 
             logger.info('Read device public key from device')
             pub_key_pem = self.target.key_reader.read_public_key(
@@ -634,10 +643,9 @@ class CySecureTools:
         if ConnectHelper.connect(self.tool, self.target, probe_id=probe_id,
                                  ap='sysap'):
 
-            self.version_provider.log_version(self.tool)
-            self.version_provider.verify_fw_version(self.tool)
-
-            result = context.program(self.tool, self.target, encrypted_image)
+            if self.version_provider.check_compatibility(self.tool):
+                self.version_provider.log_version(self.tool)
+                result = context.program(self.tool, self.target, encrypted_image)
             ConnectHelper.disconnect(self.tool)
         return result
 
@@ -658,8 +666,11 @@ class CySecureTools:
         if ConnectHelper.connect(self.tool, self.target, probe_id=probe_id,
                                  ap='sysap'):
 
+            if not self.version_provider.check_compatibility(
+                    self.tool, check_si_rev=False):
+                ConnectHelper.disconnect(self.tool)
+                return key
             self.version_provider.log_version(self.tool)
-            self.version_provider.verify_fw_version(self.tool)
 
             try:
                 key = self.target.key_reader.read_public_key(
@@ -691,10 +702,10 @@ class CySecureTools:
         die_id = None
         if ConnectHelper.connect(self.tool, self.target, probe_id=probe_id,
                                  ap=ap):
-            self.version_provider.log_version(self.tool)
-            self.version_provider.verify_fw_version(self.tool)
-
-            die_id = self.target.silicon_data_reader.read_die_id(self.tool)
+            if self.version_provider.check_compatibility(
+                    self.tool, check_si_rev=False):
+                self.version_provider.log_version(self.tool)
+                die_id = self.target.silicon_data_reader.read_die_id(self.tool)
             ConnectHelper.disconnect(self.tool)
         return die_id
 
@@ -776,11 +787,12 @@ class CySecureTools:
         """
         connected = ConnectHelper.connect(self.tool, self.target, ap=ap,
                                           probe_id=probe_id, blocking=False,
-                                          suppress_errors=True)
+                                          ignore_errors=True)
         self.version_provider.print_version(**kwargs)
         if connected:
-            self.version_provider.print_fw_version(self.tool)
-            self.version_provider.verify_fw_version(self.tool)
+            if self.version_provider.check_compatibility(
+                    self.tool, check_si_rev=False):
+                self.version_provider.print_fw_version(self.tool)
             ConnectHelper.disconnect(self.tool)
 
     def init(self, **kwargs):
@@ -830,9 +842,10 @@ class CySecureTools:
 
         if ConnectHelper.connect(self.tool, self.target, probe_id=probe_id,
                                  ap=ap):
-            self.version_provider.log_version(self.tool)
-            if not self.version_provider.verify_fw_version(self.tool):
+            if not self.version_provider.check_compatibility(self.tool):
+                ConnectHelper.disconnect(self.tool)
                 return False
+            self.version_provider.log_version(self.tool)
             status = context.provision(self.tool, self.target,
                                        skip_prompts=self.skip_prompts,
                                        config=config)
@@ -845,23 +858,42 @@ class CySecureTools:
 
         return status == ProvisioningStatus.OK
 
+    @deprecated("DEPRECATED! Use 'transit_to_rma()', not 'convert_to_rma()'")
     def convert_to_rma(self, probe_id=None, ap='sysap', **kwargs):
+        return self.transit_to_rma(probe_id=probe_id, ap=ap, **kwargs)
+
+    def transit_to_rma(self, probe_id=None, ap='sysap', **kwargs):
         """
-        Converts device to the RMA lifecycle stage
+        Transits device to the RMA lifecycle stage
         @param probe_id: Probe serial number
         @param ap: The access port used for communication
         @return: True if success, otherwise False
         """
-        if not is_mxs40sv2(self.target_name):
-            raise ValueError(
-                'Method is not compatible with the selected target')
-
         status = ProvisioningStatus.FAIL
-        if ConnectHelper.connect(self.tool, self.target, probe_id=probe_id,
-                                 ap=ap):
+        cert = kwargs.get('cert')
+        del (kwargs['cert'])
+        if ConnectHelper.connect(self.tool, self.target,
+                                 probe_id=probe_id, ap=ap):
             self.version_provider.log_version(self.tool)
             context = ProvisioningContext(self.target.provisioning_strategy)
-            status = context.convert_to_rma(self.tool, self.target, **kwargs)
+            status = context.transit_to_rma(self.tool, self.target, cert,
+                                            **kwargs)
+            ConnectHelper.disconnect(self.tool)
+        return status == ProvisioningStatus.OK
+
+    def open_rma(self, cert, probe_id=None):
+        """
+        Enables full access to device in RMA lifecycle stage
+        @param cert: Open RMA certificate
+        @param probe_id: Probe serial number
+        @param ap: The access port used for communication
+        @return: True if success, otherwise False
+        """
+        status = ProvisioningStatus.FAIL
+        if ConnectHelper.connect(self.tool, self.target, probe_id=probe_id,
+                                 ignore_errors=True):
+            context = ProvisioningContext(self.target.provisioning_strategy)
+            status = context.open_rma(self.tool, self.target, cert)
             ConnectHelper.disconnect(self.tool)
         return status == ProvisioningStatus.OK
 
@@ -923,9 +955,9 @@ class CySecureTools:
         return validation_state not in [ValidationStatus.ERROR,
                                         ValidationStatus.TERMINATED]
 
-    def _get_target(self, target_name, policy, cwd):
+    def _get_target(self, target_name, policy, cwd, rev=None):
         director = TargetDirector()
-        self.target_builder = get_target_builder(director, target_name)
+        self.target_builder = get_target_builder(director, target_name, rev=rev)
         return director.get_target(policy, target_name, cwd)
 
     @staticmethod

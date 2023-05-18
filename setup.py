@@ -1,5 +1,6 @@
 """
-Copyright (c) 2019-2022 Cypress Semiconductor Corporation
+Copyright 2019-2023 Cypress Semiconductor Corporation (an Infineon company)
+or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -31,7 +32,6 @@ setup(
     version=version['__version__'],
     install_requires=[
         'setuptools==59.6.0',
-        'psutil==5.9.0',
         'cryptography==36.0.1',
         'click==8.0.4',
         'intelhex==2.3.0',

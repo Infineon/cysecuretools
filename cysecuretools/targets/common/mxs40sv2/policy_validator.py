@@ -71,6 +71,8 @@ class PolicyValidator(PolicyValidatorBase):
             if status is ValidationStatus.OK:
                 status = self._validate_dependencies(skip)
 
+        if status == ValidationStatus.ERROR:
+            logger.error('Policy validation error')
         return status
 
     @staticmethod

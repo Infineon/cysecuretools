@@ -15,7 +15,10 @@ limitations under the License.
 """
 import os
 import logging
+
+from cysecuretools.core.connect_helper import ConnectHelper
 from cysecuretools.core.enums import EntranceExamStatus, RegionHashStatus
+from cysecuretools.core.strategy_context.provisioning_strategy_ctx import ProvisioningContext
 from cysecuretools.execute.sys_call import region_hash, read_lifecycle
 from cysecuretools.execute.programmer.base import AP
 from cysecuretools.execute.provisioning_packet.lib import Crypto
@@ -42,10 +45,10 @@ class EntranceExamMXS40v1(EntranceExam):
         packet_dir = self.target.policy_parser.get_provisioning_packet_dir()
         return os.path.abspath(os.path.join(packet_dir, ENTRANCE_EXAM_JWT))
 
-    def execute(self, tool):
+    def execute(self, tool, **kwargs):
         """
-        Checks device life-cycle, Flashboot firmware, Flash state and
-        bunch of registers.
+        Checks device life-cycle, FlashBoot firmware, Flash state and
+        a bunch of registers.
         """
         jwt_text = Crypto.read_jwt(self.entrance_exam_jwt)
 
@@ -59,7 +62,17 @@ class EntranceExamMXS40v1(EntranceExam):
             logger.error('Device has been previously provisioned')
 
         if exam_pass:
+            ConnectHelper.disconnect(tool)
+            ConnectHelper.connect(tool, self.target,
+                                  probe_id=tool.probe_id, ap='cm4')
             tool.examine_ap()
+
+            # Erase flash
+            context = ProvisioningContext(self.target.provisioning_strategy)
+            if kwargs.get('erase_flash'):
+                context.erase_flash(tool, self.target)
+
+            # Verify voltage
             voltage = self.target.voltage_tool.get_voltage(tool)
             v_min = self.target.voltage_tool.voltage_level * 0.9
             v_max = self.target.voltage_tool.voltage_level * 1.1

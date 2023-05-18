@@ -122,19 +122,17 @@ def cmd_create_key(ctx, key_id, overwrite, aes, key_path, output, template,
 @main.command('version', short_help='Show BootROM version')
 @click.option('--probe-id', 'probe_id', type=click.STRING, default=None,
               help='Probe serial number')
-@click.option('--ap', hidden=True, type=click.Choice(['cm33', 'sysap']),
-              default='sysap', help='The access port used to read the data')
 @click.option('--testapps', is_flag=True, hidden=True)
 @click.option('--testapps-si', is_flag=True, hidden=True)
 @click.pass_context
-def cmd_version(ctx, probe_id, ap, testapps, testapps_si):
+def cmd_version(ctx, probe_id, testapps, testapps_si):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
             return False
         validate_testapps_args(testapps, testapps_si)
         ctx.obj['TOOL'].print_version(
-            probe_id, ap, testapps=test_pkg_type(testapps, testapps_si))
+            probe_id, testapps=test_pkg_type(testapps, testapps_si))
         return True
 
     return process
@@ -238,13 +236,11 @@ def cmd_prov_packet_to_policy(ctx, packet, output):
               help='Probe serial number')
 @click.option('--existing-packet', is_flag=True,
               help='Skip provisioning packet creation and use existing')
-@click.option('--ap', hidden=True, type=click.Choice(['cm33', 'sysap']),
-              default='sysap', help='The access port used for provisioning')
 @click.option('--testapps', is_flag=True, hidden=True)
 @click.option('--testapps-si', is_flag=True, hidden=True)
 @click.pass_context
 def cmd_provision_device(
-        ctx, probe_id, existing_packet, ap, testapps, testapps_si):
+        ctx, probe_id, existing_packet, testapps, testapps_si):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
@@ -262,7 +258,7 @@ def cmd_provision_device(
                 testapps=test_pkg_type(testapps, testapps_si))
         if result:
             result = ctx.obj['TOOL'].provision_device(
-                probe_id, ap, testapps=test_pkg_type(testapps, testapps_si))
+                probe_id, 'sysap', testapps=test_pkg_type(testapps, testapps_si))
         return result
 
     return process
@@ -280,13 +276,11 @@ def cmd_provision_device(
               help='Probe serial number')
 @click.option('--existing-packet', is_flag=True,
               help='Skip reprovisioning packet creation and use the existing')
-@click.option('--ap', hidden=True, type=click.Choice(['cm33', 'sysap']),
-              default='sysap', help='The access port used for re-provisioning')
 @click.option('--testapps', is_flag=True, hidden=True)
 @click.option('--testapps-si', is_flag=True, hidden=True)
 @click.pass_context
 def cmd_re_provision_device(ctx, key_id, key_path, signature, probe_id,
-                            existing_packet, ap, testapps, testapps_si):
+                            existing_packet, testapps, testapps_si):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
@@ -304,7 +298,7 @@ def cmd_re_provision_device(ctx, key_id, key_path, signature, probe_id,
 
         if result:
             result = ctx.obj['TOOL'].re_provision_device(
-                probe_id, ap, testapps=test_pkg_type(testapps, testapps_si))
+                probe_id, testapps=test_pkg_type(testapps, testapps_si))
         return result
 
     def validate_args():
@@ -350,19 +344,17 @@ def cmd_re_provision_device(ctx, key_id, key_path, signature, probe_id,
               short_help='Reads device information - silicon ID, family ID, '
                          'silicon revision')
 @click.option('--probe-id', default=None, help='Probe serial number')
-@click.option('--ap', type=click.Choice(['cm33', 'sysap']),
-              default='sysap', help='The access port used to read the data')
 @click.pass_context
-def cmd_device_info(ctx, probe_id, ap):
+def cmd_device_info(ctx, probe_id):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
             return False
         status = True
         ConnectHelper.do_not_disconnect = True
-        dev_info = ctx.obj['TOOL'].get_device_info(probe_id, ap)
+        dev_info = ctx.obj['TOOL'].get_device_info(probe_id)
         ConnectHelper.do_not_disconnect = False
-        lifecycle = ctx.obj['TOOL'].get_device_lifecycle(probe_id, ap)
+        lifecycle = ctx.obj['TOOL'].get_device_lifecycle(probe_id)
 
         logger.info('*' * 39)
         if dev_info:
@@ -438,12 +430,13 @@ def cmd_device_info(ctx, probe_id, ap):
 @click.option('-d', '--dependencies', callback=get_dependencies,
               required=False, help='''Add dependence on another image, format:
               "(<image_ID>,<image_version>), ... "''')
+@click.option('--image-id', type=click.INT, help='Image ID', default=0)
 @click.pass_context
 def cmd_sign_image(ctx, image, erased_val, key_id, key_path, image_config,
                    output, signature, header_size, slot_size, encrypt, enckey,
                    app_addr, hex_addr, update_key_id, update_key_path,
-                   image_format, pad, confirm, overwrite_only, min_erase_size, align,
-                   version, dependencies):
+                   image_format, pad, confirm, overwrite_only, min_erase_size,
+                   align, version, dependencies, image_id):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
@@ -481,7 +474,8 @@ def cmd_sign_image(ctx, image, erased_val, key_id, key_path, image_config,
                 min_erase_size=min_erase_size,
                 align=align,
                 version=version,
-                dependencies=dependencies
+                dependencies=dependencies,
+                image_id=image_id
                 )
         return result is not None
 
@@ -545,11 +539,12 @@ def cmd_sign_image(ctx, image, erased_val, key_id, key_path, image_config,
 @click.option('--update-key-path', type=click.Path(),
               help='The key used to sign the update data packet. Overrides '
                    'the --update-key-id option')
+@click.option('--image-id', type=click.INT, help='Image ID', default=0)
 @click.pass_context
 def cmd_extend_image(ctx, image, pubkey, erased_val, image_config, output,
                      protected_tlv, header_size, slot_size, hex_addr,
                      image_format, pad, confirm, overwrite_only, align,
-                     update_key_id, update_key_path):
+                     update_key_id, update_key_path, image_id):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
@@ -566,7 +561,7 @@ def cmd_extend_image(ctx, image, pubkey, erased_val, image_config, output,
             update_key_id=
             None if update_key_path or update_key_id is None else int(
                 update_key_id),
-            update_key_path=update_key_path
+            update_key_path=update_key_path, image_id=image_id
         )
         return result is not None
 
@@ -605,15 +600,13 @@ def cmd_init(ctx, testapps, testapps_si):
 @click.option('-c', '--config', type=click.Path(), required=True,
               help='Path to the application configuration file')
 @click.option('--probe-id', default=None, help='Probe serial number')
-@click.option('--ap', type=click.Choice(['cm33', 'sysap']),
-              default='sysap', help='The access port used to load application')
 @click.pass_context
-def cmd_load_and_run_app(ctx, config, probe_id, ap):
+def cmd_load_and_run_app(ctx, config, probe_id):
     @process_handler(None)
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        return ctx.obj['TOOL'].load_and_run_app(config, probe_id, ap)
+        return ctx.obj['TOOL'].load_and_run_app(config, probe_id)
 
     return process
 
@@ -691,15 +684,13 @@ def cmd_debug_certificate(ctx, non_signed, template, key_id, key_path, sign,
               help='Filename where to save die ID')
 @click.option('--probe-id', default=None,
               help='Probe serial number')
-@click.option('--ap', hidden=True, type=click.Choice(['cm33', 'sysap']),
-              default='sysap', help='The access port used to read the data')
 @click.pass_context
-def cmd_read_die_id(ctx, out_file, probe_id, ap):
+def cmd_read_die_id(ctx, out_file, probe_id):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        data = ctx.obj['TOOL'].read_die_id(probe_id, ap)
+        data = ctx.obj['TOOL'].read_die_id(probe_id)
         if data:
             logger.info('die_id = %s', json.dumps(data, indent=4))
             if out_file:
@@ -715,19 +706,17 @@ def cmd_read_die_id(ctx, out_file, probe_id, ap):
 @click.option('-c', '--cert', type=click.Path(),
               help='Path to debug certificate')
 @click.option('--probe-id', default=None, help='Probe serial number')
-@click.option('--ap', hidden=True, type=click.Choice(['cm33', 'sysap']),
-              default='sysap', help='The access port used to read the data')
 @click.option('--testapps', is_flag=True, hidden=True)
 @click.option('--testapps-si', is_flag=True, hidden=True)
 @click.pass_context
-def cmd_convert_to_rma(ctx, cert, probe_id, ap, testapps, testapps_si):
+def cmd_convert_to_rma(ctx, cert, probe_id, testapps, testapps_si):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
             return False
         validate_testapps_args(testapps, testapps_si)
-        return ctx.obj['TOOL'].convert_to_rma(
-            cert=cert, probe_id=probe_id, ap=ap,
+        return ctx.obj['TOOL'].transit_to_rma(
+            cert=cert, probe_id=probe_id,
             testapps=test_pkg_type(testapps, testapps_si))
     return process
 

@@ -22,7 +22,7 @@ class EntranceExam(ABC):
         pass
 
     @abstractmethod
-    def execute(self, tool):
+    def execute(self, tool, **kwargs):
         pass
 
     @abstractmethod

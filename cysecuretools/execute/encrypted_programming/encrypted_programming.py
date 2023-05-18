@@ -32,7 +32,6 @@ class EPMode(IntEnum):
 
 
 def program(tool, target, encrypted_image):
-    tool.reset()
     encrypted_image_path = os.path.abspath(encrypted_image)
     logger.info("Start encrypted programming of '%s':", encrypted_image_path)
 
@@ -91,6 +90,5 @@ def program(tool, target, encrypted_image):
                                            EPMode.finish, None)
     if not syscall_status:
         return False
-    tool.reset(ResetType.HW)
 
     return True

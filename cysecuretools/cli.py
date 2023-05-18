@@ -44,6 +44,7 @@ def require_target():
 @click.pass_context
 @click.option('-t', '--target', type=click.STRING, required=require_target(),
               help='Device name or family')
+@click.option('--rev', help='Device revision')
 @click.option('-p', '--policy', type=click.File(), required=False,
               help='Provisioning policy file')
 @click.option('-v', '--verbose', is_flag=True, help='Provides debug-level log')
@@ -53,10 +54,10 @@ def require_target():
               help='Skips user interactive prompts')
 @click.option('--skip-validation', is_flag=True, hidden=True,
               help='Skips policy validation')
-def main(ctx, target, policy, verbose, quiet,
+def main(ctx, target, rev, policy, verbose, quiet,
          logfile_off, no_interactive_mode, skip_validation):
     """
-    Common options (e.g. -t, -p, -v, -q) are common for all commands and must
+    Common options (e.g. -t, --rev, -p, -v, -q) are common for all commands and must
     precede them:
 
     \b
@@ -81,25 +82,41 @@ def main(ctx, target, policy, verbose, quiet,
     if require_target():
         if 'init' in sys.argv:
             validate_init_cmd_args()
-            policy_path = default_policy(target)
+            try:
+                policy_path = default_policy(target, rev=rev)
+            except ValueError as e:
+                logger.error(e)
+                sys.exit(2)
             log_file = False
         else:
             policy_path = policy.name if policy else None
-        ctx.obj['TOOL'] = CySecureTools(target, policy_path, log_file,
-                                        no_interactive_mode,
-                                        skip_validation)
+        try:
+            ctx.obj['TOOL'] = CySecureTools(target, policy_path, log_file,
+                                            no_interactive_mode,
+                                            skip_validation, rev=rev)
+        except ValueError as e:
+            logger.error(e)
+            sys.exit(2)
     else:
         if 'version' in sys.argv:
             if '--target' in sys.argv or '-t' in sys.argv:
-                ctx.obj['TOOL'] = CySecureTools(
-                    target, policy.name if policy else None,
-                    log_file=log_file, skip_prompts=no_interactive_mode,
-                    skip_validation=skip_validation)
+                try:
+                    ctx.obj['TOOL'] = CySecureTools(
+                        target, policy.name if policy else None,
+                        log_file=log_file, skip_prompts=no_interactive_mode,
+                        skip_validation=skip_validation, rev=rev)
+                except ValueError as e:
+                    logger.error(e)
+                    sys.exit(2)
         else:
-            ctx.obj['TOOL'] = CySecureTools(
-                target, policy.name if policy else None,
-                log_file=log_file, skip_prompts=no_interactive_mode,
-                skip_validation=skip_validation)
+            try:
+                ctx.obj['TOOL'] = CySecureTools(
+                    target, policy.name if policy else None, log_file=log_file,
+                    skip_prompts=no_interactive_mode,
+                    skip_validation=skip_validation, rev=rev)
+            except ValueError as e:
+                logger.error(e)
+                sys.exit(2)
     logger.debug(sys.argv)
 
 
@@ -277,10 +294,10 @@ def print_assertion_error():
                  filename, line, text)
 
 
-def default_policy(target_name):
+def default_policy(target_name, rev=None):
     director = TargetDirector()
     target_name = target_name.lower()
-    get_target_builder(director, target_name)
+    get_target_builder(director, target_name, rev=rev)
     target = director.get_target(None, target_name, None)
     return target.policy
 

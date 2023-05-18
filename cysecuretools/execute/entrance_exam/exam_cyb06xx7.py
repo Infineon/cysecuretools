@@ -31,12 +31,12 @@ class EntranceExamCyb06xx7(EntranceExamMXS40v1):
         self.asset_hash_len = 16
         self.mem_map = target.memory_map
 
-    def execute(self, tool):
+    def execute(self, tool, **kwargs):
         """
         Checks device life-cycle, Flashboot firmware, Flash state and
         bunch of registers.
         """
-        exam_status = super(EntranceExamCyb06xx7, self).execute(tool)
+        exam_status = super(EntranceExamCyb06xx7, self).execute(tool, **kwargs)
         if exam_status == EntranceExamStatus.OK:
             if self.verify_asset_hash(tool):
                 return EntranceExamStatus.OK

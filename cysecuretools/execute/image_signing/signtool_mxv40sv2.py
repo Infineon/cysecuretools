@@ -32,6 +32,7 @@ from .encrypt_mxv40sv2 import EncryptorMXS40Sv2
 from .xip_encryptor import XipEncryptor
 from cysecuretools.targets.common.mxs40sv2.enums import PolicyType
 from cysecuretools.execute.image_signing.image import Image
+from ...targets.common.mxs40sv2.nv_counter_calc import NvCounterCalculator
 
 
 logger = logging.getLogger(__name__)
@@ -66,6 +67,7 @@ class SignToolMXS40Sv2(SignTool):
         overwrite_only = self._get_overwrite_only(image_format, kwargs)
         align = self._get_align(kwargs)
         image_version = self._get_image_version(kwargs)
+        image_id = kwargs.get('image_id', 0)
         update_key_id = kwargs.get('update_key_id')
         update_key_path = kwargs.get('update_key_path')
 
@@ -87,7 +89,7 @@ class SignToolMXS40Sv2(SignTool):
             policy_type = self.policy_parser.get_policy_type()
             if policy_type == PolicyType.REPROVISIONING_SECURE:
                 nv_counter, update_packet = self._get_update_packet_data(
-                   update_key_id, update_key_path)
+                   update_key_id, update_key_path, image_id)
                 protected_tlv.append(update_packet)
             else:
                 if update_key_id is not None or update_key_path:
@@ -143,6 +145,7 @@ class SignToolMXS40Sv2(SignTool):
         align = self._get_align(kwargs)
         dependencies = self._get_dependencies(kwargs)
         image_version = self._get_image_version(kwargs)
+        image_id = self._get_image_id(kwargs)
 
         if not RSAHandler.is_private_key(key_path):
             raise ValueError(f'Signing image with public key \'{key_path}\'')
@@ -202,7 +205,8 @@ class SignToolMXS40Sv2(SignTool):
         policy_type = self.policy_parser.get_policy_type()
         if policy_type == PolicyType.REPROVISIONING_SECURE:
             nv_counter, update_packet = self._get_update_packet_data(
-                kwargs.get('update_key_id'), kwargs.get('update_key_path'))
+                kwargs.get('update_key_id'), kwargs.get('update_key_path'),
+                image_id)
             args['security_counter'] = nv_counter
             args['custom_tlv'].append(update_packet)
 
@@ -240,16 +244,21 @@ class SignToolMXS40Sv2(SignTool):
             logger.info('Image signed successfully (%s)', output)
         return output
 
-    def _get_update_packet_data(self, update_key_id, update_key_path):
+    def _get_update_packet_data(self, update_key_id, update_key_path, image_id):
         if update_key_id is None and update_key_path is None:
             raise KeyError('Either update data packet key ID or key path '
                            'must be specified')
         if update_key_path is None:
             update_key_path = self.key_source.get_key(update_key_id, 'private')
 
-        nv_counter = self.policy_parser.get_nv_counter()
+        nv_counter = NvCounterCalculator.calculate(
+            self.policy_parser.get_nv_counter(),
+            self.policy_parser.get_bits_per_cnt(),
+            image_id=image_id)
+
         reprov_data = binascii.hexlify(self._reprovisioning_packet(
-            key_id=update_key_id, key_path=update_key_path)).decode()
+            key_id=update_key_id, key_path=update_key_path,
+            image_id=image_id)).decode()
         return nv_counter, ('0x51', f'0x{reprov_data}')
 
     def _reprovisioning_packet(self, **kwargs):
@@ -355,6 +364,11 @@ class SignToolMXS40Sv2(SignTool):
             return kwargs.get('confirm', False)
         else:
             return False
+
+    @staticmethod
+    def _get_image_id(kwargs):
+        image_id = kwargs.get('image_id')
+        return 0 if image_id is None else image_id
 
     @staticmethod
     def validate_trailer(bin_file, slot_size, min_erase_size):

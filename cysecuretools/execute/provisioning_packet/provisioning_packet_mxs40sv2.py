@@ -136,8 +136,9 @@ class ProvisioningPacketMXS40Sv2(ProvisioningPacketStrategy):
                     errno.ENOENT, os.strerror(errno.ENOENT), pubkey)
 
             assets_list = self._reprovisioning_assets()
-            asset_builder = AssetBuilder(self.policy_parser, assets_list,
-                                         pubkey=pubkey)
+            asset_builder = AssetBuilder(
+                self.policy_parser, assets_list, pubkey=pubkey,
+                image_id=kwargs.get('image_id'))
             input_data = asset_builder.get_assets()
         else:
             if not in_params_path:

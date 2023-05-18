@@ -33,6 +33,21 @@ class MemoryMapBaseP64(abc.ABC):
 
     @property
     @abc.abstractmethod
+    def RAM_ADDR(self):
+        """RAM address"""
+
+    @property
+    @abc.abstractmethod
+    def SRAM_ADDR(self):
+        """SRAM address"""
+
+    @property
+    @abc.abstractmethod
+    def SRAM_SIZE(self):
+        """SRAM size"""
+
+    @property
+    @abc.abstractmethod
     def PROVISION_JWT_PACKET_ADDRESS(self):
         raise NotImplementedError
 

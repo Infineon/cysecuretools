@@ -1,5 +1,6 @@
 """
-Copyright (c) 2020-2022 Cypress Semiconductor Corporation
+Copyright 2020-2023 Cypress Semiconductor Corporation (an Infineon company)
+or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -21,8 +22,6 @@ import time
 import atexit
 import subprocess
 from pathlib import Path
-
-import psutil
 
 from cysecuretools.core.logging_configurator import LoggingConfigurator
 from cysecuretools.core.ocd_settings import OcdSettings
@@ -131,8 +130,8 @@ class OpenocdServer(OcdConfig):
 
     log_counter = 1
 
-    def __init__(self, target, target_name=None, interface=None,
-                 probe_id=None, tool_path=None, power=None, voltage=None):
+    def __init__(self, target, target_name=None, interface=None, probe_id=None,
+                 tool_path=None, power=None, voltage=None, ignore_errors=False):
         """ Set initial basic configuration params for OpenOCD """
         if interface:
             raise NotImplementedError
@@ -144,6 +143,7 @@ class OpenocdServer(OcdConfig):
         self.before_init, self.after_init = self._get_ocd_config(target)
         self.power = power
         self.voltage = voltage
+        self.ignore_errors = ignore_errors
 
         os_name = platform.system()  # current OS type
         # Set OpenOCD execution filename
@@ -332,38 +332,28 @@ class OpenocdServer(OcdConfig):
         result = [x for x in current_lines if x not in previous_set]
         return result
 
-    @staticmethod
-    def _ocd_start_result(lines):
+    def _ocd_start_result(self, lines):
         """Analyzes OpenOCD output and returns the result of the start"""
         for line in lines:
             if 'Error' in line:
                 logger.error(line.rstrip())
-                return False
+                if not self.ignore_errors:
+                    return False
             logger.info(line.rstrip())
             if 'Listening on port' in line:
                 return True
         return False
 
     def stop(self):
-        """
-        This command stops the local OpeOCD server.
-        :return: None
-        """
+        """This command stops the local OpenOCD server"""
         if self.server_proc is not None:
-            timeout = 1  # seconds
+            timeout_sec = 1
             self.server_proc.kill()
             start_time = time.time()
             while self.server_proc.poll() is None:
-                if time.time() - start_time > timeout:
+                if time.time() - start_time > timeout_sec:
                     break
             self.server_proc = None
-
-    def _kill_all(self):
-        """ This command kill all OpeOCD processes """
-        openocd_proc_name = self.openocd_exec_file
-        for proc in psutil.process_iter():
-            if proc.name() == openocd_proc_name:
-                proc.kill()
 
     def __del__(self):
         self.stop()

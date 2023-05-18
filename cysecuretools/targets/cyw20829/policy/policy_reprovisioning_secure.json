@@ -1,7 +1,7 @@
 {
     "policy": {
         "platform": "cyw20829",
-        "version": 2.0,
+        "version": 2.1,
         "type": "reprovisioning_secure"
     },
     "device_policy":
@@ -9,8 +9,9 @@
         "reprovisioning":
         {
             "nv_counter": {
-                "description": "Anti-rollback counter (supports up to 32 updates)",
-                "value": 1
+                "description": "Anti-rollback counter. Each item of the 'value' array defines counter for each next application. Each 'bits_per_cnt' item defines number of bits for the next application counter (total bits number 32). IMPORTANT: 'bits_per_cnt' in the provisioning and reprovisioning policy files MUST BE the same",
+                "value": [0],
+                "bits_per_cnt": [32]
             },
             "revoke_oem_pubkey_0": {
                 "id": "Revokes OEM public key 0. The OEM public key 1 is used for image verification (this can be done only once). This option is not applicable if SMIF encryption is enabled",

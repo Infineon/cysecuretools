@@ -106,9 +106,8 @@ class ProvisioningMXS40Sv2(ProvisioningStrategy):
     def erase_flash(self, tool, target):
         """ N/A. The target does not have flash """
 
-    def convert_to_rma(self, tool, target, **kwargs):
+    def transit_to_rma(self, tool, target, cert, **kwargs):
         """ Converts a part to the RMA LCS """
-        cert = kwargs.get('cert')
         test_pkg_type = kwargs.get('testapps')
 
         flow_parser = FlowParser(target, test_pkg_type=test_pkg_type)
@@ -145,6 +144,10 @@ class ProvisioningMXS40Sv2(ProvisioningStrategy):
             logger.error('The device cannot be converted to RMA due to '
                          'invalid lifecycle stage')
         return status
+
+    def open_rma(self, tool, target, cert, **kwargs):
+        """Not implemented for MXS40Sv2 platform"""
+        raise NotImplementedError
 
     @staticmethod
     def _copy_rma_cert(cert, apps, apps_dir):

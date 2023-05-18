@@ -120,9 +120,17 @@ class CYW20829Builder(TargetBuilder):
     def get_test_packages(self):
         return {
             'testapps': {
-                'package': 'testapps_cyw20829', 'flow_name': 'testapps'
+                'package': 'testapps_cyw20829_b0', 'flow_name': 'testapps'
             },
             'testapps_si': {
-                'package': 'testapps_cyw20829', 'flow_name': 'testapps_si'
+                'package': 'testapps_cyw20829_b0', 'flow_name': 'testapps_si'
             }
+        }
+
+    def get_silicon_id(self):
+        """Gets the target silicon ID"""
+        return {
+            'id': [0xEB43],
+            'rev': [0x21],
+            'family': 0x110
         }

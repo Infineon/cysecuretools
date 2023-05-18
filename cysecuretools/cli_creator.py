@@ -17,7 +17,7 @@ import os
 import sys
 import click
 
-from cysecuretools.targets import target_map
+from cysecuretools.targets import target_data
 from cysecuretools import cli as base_cli
 
 
@@ -130,11 +130,12 @@ class CliCreator:
             return None
 
     @staticmethod
-    def _get_platform(target):
+    def _get_platform(target_name):
         platform = None
-        if target is not None:
+        if target_name is not None:
             try:
-                platform = target_map[target.lower()].get('platform')
+                target = target_data(target_name.lower())
+                platform = target.get('platform')
             except KeyError:
                 platform = None
         return platform

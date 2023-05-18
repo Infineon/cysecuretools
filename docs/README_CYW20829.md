@@ -45,6 +45,7 @@
 $ cysecuretools set-ocd --name openocd --path <PATH_TO_OPENOCD_ROOT_DIRECTORY>
 ```
 Make sure you provide the path to the root directory of OpenOCD (NOT _bin_ directory).
+Specifying the path is not mandatory if you have ModusToolbox™ installed on your machine. OpenOCD from the ModusToolbox™ directory is used by default.
 
 _Example:_
 ```bash
@@ -269,6 +270,7 @@ Signs a user application with a key. Optionally encrypts the signed application.
 | --align [1\|2\|4\|8]      | optional           | Sets flash alignment. The default value is 8.|
 | -v, --version             | optional           | Sets image version in the image header.|
 | -d, --dependencies        | optional           | Add dependency on another image, format: "(<image_ID>,<image_version>), ... ".|
+| --image-id                | optional           | Image ID. The value is used to update NV counter. The default value is 0.|
 ### Usage example
 #### Sign without encryption:
 ```bash
@@ -301,6 +303,7 @@ Extends a firmware image with the protected TLV area and [mcuboot header](https:
 | --align [1\|2\|4\|8]      | optional           | Sets flash alignment. The default value is 8.|
 | --update-key-id [0\|1]    | optional           | Sets OEM private key ID used to sign the update data packet.|
 | --update-key-path         | optional           | The key used to sign the update data packet. Overrides the --update-key-id option.|
+| --image-id                | optional           | Image ID. The value is used to update NV counter. The default value is 0.|
 ### Usage example
 #### Unsigned image with metadata:
 ```bash
@@ -308,7 +311,7 @@ $ cysecuretools -t cyw20829 -p policy/policy_secure.json extend-image -i image.b
 ```
 #### Unsigned image with metadata and update package:
 ```bash
-$ cysecuretools -t cyw20829 -p policy/policy_reprovisioning_secure.json extend-image -i image.bin -o image_extended.bin --pubkey keys/pub_key.pem --update-key-id 0
+$ cysecuretools -t cyw20829 -p policy/policy_reprovisioning_secure.json extend-image -i image.bin -o image_extended.bin --pubkey keys/pub_key.pem --update-key-id 0 --image-id 1
 ```
 
 

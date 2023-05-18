@@ -25,6 +25,7 @@ from cysecuretools.core.enums import KeyAlgorithm
 from cysecuretools.cli import main as main, process_handler
 
 logger = logging.getLogger(__name__)
+name = 'cli_mxs40v1'
 
 
 @main.command('create-keys', help='Creates keys specified in policy file')
@@ -59,19 +60,14 @@ def cmd_create_keys(ctx, overwrite, out, kid, algorithm, template):
 @main.command('version',
               help='Show CyBootloader and Secure Flash Boot version',
               short_help='Show CyBootloader and Secure Flash Boot version')
-@click.option('--probe-id', 'probe_id', type=click.STRING, default=None,
-              help='Probe serial number')
-@click.option('--ap', hidden=True, type=click.Choice(['cm0', 'cm4', 'sysap']),
-              default='sysap',
-              help='The access port used to read CyBootloader and '
-                   'Secure Flash Boot version from device')
+@click.option('--probe-id', 'probe_id', help='Probe serial number')
 @click.pass_context
-def cmd_version(ctx, probe_id, ap):
+def cmd_version(ctx, probe_id):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        ctx.obj['TOOL'].print_version(probe_id, ap)
+        ctx.obj['TOOL'].print_version(probe_id)
         return True
 
     return process
@@ -270,10 +266,8 @@ def cmd_create_provisioning_packet(ctx):
               help='Probe serial number')
 @click.option('--existing-packet', 'use_existing_packet', is_flag=True,
               help='Skip provisioning packet creation and use existing one')
-@click.option('--ap', hidden=True, type=click.Choice(['cm0', 'cm4', 'sysap']),
-              default='cm4', help='The access port used for provisioning')
 @click.pass_context
-def cmd_provision_device(ctx, probe_id, use_existing_packet, ap):
+def cmd_provision_device(ctx, probe_id, use_existing_packet):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
@@ -283,7 +277,7 @@ def cmd_provision_device(ctx, probe_id, use_existing_packet, ap):
         else:
             result = ctx.obj['TOOL'].create_provisioning_packet()
         if result:
-            result = ctx.obj['TOOL'].provision_device(probe_id, ap)
+            result = ctx.obj['TOOL'].provision_device(probe_id)
         return result
 
     return process
@@ -294,8 +288,6 @@ def cmd_provision_device(ctx, probe_id, use_existing_packet, ap):
               help='Probe serial number')
 @click.option('--existing-packet', is_flag=True,
               help='Skip provisioning packet creation and use existing one')
-@click.option('--ap', hidden=True, type=click.Choice(['cm0', 'cm4', 'sysap']),
-              default='sysap', help='The access port used for re-provisioning')
 @click.option('--erase-boot', is_flag=True,
               help='Indicates whether erase BOOT slot')
 @click.option('--control-dap-cert', default=None,
@@ -303,7 +295,7 @@ def cmd_provision_device(ctx, probe_id, use_existing_packet, ap):
 @click.option('--skip-bootloader', is_flag=True, hidden=True, default=False,
               help='Skips bootloader programming')
 @click.pass_context
-def cmd_re_provision_device(ctx, probe_id, existing_packet, ap, erase_boot,
+def cmd_re_provision_device(ctx, probe_id, existing_packet, erase_boot,
                             control_dap_cert, skip_bootloader):
     @process_handler()
     def process():
@@ -315,7 +307,7 @@ def cmd_re_provision_device(ctx, probe_id, existing_packet, ap, erase_boot,
             result = ctx.obj['TOOL'].create_provisioning_packet()
         if result:
             result = ctx.obj['TOOL'].re_provision_device(
-                probe_id, ap, erase_boot=erase_boot,
+                probe_id, erase_boot=erase_boot,
                 control_dap_cert=control_dap_cert,
                 skip_bootloader=skip_bootloader)
         return result
@@ -420,18 +412,16 @@ def cmd_image_certificate(ctx, image, key, cert, version, image_id,
                          'and Flash state')
 @click.option('--probe-id', type=click.STRING, required=False, default=None,
               help='Probe serial number')
-@click.option('--ap', hidden=True, default='cm4',
-              type=click.Choice(['cm0', 'cm4', 'sysap']),
-              help='The access port used for the entrance exam')
 @click.option('--erase-flash', hidden=True, is_flag=True,
               help='Erase flash before the command execution')
 @click.pass_context
-def cmd_entrance_exam(ctx, probe_id, ap, erase_flash):
+def cmd_entrance_exam(ctx, probe_id, erase_flash):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        return ctx.obj['TOOL'].entrance_exam(probe_id, ap, erase_flash)
+        return ctx.obj['TOOL'].entrance_exam(probe_id=probe_id,
+                                             erase_flash=erase_flash)
 
     return process
 
@@ -569,15 +559,13 @@ def cmd_read_public_key(ctx, key_id, key_format, out_file, probe_id):
               help='Filename where to save die ID')
 @click.option('--probe-id', default=None,
               help='Probe serial number')
-@click.option('--ap', hidden=True, type=click.Choice(['cm0', 'cm4', 'sysap']),
-              default='sysap', help='The access port used to read the data')
 @click.pass_context
-def cmd_read_die_id(ctx, out_file, probe_id, ap):
+def cmd_read_die_id(ctx, out_file, probe_id):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        data = ctx.obj['TOOL'].read_die_id(probe_id, ap)
+        data = ctx.obj['TOOL'].read_die_id(probe_id)
         if data:
             logger.info('die_id = %s', json.dumps(data, indent=4))
             if out_file:
@@ -591,39 +579,35 @@ def cmd_read_die_id(ctx, out_file, probe_id, ap):
 
 
 @main.command('sign-cert', help='Signs JSON certificate with the private key')
-@click.option('-j', '--json-file', type=click.File('r'), required=True,
-              help='JSON file to be signed')
+@click.option('-j', '--json-file', '--template', 'template', type=click.Path(),
+              required=True, help='Certificate template')
 @click.option('-k', '--key-id', type=click.INT, required=True,
               help='Private Key ID to sign the certificate with '
                    '(1 - DEVICE, 4 - HSM, 5 - OEM, 12 - GROUP')
-@click.option('-o', '--out-file', default=None,
+@click.option('-o', '--out-file', '--output', 'output', type=click.Path(),
               help='Filename where to save the JWT. If not specified, the '
                    'input file name with "jwt" extension will be used')
 @click.pass_context
-def cmd_sign_cert(ctx, json_file, key_id, out_file):
+def cmd_sign_cert(ctx, template, key_id, output):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
             return False
-        token = ctx.obj['TOOL'].sign_json(json_file.name, key_id, out_file)
+        token = ctx.obj['TOOL'].sign_json(template, key_id, output)
         return True if token else False
 
     return process
 
 
-@main.command('device-info', hidden=True,
-              help='Gets device information')
-@click.option('--probe-id', default=None,
-              help='Probe serial number')
-@click.option('--ap', type=click.Choice(['cm0', 'cm4', 'sysap']),
-              default='sysap', help='The access port used to read the data')
+@main.command('device-info', help='Reads silicon ID, family, and revision')
+@click.option('--probe-id', default=None, help='Probe serial number')
 @click.pass_context
-def cmd_device_info(ctx, probe_id, ap):
+def cmd_device_info(ctx, probe_id):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
             return
-        dev_info = ctx.obj['TOOL'].get_device_info(probe_id, ap)
+        dev_info = ctx.obj['TOOL'].get_device_info(probe_id)
         if dev_info:
             logger.info(
                 'Silicon: 0x%x, Family: 0x%0x, Rev.: 0x%0x',
@@ -642,5 +626,40 @@ def cmd_init(ctx):
             return False
         ctx.obj['TOOL'].init()
         return True
+
+    return process
+
+
+@main.command('transit-to-rma',
+              help='Transition device to RMA lifecycle stage')
+@click.option('-c', '--cert', type=click.Path(), required=True,
+              help='Path to debug certificate')
+@click.option('--probe-id', default=None, help='Probe serial number')
+@click.pass_context
+def cmd_transit_to_rma(ctx, cert, probe_id):
+    """Transits device to RMA LCS"""
+    @process_handler()
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        return ctx.obj['TOOL'].transit_to_rma(probe_id=probe_id, cert=cert)
+
+    return process
+
+
+@main.command('open-rma',
+              help='Enables full access to device in RMA lifecycle stage',
+              short_help='Enables full access to device in RMA lifecycle stage')
+@click.option('-c', '--cert', type=click.Path(), required=True,
+              help='Path to debug certificate')
+@click.option('--probe-id', default=None, help='Probe serial number')
+@click.pass_context
+def cmd_open_rma(ctx, cert, probe_id):
+    """Enables full access to device in RMA LCS"""
+    @process_handler()
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        return ctx.obj['TOOL'].open_rma(cert, probe_id=probe_id)
 
     return process

@@ -128,3 +128,11 @@ class CYB06xx5_Builder(TargetBuilder):
     def get_test_packages(self):
         """ N/A for MXS40v1 platform """
         return None
+
+    def get_silicon_id(self):
+        """Gets the target silicon ID"""
+        return {
+            'id': [0xE701, 0xE70D],
+            'rev': [0x12],
+            'family': 0x105
+        }

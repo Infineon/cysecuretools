@@ -1,9 +1,9 @@
 {
   "version": "1.0.0.0",
   "device_id": {
-    "silicon_id": "0xEB40",
+    "silicon_id": "0xEB43",
     "family_id": "0x110",
-    "revision_id": "0x11"
+    "revision_id": "0x21"
   },
   "control_word": {
     "cm33_ap": "Enable",

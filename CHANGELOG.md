@@ -1,6 +1,18 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## 4.2.0
+### Added
+- Support for CYW20829 B0 silicon revision
+- Multi-image NV counter for CYW20829
+- Transition PSoC 64 devices to RMA LCS
+- Open PSoC 64 devices in RMA LCS for debugging
+- OpenOCD autodiscovery in ModusToolbox directory 
+- Add SW/HW compatibility table to the readme
+
+### Changed
+- Target `cyw20829` is used for the latest silicon revision. For the previous silicon revision (A0) add _--rev_ option in the command line (`-t cyw20829 --rev a0`)
+
 ## 4.1.0
 ### Added
 - OpenOCD support for PSoC 64 devices

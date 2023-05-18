@@ -1,4 +1,6 @@
 include README.md
+include CHANGELOG.md
+include docs/*
 include cysecuretools/execute/programmer/pyocd_target_map.json
 include cysecuretools/execute/programmer/openocd_target_map.json
 include cysecuretools/settings.json

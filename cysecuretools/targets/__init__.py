@@ -18,9 +18,9 @@ from cysecuretools.targets.cyb06xxa.target_builder import CYB06xxA_Builder
 from cysecuretools.targets.cys06xxa.target_builder import CYS06xxA_Builder
 from cysecuretools.targets.cyb06xx5.target_builder import CYB06xx5_Builder
 from cysecuretools.targets.cyw20829.target_builder import CYW20829Builder
+from cysecuretools.targets.cyw20829_a0.target_builder import CYW20829A0Builder
 
-
-target_map = {
+__target_map = {
     # PSoC64 1M
     'cyb06xx7': {
         'class': CYB06xx7_Builder,
@@ -99,81 +99,85 @@ target_map = {
 
     # CYW20829
     'cyw20829': {
-        'class': CYW20829Builder,
-        'family': 'MXS40Sv2 Family',
-        'display_name': 'CYW20829',
-        'type': 'family',
-        'platform': 'mxs40sv2'
+        'default': {
+            'class': CYW20829Builder,
+            'family': 'MXS40Sv2 Family',
+            'display_name': 'CYW20829',
+            'type': 'family',
+            'platform': 'mxs40sv2'
+        },
+        'a0': {
+            'class': CYW20829A0Builder,
+            'family': 'MXS40Sv2 Family',
+            'display_name': 'CYW20829',
+            'type': 'family',
+            'platform': 'mxs40sv2'
+        },
+        'b0': {
+            'class': CYW20829Builder,
+            'family': 'MXS40Sv2 Family',
+            'display_name': 'CYW20829',
+            'type': 'family',
+            'platform': 'mxs40sv2'
+        },
     },
 }
 
 
+def target_data(target_name, rev=None):
+    """Gets target data from the map"""
+    target_name = target_name.lower()
+    if rev:
+        rev = rev.lower()
+        if rev in __target_map[target_name]:
+            return __target_map[target_name][rev]
+        raise ValueError(
+            f"Target '{target_name}' does not have revision '{rev}'")
+    if 'class' in __target_map[target_name]:
+        return __target_map[target_name]
+    return __target_map[target_name]['default']
+
+
 def print_targets():
-    """
-    Prints target list
-    """
+    """Prints target list"""
     output = {}
-    for target in target_map:
-        tmp = output.get(target_map[target]['family'], [])
-        tmp.append(target)
-        output[target_map[target]['family']] = tmp
+    for target_name in __target_map:
+        target = target_data(target_name)
+        tmp = output.get(target['family'], [])
+        tmp.append(target_name)
+        output[target['family']] = tmp
     print('Supported targets and families:')
-    for family in output:
+    for family, targets in output.items():
         print(f'{family}:')
-        for target in output[family]:
-            print(f'\t{target}')
+        for target_name in targets:
+            print(f'\t{target_name}')
 
 
-def get_target_builder(director, target_name):
+def get_target_builder(director, target_name, rev=None):
+    """Gets target builder by target name"""
     try:
-        director.builder = target_map[target_name]['class']()
+        target = target_data(target_name, rev=rev)
+        director.builder = target['class']()
         return director.builder
     except KeyError as e:
         raise ValueError(f'Unknown target "{target_name}"') from e
 
 
-def targets_by_type(target_type):
-    """
-    Gets dictionary of targets of the specified type
-    """
-    return {k: v for k, v in target_map.items() if v['type'] == target_type}
-
-
-def targets_by_type_and_platform(target_type, platform):
-    """
-    Gets dictionary of targets based on specified platform
-    """
-    return {k: v for k, v in target_map.items() if v['type'] == target_type
-            and v['platform'] == platform}
-
-
-def target_names_by_type(target_type):
-    """
-    Gets list of target names of the specified type
-    """
-    return [k for k in targets_by_type(target_type).keys()]
-
-
-def target_names_by_type_and_platform(target_type, platform):
-    """
-    Gets list of target names based on specified platform
-    """
-    return [k for k in targets_by_type_and_platform(target_type,
-                                                    platform).keys()]
-
-
 def print_targets_extended():
-    """
-    Prints extended target list
-    """
+    """Prints extended target list"""
     print('target|type|display_name|family')
-    for k, v in target_map.items():
-        print(f'{k}|{v["type"]}|{v["display_name"]}|{v["family"]}')
+    for k in __target_map:
+        data = target_data(k)
+        print(f'{k}|{data["type"]}|{data["display_name"]}|{data["family"]}')
 
 
 def is_psoc64(target):
-    return target_map[target]['platform'] == 'psoc64'
+    """Gets a value indicating whether the target belongs
+    to MXS40v1 platform"""
+    return target_data(target)['platform'] == 'psoc64'
 
 
 def is_mxs40sv2(target):
-    return target_map[target]['platform'] == 'mxs40sv2'
+    """Gets a value indicating whether the target belongs
+    to MXS40Sv2 platform"""
+    return target_data(target)['platform'] == 'mxs40sv2'

@@ -66,7 +66,7 @@ def generate_aes_key(key_size=AES_KEY_SIZE, add_iv=True, fmt='bin', filename=Non
             os.makedirs(os.path.dirname(filename), exist_ok=True)
         with open(filename, 'wb') as fp:
             fp.write(key)
-        logger.info("Created key in '%s'", filename)
+        logger.info("Created a key '%s'", os.path.abspath(filename))
     return KeyPair(key, None)
 
 
@@ -88,12 +88,13 @@ def generate_ecdsa_key(kid=6, jwkey=None, pem_priv=None, pem_pub=None,
         try:
             data = read_json(template)
             pubkey = ECHandler.populate_public_key(bytes.fromhex(data['pub']))
-        except ValueError:
-            logger.error('The template contains invalid data (%s)', template)
-            return None
-        except KeyError:
-            logger.error('The template structure is invalid (%s)', template)
-            return None
+        except ValueError as e:
+            raise ValueError(
+                f'The template contains invalid data ({template})') from e
+        except KeyError as e:
+            raise KeyError(
+                f'The template structure is invalid ({template})') from e
+
         key_json = ECHandler.public_jwk(pubkey, kid)
     else:
         key_json = _ecdsa_private_key(kid=kid)
@@ -115,18 +116,20 @@ def _save_ec_key(key_json, jwkey, pem_priv, pem_pub):
         os.makedirs(os.path.dirname(jwkey), exist_ok=True)
         with open(jwkey, 'w', encoding='utf-8') as fp:
             fp.write(json.dumps(key_json, indent=4))
-            logger.info("Created a key in '%s'", jwkey)
+            logger.info("Created a key '%s'", os.path.abspath(jwkey))
 
         key = ECKey(key_json, ALGORITHMS.ES256)
         if pem_priv:
             os.makedirs(os.path.dirname(pem_priv), exist_ok=True)
             with open(pem_priv, 'wb') as fp:
                 fp.write(key.to_pem().strip())
+                logger.info("Created a key '%s'", os.path.abspath(pem_priv))
 
         if pem_pub:
             os.makedirs(os.path.dirname(pem_pub), exist_ok=True)
             with open(pem_pub, 'wb') as fp:
                 fp.write(key.public_key().to_pem().strip())
+                logger.info("Created a key '%s'", os.path.abspath(pem_pub))
 
 
 def create_rsa_key(priv_key, pub_key, template=None, hash_path=None):
@@ -144,14 +147,15 @@ def create_rsa_key(priv_key, pub_key, template=None, hash_path=None):
         try:
             key = RSAHandler.populate_public_key(
                 data['exponent'], data['modulus'])
-        except ValueError:
-            logger.error('The template contains invalid data (%s)', template)
-            return None
-        except KeyError:
-            logger.error('The template structure is invalid (%s)', template)
-            return None
+        except ValueError as e:
+            raise ValueError(
+                f'The template contains invalid data ({template})') from e
+        except KeyError as e:
+            raise KeyError(
+                f'The template structure is invalid ({template})') from e
+
         RSAHandler.save_public_key(key, pub_key)
-        logger.info("Created public key in '%s'", pub_key)
+        logger.info("Created a key '%s'", pub_key)
         keypair = KeyPair(None, key)
     else:
         keypair = _generate_rsa_key(priv_key, pub_key)
@@ -198,13 +202,13 @@ def _generate_rsa_key(priv_key_path, pub_key_path):
         os.makedirs(key_dir, exist_ok=True)
     with open(priv_key_path, 'wb') as fp:
         fp.write(private_pem)
-        logger.info("Created private key '%s'", priv_key_path)
+        logger.info("Created a key '%s'", os.path.abspath(priv_key_path))
 
     key_dir = os.path.dirname(pub_key_path)
     if key_dir:
         os.makedirs(key_dir, exist_ok=True)
     with open(pub_key_path, 'wb') as fp:
         fp.write(public_pem)
-        logger.info("Created public key '%s'", pub_key_path)
+        logger.info("Created a key '%s'", os.path.abspath(pub_key_path))
 
     return KeyPair(private_key, public_key)

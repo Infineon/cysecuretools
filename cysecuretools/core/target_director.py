@@ -133,6 +133,9 @@ class TargetDirector:
         # Python package name containing content for testing purpose
         target.test_packages = self._builder.get_test_packages()
 
+        # Target silicon ID
+        target.silicon_id = self._builder.get_silicon_id()
+
         self._instantiate_types(target)
 
         return target
@@ -181,6 +184,7 @@ class Target:
         self._debug_certificate = None
         self._policy_generator = None
         self._test_packages = None
+        self._silicon_id = None
 
     @property
     def name(self):
@@ -405,3 +409,11 @@ class Target:
     @test_packages.setter
     def test_packages(self, packages):
         self._test_packages = packages
+
+    @property
+    def silicon_id(self):
+        return self._silicon_id
+
+    @silicon_id.setter
+    def silicon_id(self, silicon_id):
+        self._silicon_id = silicon_id

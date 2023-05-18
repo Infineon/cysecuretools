@@ -232,6 +232,13 @@ class PolicyParser:
             value = 0
         return value
 
+    def get_bits_per_cnt(self):
+        try:
+            value = self.json['device_policy']['reprovisioning']['nv_counter']['bits_per_cnt']
+        except KeyError:
+            value = [32]
+        return value
+
     def get_complete_provisioning(self):
         try:
             value = self.json['device_policy']['misc']['complete_provisioning']['value']

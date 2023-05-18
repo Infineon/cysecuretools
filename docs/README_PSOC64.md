@@ -24,6 +24,8 @@
        - [Programming encrypted user application](#programming-encrypted-user-application)
     - [CyBootloader and Secure Flash Boot version](#cybootloader-and-secure-flash-boot-version)
     - [Sign DAP certificate](#sign-certificate)
+    - [Transit to RMA](#transit-to-rma)
+    - [Open RMA](#open-rma)
     - [Read public key from device](#read-public-key-from-device)
     - [Read die ID from device](#read-die-id-from-device)
     - [Commands to use with HSM](#commands-to-use-with-HSM)
@@ -35,6 +37,7 @@
     - [Signing application with HSM](#signing-application-with-hsm)
 - [Closing All Access Ports](#closing-all-access-ports)
 - [Open CM0 Access Port](#open-cm0-access-port)
+- [RMA](#rma)
 - [CyBootloader](#cybootloader)
     - [Custom Bootloader](#custom-bootloader)
     - [Encrypted Bootloader](#encrypted-bootloader)
@@ -61,12 +64,15 @@ _Example_:
 ```bash
 $ cysecuretools set-ocd --name pyocd
 ```
-To use openocd specify both name and path to OpenOCD:
+To use OpenOCD specify both name and path to OpenOCD:
 
 _Example_:
 ```bash
 $ cysecuretools set-ocd --name openocd --path <PATH>
 ```
+
+Make sure you provide the path to the root directory of OpenOCD (NOT _bin_ directory).
+Specifying the path is not mandatory if you have ModusToolbox™ installed on your machine. OpenOCD from the ModusToolbox™ directory is used by default.
 
 ## 2. Define a target
 Run the following command and find the name of your target in the list of supported targets.
@@ -74,10 +80,14 @@ Run the following command and find the name of your target in the list of suppor
 $ cysecuretools device-list
 ```
 This target name will be used as a `-t` option value with each command.
+If the device revision is not the latest one, use `--rev` option to specify a revision ([HW/SW compatibility](../README.md#hwsw-compatibility)).
 
 _Example_:
 ```bash
 $ cysecuretools -t CY8CKIT-064B0S2-4343W -p <POLICY> <COMMAND> [OPTIONS]
+```
+```bash
+$ cysecuretools -t cyb06xx5 --rev a1 -p <POLICY> <COMMAND> [OPTIONS]
 ```
 
 ## 3. Create a new project
@@ -108,9 +118,8 @@ $ cysecuretools -t <TARGET> -p <POLICY> provision-device
 ```
 
 ## 7. Sign the image
-The file specified in the `--hex` option will be signed. A copy of the original file will be created with the `_unsigned` suffix.
 ```bash
-$ cysecuretools -t <TARGET> sign-image --hex example-blinky.hex --image-type BOOT
+$ cysecuretools -t <TARGET> sign-image --image example-blinky.hex --output example-blinky-signed.hex --image-type BOOT
 ```
 
 
@@ -119,7 +128,7 @@ $ cysecuretools -t <TARGET> sign-image --hex example-blinky.hex --image-type BOO
 $ cysecuretools -t CY8CKIT-064B0S2-4343W init
 $ cysecuretools -t CY8CKIT-064B0S2-4343W -p policy/policy_single_CM0_CM4_swap.json create-keys
 $ cysecuretools -t CY8CKIT-064B0S2-4343W -p policy/policy_single_CM0_CM4_swap.json provision-device
-$ cysecuretools -t CY8CKIT-064B0S2-4343W -p policy/policy_single_CM0_CM4_swap.json sign-image --hex image.hex --image-type BOOT
+$ cysecuretools -t CY8CKIT-064B0S2-4343W -p policy/policy_single_CM0_CM4_swap.json sign-image --image example-blinky.hex --output example-blinky-signed.hex --image-type BOOT
 $ cysecuretools -t CY8CKIT-064B0S2-4343W -p policy/policy_single_CM0_CM4_swap.json re-provision-device
 ```
 
@@ -250,7 +259,7 @@ $ cysecuretools -t CY8CKIT-064B0S2-4343W -p policy/policy_single_CM0_CM4_swap.js
 
 
 ## Create provisioning packet
-Creates a JWT packet (a file to be programmed into the device during the provisioning procedure). In general, this is a policy, keys, and certificates in the JWT format. Returns True if the packet is created successfully, otherwise - False.
+Creates a JWT packet (a file to be programmed into the device during the provisioning procedure). In general, this is a policy, keys, and certificates in the JWT format.
 ### Command: `create-provisioning-packet`
 ### Parameters
 No parameters required.
@@ -261,14 +270,17 @@ $ cysecuretools -t CY8CKIT-064B0S2-4343W -p policy/policy_single_CM0_CM4_swap.js
 
 
 ## Provision device
-Starts a device provisioning process. Returns True if provisioning was success, otherwise - False.
+Starts a device provisioning process.
 
 __WARNING:__ This operation can be done with the SECURE UNCLAIMED device only. SECURE UNCLAIMED means it was not provisioned before, so does not have an identity assigned. Once device was provisioned it is considered as a SECURE CLAIMED and further identity assigning is not possible. It can be re-provisioned with the `re-provision-device` command.
+
+__NOTE:__ There is a `reprovision` field in the policy file, configuring the ability to reprovision a bootloader, keys, and policy. These values cannot be changed once provisioned to the device.
+
 ### Command: `provision-device`
 ### Parameters
 | Name              | Optional/Required  | Description   |
 | ----------------- |:------------------:| ------------- |
-| --probe_id        | optional           | The probe serial number. Can be used to specify a probe if more than one device is connected to a computer. |
+| --probe-id        | optional           | The probe serial number. Can be used to specify a probe if more than one device is connected to a computer. |
 | --existing-packet | optional           | Skip the provisioning packet creation and use the existing packet. |
 ### Usage example
 ```bash
@@ -277,12 +289,12 @@ $ cysecuretools -t CY8CKIT-064B0S2-4343W -p policy/policy_single_CM0_CM4_swap.js
 
 
 ## Reprovision device
-Starts a device re-provisioning process. Returns True if re-provisioning was success, otherwise - False.
+Starts a device re-provisioning process.
 ### Command: `re-provision-device`
 ### Parameters
 | Name               | Optional/Required  | Description   |
 | ------------------ |:------------------:| ------------- |
-| --probe_id         | optional           | The probe serial number. Can be used to specify a probe if more than one device is connected to a computer. |
+| --probe-id         | optional           | The probe serial number. Can be used to specify a probe if more than one device is connected to a computer. |
 | --existing-packet  | optional           | Skip the provisioning packet creation and use the existing packet. |
 | --control-dap-cert | optional           | The certificate that provides the access to control DAP. For more information refer to [Open CM0 Access Port](#open-cm0-access-port).|
 | --erase-boot       | optional           | Indicates whether to erase BOOT slot.|
@@ -293,12 +305,14 @@ $ cysecuretools -t CY8CKIT-064B0S2-4343W -p policy/policy_single_CM0_CM4_swap.js
 
 
 ## Sign image
-Signs the user application with the keys created by the [create keys](#create-keys).
+Signs the user application with a key.
+
+The file specified in the `--image` option will be signed and saved to the file specified in the `--output` option. If the `--output` is not specified, a copy of the original file will be created with the `_unsigned` suffix and the input file will be signed.
 ### Command: `sign-image`
 ### Parameters
 | Name             | Optional/Required  | Description   |
 | ----------------    |:------------------:| ------------- |
-| -h, --hex, --image  | required           | User application image (hex or bin). |
+| --image             | required           | User application image (hex or bin). |
 | -i, --image-id      | optional           | The ID of the firmware image in the device. The default value is 1. |
 | --image-type        | optional           | Indicates which type of an image is signed - boot or upgrade. If omitted, both types will be generated. Accepted only **BOOT** or **UPGRADE** values. |
 | -e, --encrypt       | optional           | Public key PEM-file for the image encryption. |
@@ -331,12 +345,12 @@ $ cysecuretools bin2hex --image image.bin --output image.hex --offset 0x20000
 
 
 ## Entrance exam
-Checks the device life-cycle, Flashboot firmware, and Flash memory state. Returns True if the device is ready for provisioning, otherwise - False.
+Checks the device life-cycle, Flashboot firmware, and Flash memory state.
 ### Command: `entrance-exam`
 ### Parameters
 | Name               | Optional/Required  | Description   |
 | ------------------ |:------------------:| ------------- |
-| --probe_id         | optional           | The probe serial number. Can be used to specify a probe if more than one device is connected to a computer. |
+| --probe-id         | optional           | The probe serial number. Can be used to specify a probe if more than one device is connected to a computer. |
 ### Usage example
 ```bash
 $ cysecuretools -t CY8CKIT-064B0S2-4343W -p policy/policy_single_CM0_CM4_swap.json entrance-exam
@@ -400,7 +414,7 @@ Creates encrypted image for encrypted programming.
 | --key-length          | optional           | Derived key length. |
 | -o, --encrypted-image | required           | Output file of encrypted image for encrypted programming. |
 | --padding-value       | optional           | Value for image padding. |
-| --probe_id            | optional           | Probe serial number. Used to read device public key from device. |
+| --probe-id            | optional           | Probe serial number. Used to read device public key from device. |
 ### Usage example
 ```bash
 $ cysecuretools -t CY8CKIT-064B0S2-4343W -p policy/policy_single_CM0_CM4_swap.json encrypt-image -i BlinkyApp.hex -h 4 -d 1 -o encrypted_image.txt
@@ -473,12 +487,42 @@ Signs JSON certificate with the private key.
 ### Parameters
 | Name                | Optional/Required  | Description   |
 | ------------------- |:------------------:| ------------- |
-| -j, --json-file     | required           | JSON file to be signed. |
+| --template          | required           | Certificate template. |
 | -k, --key-id        | required           | Private Key ID to sign the certificate with (1 - DEVICE, 4 - HSM, 5 - OEM, 12 - GROUP). |
-| -o, --out-file      | optional           | Filename where to save the JWT. If not specified, the input file name with "jwt" extension will be used. |
+| -o, --output        | optional           | Filename where to save the JWT. If not specified, the input file name with "jwt" extension will be used. |
 ### Usage example
 ```bash
-$ cysecuretools -t CY8CKIT-064B0S2-4343W -p policy/policy_single_CM0_CM4_swap.json sign-cert --json-file packets/control_dap_cert.json --key-id 5
+$ cysecuretools -t CY8CKIT-064B0S2-4343W -p policy/policy_single_CM0_CM4_swap.json sign-cert --template packets/control_dap_cert.json --output packets/control_dap_cert.jwt --key-id 5
+```
+
+
+## Transit to RMA
+Transits device to the RMA lifecycle stage using system AP. See the [RMA](#rma) section for the complete flow.
+
+After each reset ROM boot code will wait on OpenRMA system call to open full access. See RMA usage instructions for the complete flow.
+### Command `transit-to-rma`
+### Parameters
+| Name                | Optional/Required  | Description   |
+| ------------------- |:------------------:| ------------- |
+| -c, --cert          | required           | Path to debug certificate. |
+| --probe-id          | optional           | Probe serial number. |
+### Usage example
+```bash
+$ cysecuretools -t CY8CKIT-064B0S2-4343W transit-to-rma --cert packets/control_dap_cert.jwk
+```
+
+
+## Open RMA
+Enables full access to device in RMA lifecycle stage using system AP. See the [RMA](#rma) section for the complete flow.
+### Command `open-to-rma`
+### Parameters
+| Name                | Optional/Required  | Description   |
+| ------------------- |:------------------:| ------------- |
+| -c, --cert          | required           | Path to debug certificate. |
+| --probe-id          | optional           | Probe serial number. |
+### Usage example
+```bash
+$ cysecuretools -t CY8CKIT-064B0S2-4343W open-rma --cert packets/control_dap_cert.jwk
 ```
 
 
@@ -669,6 +713,56 @@ Re-provision device using the certificate to open CM0 access port for programmin
 $ cysecuretools -t CY8CKIT-064B0S2-4343W -p policy/policy_single_CM0_CM4_swap.json re-provision-device --control-dap-cert packets/control_dap_cert.jwt
 ```
 _NOTE_: The access port opens for a short time to program bootloader during re-provisioning.
+
+
+# RMA
+Following is the flow for the transition device to the RMA lifecycle stage and open DAP.
+## 1. Create a certificate
+For the transition of the device into the RMA lifecycle stage you need to create a certificate, which contains the device DIE_ID and is signed with the key specified in the _rma_ section of the policy.
+The certificate template is located in the _packets_ directory of the project. _control_dap_cert.json_ defines the DIE_ID of the devices the certificate can be applied to. The default template _min_ and _max_ values are applicable for all devices. Modify it for specific devices only if needed.
+### Default Template
+```json
+{
+  "auth": {
+    "die_id": {
+      "max": {
+        "day": 255,
+        "lot": 16777215,
+        "month": 255,
+        "wafer": 255,
+        "xpos": 255,
+        "year": 255,
+        "ypos": 255
+      },
+      "min": {
+        "day": 0,
+        "lot": 0,
+        "month": 0,
+        "wafer": 0,
+        "xpos": 0,
+        "year": 0,
+        "ypos": 0
+      }
+    }
+  }
+}
+```
+### Signing
+Make sure you use the ID of the key specified in the _rma_ section of the policy the device has been provisioned with.
+```bash
+$ cysecuretools -t CY8CKIT-064B0S2-4343W -p policy/policy_single_CM0_CM4_swap.json sign-cert --template packets/control_dap_cert.json --output packets/control_dap_cert.jwt --key-id 5
+```
+## 2. Transition to RMA
+Transition a part from the SECURE to the RMA lifecycle stage. Before the transitioning fuses and flash will be destroyed as specified in the `destroy_fuses` and `destroy_flash` sections of the device policy.
+```bash
+$ cysecuretools -t CY8CKIT-064B0S2-4343W transit-to-rma --cert packets/control_dap_cert.jwk
+```
+## 3. Open RMA
+To open the DAP of the device in the RMA lifecycle stage use the same certificate as for the transition to RMA.
+```bash
+$ cysecuretools -t CY8CKIT-064B0S2-4343W open-rma --cert packets/control_dap_cert.jwk
+```
+After successful DAP opening, DO NOT reset the device and launch a debug session with a debugger.
 
 
 # CyBootloader

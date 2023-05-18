@@ -3,14 +3,17 @@ from .encryption_key_validator import EncryptionAndProgramOemKey1Validator
 from .hci_mode_validator import HciModeValidator
 from .revoke_oem_encryption_validator import RevocationAndEncryptionValidator
 from .access_restrictions_validator import AccessRestrictionsValidator
+from .nv_counter_validator import NvCounterValidator
 
 validators = {
-    'pre_build': [PreBuildKeysExistValidator,
-                  HciModeValidator,
-                  EncryptionAndProgramOemKey1Validator,
-                  RevocationAndEncryptionValidator,
-                  AccessRestrictionsValidator
-                  ]
+    'pre_build': [
+        PreBuildKeysExistValidator,
+        HciModeValidator,
+        EncryptionAndProgramOemKey1Validator,
+        RevocationAndEncryptionValidator,
+        AccessRestrictionsValidator,
+        NvCounterValidator
+    ]
 }
 
 

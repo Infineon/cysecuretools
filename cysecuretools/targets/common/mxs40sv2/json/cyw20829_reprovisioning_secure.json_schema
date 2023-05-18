@@ -19,13 +19,31 @@
                         "nv_counter": {
                             "id": "nv_counter",
                             "required": false,
-                            "description": "Anti-rollback counter (supports up to 32 updates)",
+                            "description": "Anti-rollback counter. Each item of the 'value' array defines counter for each next application. Each 'bits_per_cnt' item defines number of bits for the next application counter (total bits number 32). IMPORTANT: 'bits_per_cnt' in the provisioning and reprovisioning policy files MUST BE the same",
                             "properties": {
-                             	"value":
-                                {
-                                    "type": "number",
-                                    "minimum": 0,
-                                    "maximum": 32
+                                "value": {
+                                    "anyOf": [
+                                        {
+                                            "type": "number",
+                                            "minimum": 0,
+                                            "maximum": 32
+                                        },
+                                        {
+                                            "type": "array",
+                                            "items": {
+                                                "type": "number",
+                                                "minimum": 0
+                                            }
+                                        }
+                                    ]
+                                },
+                                "bits_per_cnt": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "number",
+                                        "minimum": 0,
+                                        "maximum": 32
+                                    }
                                 }
                             }
                         },

@@ -153,3 +153,9 @@ class TargetBuilder(ABC):
         Gets a dictionary with Python packages containing content for
         testing purpose
         """
+
+    @abstractmethod
+    def get_silicon_id(self):
+        """
+        Gets the target silicon ID
+        """

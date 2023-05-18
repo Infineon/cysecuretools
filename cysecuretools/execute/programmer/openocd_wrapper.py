@@ -1,5 +1,5 @@
 """
-Copyright 2022 Cypress Semiconductor Corporation (an Infineon company)
+Copyright 2022-2023 Cypress Semiconductor Corporation (an Infineon company)
 or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -76,24 +76,22 @@ class Openocd(ProgrammerBase):
         N/A for OpenOCD
         """
 
-    def connect(self, target_name=None,
-                interface=None, probe_id=None, ap='cm4', acquire=None,
-                blocking=None, reset_and_halt=False,
-                power=None, voltage=None):
+    def connect(self, target_name=None, interface=None, probe_id=None,
+                ap='sysap', acquire=None, blocking=None, power=None,
+                voltage=None, ignore_errors=False):
         """
         Connects to target using default debug interface.
-        :param power: Indicates whether to on/off the KitProg3 power
-        :param voltage: The KitProg3 voltage level
-        :param target_name: The target name.
-        :param interface: Debug interface.
-        :param probe_id: Probe serial number.
-        :param ap: The access port to be used for flash operations
-        :param acquire: Indicates whether to acquire device on connect
-        :param blocking: Specifies whether to wait for a probe to be
+        @param target_name: The target name.
+        @param interface: Debug interface.
+        @param probe_id: Probe serial number.
+        @param ap: The access port to be used for flash operations
+        @param acquire: Indicates whether to acquire device on connect
+        @param blocking: Specifies whether to wait for a probe to be
                connected if there are no available probes.
-        :param reset_and_halt: Indicates whether to do reset and halt
-               after connect
-        :return: True if connected successfully, otherwise False.
+        @param power: Indicates whether to on/off the KitProg3 power
+        @param voltage: The KitProg3 voltage level
+        @param ignore_errors: Ignore errors and continue execution
+        @return: True if connected successfully, otherwise False.
         """
         if interface:
             raise NotImplementedError
@@ -109,8 +107,8 @@ class Openocd(ProgrammerBase):
                     # Get target info
                     director = TargetDirector()
                     try:
-                        from cysecuretools.targets import target_map
-                        director.builder = target_map[target_name]['class']()
+                        from cysecuretools.targets import target_data
+                        director.builder = target_data(target_name)['class']()
                     except KeyError as e:
                         raise ValueError(
                             f'Unknown target "{target_name}"') from e
@@ -141,10 +139,10 @@ class Openocd(ProgrammerBase):
         signal.signal(signal.SIGINT, self._terminate_signal_received)
 
         # Configure OpenOCD server
-        self.ocd_server = OpenocdServer(self.target, ocd_target_name,
-                                        interface, probe_id,
-                                        tool_path=self.tool_path,
-                                        power=power, voltage=voltage)
+        self.ocd_server = OpenocdServer(
+            self.target, ocd_target_name, interface, probe_id,
+            tool_path=self.tool_path, power=power, voltage=voltage,
+            ignore_errors=ignore_errors)
         self.probe_id = self.ocd_server.probe_id
         # Start GDB server and check if it is started
         server_started = self.ocd_server.start(ap, acquire)
@@ -160,13 +158,6 @@ class Openocd(ProgrammerBase):
                 raise ValueError('Debug session has already initialized')
         else:
             return False
-        self.set_ap(self.connect_ap)
-        self.examine_ap()
-        if reset_and_halt:
-            self.reset_and_halt(reset_type=ResetType.HW)
-        if self.current_ap in [AP.CM0, AP.CM4]:
-            self._start_core()
-            self.set_ap(AP.SYS)
 
         return True
 
@@ -184,7 +175,7 @@ class Openocd(ProgrammerBase):
     def set_frequency(self, value_khz):
         """
         Sets probe frequency.
-        :param value_khz: Frequency in kHz.
+        @param value_khz: Frequency in kHz.
         """
         if self.sock is None:
             raise ValueError('Debug probe is not initialized')
@@ -211,7 +202,7 @@ class Openocd(ProgrammerBase):
     def reset(self, reset_type=ResetType.SW):
         """
         Resets the target.
-        :param reset_type: The reset type.
+        @param reset_type: The reset type.
         """
         if self.sock is None:
             raise ValueError('Target is not initialized')
@@ -221,7 +212,7 @@ class Openocd(ProgrammerBase):
     def reset_and_halt(self, reset_type=ResetType.SW):
         """
         Resets the target and halts the CPU immediately after reset.
-        :param reset_type: The reset type.
+        @param reset_type: The reset type.
         """
         if self.sock is None:
             raise ValueError('Target is not initialized')
@@ -231,8 +222,8 @@ class Openocd(ProgrammerBase):
     def read8(self, address):
         """
         Reads 8-bit value from specified memory location.
-        :param address: The memory address to read.
-        :return: The read value.
+        @param address: The memory address to read.
+        @return: The read value.
         """
         if self.sock is None:
             raise ValueError('Target is not initialized')
@@ -244,8 +235,8 @@ class Openocd(ProgrammerBase):
     def read16(self, address):
         """
         Reads 16-bit value from specified memory location.
-        :param address: The memory address to read.
-        :return: The read value.
+        @param address: The memory address to read.
+        @return: The read value.
         """
         if self.sock is None:
             raise ValueError('Target is not initialized')
@@ -260,8 +251,8 @@ class Openocd(ProgrammerBase):
     def read32(self, address):
         """
         Reads 32-bit value from specified memory location.
-        :param address: The memory address to read.
-        :return: The read value.
+        @param address: The memory address to read.
+        @return: The read value.
         """
         if self.sock is None:
             raise ValueError('Target is not initialized')
@@ -276,8 +267,8 @@ class Openocd(ProgrammerBase):
     def write8(self, address, value):
         """
         Writes 8-bit value by specified memory location.
-        :param address: The memory address to write.
-        :param value: The 8-bit value to write.
+        @param address: The memory address to write.
+        @param value: The 8-bit value to write.
         """
         if self.sock is None:
             raise ValueError('Target is not initialized.')
@@ -288,8 +279,8 @@ class Openocd(ProgrammerBase):
     def write16(self, address, value):
         """
         Writes 16-bit value by specified memory location.
-        :param address: The memory address to write.
-        :param value: The 16-bit value to write.
+        @param address: The memory address to write.
+        @param value: The 16-bit value to write.
         """
         if self.sock is None:
             raise ValueError('Target is not initialized')
@@ -300,8 +291,8 @@ class Openocd(ProgrammerBase):
     def write32(self, address, value):
         """
         Writes 32-bit value by specified memory location.
-        :param address: The memory address to write.
-        :param value: The 32-bit value to write.
+        @param address: The memory address to write.
+        @param value: The 32-bit value to write.
         """
         self._send('targets')
         if self.sock is None:
@@ -313,8 +304,8 @@ class Openocd(ProgrammerBase):
     def read_reg(self, reg_name):
         """
         Gets value of a core register.
-        :param reg_name: Core register name.
-        :return: The register value.
+        @param reg_name: Core register name.
+        @return: The register value.
         """
         reg = reg_name.lower()
         value = self._send('reg {0}'.format(reg))
@@ -324,9 +315,9 @@ class Openocd(ProgrammerBase):
     def write_reg(self, reg_name, value):
         """
         Sets value of a core register.
-        :param reg_name: Core register name.
-        :param value: The value to set.
-        :return: The register value.
+        @param reg_name: Core register name.
+        @param value: The value to set.
+        @return: The register value.
         """
         reg = reg_name.lower()
         logger.debug('write_reg (%s): 0x%x', reg, value)
@@ -335,8 +326,8 @@ class Openocd(ProgrammerBase):
     def erase(self, address, size):
         """
         Erases entire device flash or specified sectors.
-        :param address: The memory location.
-        :param size: The memory size.
+        @param address: The memory location.
+        @param size: The memory size.
         """
         if self.sock is None:
             raise ValueError('Debug session is not initialized')
@@ -347,11 +338,11 @@ class Openocd(ProgrammerBase):
     def program(self, filename, file_format=None, address=None):
         """
         Programs a file into flash.
-        :param filename: Path to a file.
-        :param file_format: N/A for OpenOCD.
-        :param address: Base address used for the address where to
+        @param filename: Path to a file.
+        @param file_format: N/A for OpenOCD.
+        @param address: Base address used for the address where to
                flash a binary.
-        :return: True if programmed successfully, otherwise False.
+        @return: True if programmed successfully, otherwise False.
         """
         if self.sock is None:
             raise ValueError('Debug session is not initialized')
@@ -368,11 +359,11 @@ class Openocd(ProgrammerBase):
     def program_ram(self, filename, file_format=None, address=None):
         """
         Programs a file into flash.
-        :param filename: Path to a file.
-        :param file_format: N/A for OpenOCD.
-        :param address: Base address used for the address where to
+        @param filename: Path to a file.
+        @param file_format: N/A for OpenOCD.
+        @param address: Base address used for the address where to
                flash a binary.
-        :return: True if programmed successfully, otherwise False.
+        @return: True if programmed successfully, otherwise False.
         """
         if self.sock is None:
             raise ValueError('Debug session is not initialized')
@@ -389,9 +380,9 @@ class Openocd(ProgrammerBase):
     def _parse_read(self, cmd_response):
         """
         Parse OpenOCD output from read memory commands
-        :param cmd_response: String with response from server to the
+        @param cmd_response: String with response from server to the
                read command
-        :return: The register as integer value
+        @return: The register as integer value
         """
         for err_msg in self._error_msg_patterns:
             if err_msg in cmd_response:
@@ -404,9 +395,9 @@ class Openocd(ProgrammerBase):
     def _parse_and_convert_read(self, cmd_response):
         """
         Parse OpenOCD output from read memory commands
-        :param cmd_response: String with response from server to the
+        @param cmd_response: String with response from server to the
                read command
-        :return: The register as integer value
+        @return: The register as integer value
         """
         value = self._parse_read(cmd_response)
         value = int(value, 16)
@@ -416,8 +407,8 @@ class Openocd(ProgrammerBase):
         """
         Send a command to TCL RPC.
         Note: This command also check command status and if it is not SUCCESS raise ValueError exception
-        :param cmd: String with command for OpenOCD server.
-        :return: String with response on sent command to the server.
+        @param cmd: String with command for OpenOCD server.
+        @return: String with response on sent command to the server.
         """
         if self.sock is None:
             raise ValueError('Debug session is not initialized')
@@ -449,8 +440,8 @@ class Openocd(ProgrammerBase):
     def _send_cmd(self, cmd):
         """
         Send a command string to TCL RPC.
-        :param cmd: String with command for OpenOCD server.
-        :return: String with response on sent command.
+        @param cmd: String with command for OpenOCD server.
+        @return: String with response on sent command.
         """
         data = (cmd + self._command_token).encode("utf-8")
         self.sock.send(data)
@@ -459,7 +450,7 @@ class Openocd(ProgrammerBase):
     def _receive(self):
         """
         Read from the stream until the token (\x1a) was received.
-        :return: String with response on sent command to the server.
+        @return: String with response on sent command to the server.
         """
         data = bytes()
         while True:
@@ -473,7 +464,7 @@ class Openocd(ProgrammerBase):
             logger.info('receive -> %s', data)
         return data
 
-    def _terminate_signal_received(self, **_):
+    def _terminate_signal_received(self, *_args):
         """
         The termination signal from the system was received
         """
@@ -487,7 +478,7 @@ class Openocd(ProgrammerBase):
     def get_ap(self):
         """
         Gets access port.
-        :return: Selected AP.
+        @return: Selected AP.
         """
         logger.debug('AP: %s', self.current_ap)
         return self.current_ap
@@ -495,7 +486,7 @@ class Openocd(ProgrammerBase):
     def set_ap(self, ap):
         """
         Sets access port.
-        :param ap: The AP name.
+        @param ap: The AP name.
         """
         if ap == AP.CM0:
             logger.debug('Use cm0 AP')
@@ -525,21 +516,40 @@ class Openocd(ProgrammerBase):
     def read(self, address, length):
         """
         Reads a block of unaligned bytes in memory
-        :param address: The memory address where start reading
-        :param length: Number of bytes to read
-        :return: An array of byte values
+        @param address: The memory address where start reading
+        @param length: Number of bytes to read
+        @return: An array of byte values
         """
-        cmd = 'read_memory 0x{0:x} 8 {1}'.format(address, length)
-        logger.debug(cmd)
-        response = self._send(cmd)
-        value = [int(i, 16) for i in response.split()]
-        return value
+        def read_memory(addr, size):
+            cmd = 'read_memory 0x{0:x} 8 {1}'.format(addr, size)
+            logger.debug(cmd)
+            response = self._send(cmd)
+            value = [int(i, 16) for i in response.split()]
+            return value
+
+        # The maximum length limit of the 'read_memory' command is 64K
+        # elements. For better performance, the maximum chunk size is 20K
+        data = []
+        max_size = 0x5000
+        if length > max_size:
+            read_address = address
+            while len(data) < length:
+                if len(data) + max_size > length:
+                    read_size = length - len(data)
+                else:
+                    read_size = max_size
+                data.extend(read_memory(read_address, read_size))
+                read_address += read_size
+        else:
+            data = read_memory(address, length)
+
+        return data
 
     def write(self, address, data):
         """
         Write a block of unaligned bytes in memory
-        :param address: The memory address where start writing
-        :param data: An array of byte values
+        @param address: The memory address where start writing
+        @param data: An array of byte values
         """
         if self.sock is None:
             raise ValueError('Target is not initialized.')
@@ -584,7 +594,7 @@ class Openocd(ProgrammerBase):
 
     def get_voltage(self):
         """Reads target voltage
-        :@return Voltage value in Volts
+        @return Voltage value in Volts
         """
         if self.sock is None:
             raise ValueError('Target is not initialized')

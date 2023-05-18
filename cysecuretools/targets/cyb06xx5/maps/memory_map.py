@@ -26,6 +26,18 @@ class MemoryMap_cyb06xx5(MemoryMapBaseP64):
         return 0x00070000
 
     @property
+    def RAM_ADDR(self):
+        return 0x08000000
+
+    @property
+    def SRAM_ADDR(self):
+        return 0x0802c000
+
+    @property
+    def SRAM_SIZE(self):
+        return 0x00004000
+
+    @property
     def PROVISION_JWT_PACKET_ADDRESS(self):
         return 0x14003600
 

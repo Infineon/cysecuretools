@@ -179,8 +179,10 @@ class X509CertificateStrategy(CertificateStrategy):
         """
         # Read silicon data
         if ConnectHelper.connect(tool, target, probe_id=probe_id, ap='sysap'):
+            if not target.version_provider.check_compatibility(tool):
+                ConnectHelper.disconnect(tool)
+                return None
             target.version_provider.log_version(tool)
-            target.version_provider.verify_fw_version(tool)
             data = read_silicon_data(tool, target)
             if data is None:
                 logger.error('Failed to read silicon data')

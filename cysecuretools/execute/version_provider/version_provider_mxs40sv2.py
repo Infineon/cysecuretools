@@ -103,9 +103,9 @@ class VersionProviderMXS40Sv2:
         self.log_lifecycle_stage(tool)
 
     @staticmethod
-    def verify_fw_version(_):
+    def check_compatibility(_tool, **_):
         """
-        Verifies FW version compatibility.
+        Verifies HW compatibility.
         N/A for MXS40Sv2 platform
         """
         return True

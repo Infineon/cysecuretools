@@ -4,3 +4,4 @@ __pycache__
 logs
 output
 cysecuretools/targets/common/p64/json/filtered.json
+build/ramapps

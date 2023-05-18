@@ -1,0 +1,2 @@
+from .version_provider_mxs40v1 import VersionProviderMXS40v1
+from .version_provider_mxs40sv2 import VersionProviderMXS40Sv2
