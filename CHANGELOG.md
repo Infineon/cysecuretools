@@ -1,6 +1,14 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## 5.0.0
+### Changed
+- Removed pyOCD support. OpenOCD is used as a default On-Chip debugger for all platforms
+- High-level API module refactoring
+
+### Added
+- Support for XMC7100, XMC7200 devices
+
 ## 4.2.0
 ### Added
 - Support for CYW20829 B0 silicon revision

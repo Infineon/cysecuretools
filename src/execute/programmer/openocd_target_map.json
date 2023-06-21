@@ -1,0 +1,20 @@
+{
+  "cy8cproto-064s1-sb": {"target": "psoc6_secure", "mcu": "psoc64.cpu", "cm0": "cm0", "cm4": "cm4", "sysap": "sysap"},
+  "cy8cproto-064b0s1-ble": {"target": "psoc6_secure", "mcu": "psoc64.cpu", "cm0": "cm0", "cm4": "cm4", "sysap": "sysap"},
+  "cy8cproto-064b0s1-ssa": {"target": "psoc6_secure", "mcu": "psoc64.cpu", "cm0": "cm0", "cm4": "cm4", "sysap": "sysap"},
+  "cyb06xx7": {"target": "psoc6_secure", "mcu": "psoc64.cpu", "cm0": "cm0", "cm4": "cm4", "sysap": "sysap"},
+
+  "cy8cproto-064s2-sb": {"target": "psoc6_2m_secure", "mcu": "psoc64.cpu", "cm0": "cm0", "cm4": "cm4", "sysap": "sysap"},
+  "cy8ckit-064b0s2-4343w": {"target": "psoc6_2m_secure", "mcu": "psoc64.cpu", "cm0": "cm0", "cm4": "cm4", "sysap": "sysap"},
+  "cy8ckit-064s0s2-4343w": {"target": "psoc6_2m_secure", "mcu": "psoc64.cpu", "cm0": "cm0", "cm4": "cm4", "sysap": "sysap"},
+  "cyb06xxa": {"target": "psoc6_2m_secure","mcu": "psoc64.cpu", "cm0": "cm0", "cm4": "cm4", "sysap": "sysap"},
+  "cys06xxa": {"target": "psoc6_2m_secure", "mcu": "psoc64.cpu", "cm0": "cm0", "cm4": "cm4", "sysap": "sysap"},
+
+  "cyb06445lqi-s3d42": {"target": "psoc6_512k_secure", "mcu": "psoc64.cpu", "cm0": "cm0", "cm4": "cm4", "sysap": "sysap"},
+  "cy8cproto-064b0s3": {"target": "psoc6_512k_secure", "mcu": "psoc64.cpu", "cm0": "cm0", "cm4": "cm4", "sysap": "sysap"},
+  "cyb06xx5": {"target": "psoc6_512k_secure", "mcu": "psoc64.cpu", "cm0": "cm0", "cm4": "cm4", "sysap": "sysap"},
+
+  "cyw20829": {"target": "cyw20829", "mcu": "cyw20829", "cm33": "cm33ap", "sysap": "sysap"},
+  "explorer": {"target": "cat1d_psvp", "mcu": "cat1d", "cm33": "cm33", "cm55": "cm55", "sysap": "sys"},
+  "pse84": {"target": "cat1d_psvp", "mcu": "cat1d", "cm33": "cm33", "cm55": "cm55", "sysap": "sys"}
+}

@@ -14,7 +14,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from setuptools import setup, find_packages
+from setuptools import setup
 
 
 with open('README.md', 'r', encoding='utf-8') as f:
@@ -23,13 +23,18 @@ with open('README.md', 'r', encoding='utf-8') as f:
 with open('CHANGELOG.md', 'r', encoding='utf-8') as f:
     changelog = f.read()
 
-version = {}
-with open('cysecuretools/version.py', 'r', encoding='utf-8') as f:
-    exec(f.read(), version)  # pylint: disable=exec-used
+about = {}
+with open('src/__about__.py', 'r', encoding='utf-8') as f:
+    exec(f.read(), about)  # pylint: disable=exec-used
+
+version = about['__version__']
+package_name = about['__pkg_name__'].lower()
 
 setup(
-    name='cysecuretools',
-    version=version['__version__'],
+    name=package_name,
+    version=version,
+    packages=[package_name],
+    package_dir={package_name: 'src'},
     install_requires=[
         'setuptools==59.6.0',
         'cryptography==36.0.1',
@@ -37,15 +42,15 @@ setup(
         'intelhex==2.3.0',
         'python-jose==3.3.0',
         'jsonschema>=4.0.0,<=4.4.0',
-        'pyocd==0.32.3',
         'cbor==1.0.0',
-        'packaging==21.3'
+        'packaging==21.3',
+        'lief>=0.12.3,<=0.13.1'
         ],
-    description='Cypress secure tools for Python',
+    description='Python tools for provisioning Cypress/Infineon MCUs',
     long_description=readme + '\n\n' + changelog,
     long_description_content_type='text/markdown',
-    author='Cypress Semiconductor',
-    url='https://github.com/cypresssemiconductorco/cysecuretools',
+    author='Cypress Semiconductor Corporation (an Infineon company)',
+    url='https://github.com/Infineon/cysecuretools',
     license='Apache 2.0',
     python_requires='>=3.6',
     include_package_data=True,  # include files from MANIFEST.in
@@ -61,10 +66,9 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'cysecuretools = cysecuretools.__main__:main',
+            f'cysecuretools = {package_name}.__main__:main',
         ],
     },
-    packages=find_packages(),
     options={
         'bdist_wheel': {
             'python_tag': 'py3',

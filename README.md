@@ -1,7 +1,6 @@
 This package contains security tools for creating keys, creating certificates, signing user applications, and provisioning Cypress MCUs.
 
 # Table of Contents
-- [HW/SW compatibility](#hwsw-compatibility)
 - [Prerequisites](#prerequisites)
 - [Documentation](#documentation)
 - [Installing package](#installing-package)
@@ -9,6 +8,7 @@ This package contains security tools for creating keys, creating certificates, s
 - [Interface and Usage](#interface-and-usage)
     - [PSoC 64](#psoc-64)
     - [CYW20829](#cyw20829)
+    - [XMC7100/7200](#xmc71007200)
 - [Logging](#logging)
 - [Installing libusb driver](#installing-libusb-driver)
 - [Known issues](#known-issues)
@@ -20,7 +20,7 @@ This package contains security tools for creating keys, creating certificates, s
   <thead>
     <tr>
       <td>Target/Kit</td>
-      <td>Silicon Revision</td>
+      <td>Silicon Revision<sup>1</sup></td>
       <td>Silicon ID, Silicon Rev., Family ID</td>
       <td>CySecureTools Version</td>
       <td>Secure FlashBoot Version</td>
@@ -53,7 +53,7 @@ This package contains security tools for creating keys, creating certificates, s
       <td>A1</td>
       <td>0xE470, 0x12, 0x102</td>
       <td>4.2.0</td>
-      <td>4.0.2.1842</td>
+      <td>4.0.3.2319</td>
       <td>2.0.2.8102</td>
     </tr>
     <tr>
@@ -62,9 +62,9 @@ This package contains security tools for creating keys, creating certificates, s
         cy8ckit&#8209;064s0s2&#8209;4343w
       </td>
       <td>A1</td>
-      <td>0xE4A0, 0x12, 0x102</td>
+      <td>0xE4A0, 0x12, 0x02</td>
       <td>4.2.0</td>
-      <td>4.0.2.1842</td>
+      <td>4.0.3.2319</td>
       <td>2.0.2.8102</td>
     </tr>
     <tr>
@@ -127,26 +127,27 @@ This package contains security tools for creating keys, creating certificates, s
 * General
   * Python 3.6 or later
 * For PSoC 64 devices
-  * In case of use PyOCD:
-    * [Installed the libusb driver](#installing-libusb-driver)
-    * Ensure the KitProg3 programming mode is **DAPLink**
-  * In case of use OpenOCD:
-    * [Installed Cypress OpenOCD](https://github.com/cypresssemiconductorco/openocd/releases)
-    * Ensure the KitProg3 programming mode is **CMSIS-DAP Bulk**
+  * [Installed Cypress OpenOCD](https://github.com/cypresssemiconductorco/openocd/releases)
+  * Ensure the KitProg3 programming mode is **CMSIS-DAP Bulk**
   * Ensure the power selection jumper is set to provide 2.5 V to the power supply pin related to eFuse power. This voltage level is required to blow eFuses
 * For CYW20829 devices
   * [Installed Cypress OpenOCD](https://github.com/cypresssemiconductorco/openocd/releases)
   * Ensure the KitProg3 programming mode is **CMSIS-DAP Bulk**
   * Ensure the power selection jumper is set to provide 2.5 V to the power supply pin related to eFuse power. This voltage level is required to blow eFuses
 
+
 # Documentation
 * [PSoC64 Secure MCU Secure Boot SDK User Guide](https://www.cypress.com/documentation/software-and-drivers/psoc-64-secure-mcu-secure-boot-sdk-user-guide)
-* [Changelog](CHANGELOG.md)
+* [Changelog](https://github.com/Infineon/cysecuretools/blob/master/CHANGELOG.md)
 
 # Installing Package
 Invoke `pip install` from the command line:
 ```bash
 $ pip install cysecuretools
+```
+To update the already installed package:
+```bash
+$ pip install --upgrade --force-reinstall cysecuretools
 ```
 
 
@@ -159,30 +160,15 @@ $ cysecuretools device-list
 
 # Interface and Usage
 ## PSoC 64
-See [README_PSOC64.md](docs/README_PSOC64.md)
+See [README_PSOC64.md](https://github.com/Infineon/cysecuretools/blob/master/docs/README_PSOC64.md)
 ## CYW20829
-See [README_CYW20829.md](docs/README_CYW20829.md)
+See [README_CYW20829.md](https://github.com/Infineon/cysecuretools/blob/master/docs/README_CYW20829.md)
+## XMC7100/7200
+See [README_XMC7XXX.md](https://github.com/Infineon/cysecuretools/blob/master/docs/README_XMC7XXX.md)
 
 
 # Logging
 Every time the tool is invoked, a new log file is created in the _logs_ directory of the project. By default, the console output has INFO logging severity. The log file contains the DEBUG logging severity.
-
-When using _pyOCD_ as a debugger, the log files contain messages sent by both tools - _CySecureTools_ and _pyOCD_. When using _OpenOCD_, the log files contain messages from the package only. For the _OpenOCD_ messages, the additional files are created (e.g. _openocd_1.log_).
-
-
-# Installing libusb driver
-
-**Windows**
-  - Download and unzip libusb-1.0.25.7z from https://github.com/libusb/libusb/releases/tag/v1.0.25.
-  - Run the following command to determine if a Python shell is executing in 32-bit or 64-bit mode on the OS: `python -c "import struct; print(struct.calcsize('P') * 8)"`
-  - Copy *libusb-1.0.dll* file into the Python root folder (in same folder with *python.exe*). Use the 64-bit version of DLL for the 64-bit Python (MinGW64 directory) and the 32-bit version of DLL for the 32-bit Python (MinGW32 directory).
-  - Ensure the Python path is located at the beginning of the Path environment variable.
-
-**Mac OS**
-  - Use [homebrew](https://brew.sh/) to install the driver from the terminal: `homebrew install libusb`.
-
-**Linux**
-  - Bundled with the system, no need for additional installation.
 
 
 # Known issues

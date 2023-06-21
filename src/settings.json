@@ -1,0 +1,25 @@
+{
+    "programming_tool": {
+        "name": "openocd",
+        "path": ""
+    },
+    "serial_interface": {
+        "protocol": "",
+        "hwid": "",
+        "uart": {
+            "baudrate": 115200,
+            "databits": 8,
+            "stopbits": 1,
+            "paritytype": "None"
+        },
+        "i2c": {
+            "address": 12,
+            "speed": 400
+        },
+        "spi": {
+            "clockspeed": 8000,
+            "mode": "00",
+            "lsb_first": false
+        }
+    }
+}

@@ -54,25 +54,17 @@
 
 
 # Quick start
-## 1. Set On-Chip debugger
+## 1. Set a path to the On-Chip debugger
 ```bash
-$ cysecuretools set-ocd --name <NAME> --path <PATH>
+$ cysecuretools set-ocd --name openocd --path <PATH_TO_OPENOCD_ROOT_DIRECTORY>
 ```
-To use PyOCD only name may be specified:
-
-_Example_:
-```bash
-$ cysecuretools set-ocd --name pyocd
-```
-To use OpenOCD specify both name and path to OpenOCD:
-
-_Example_:
-```bash
-$ cysecuretools set-ocd --name openocd --path <PATH>
-```
-
 Make sure you provide the path to the root directory of OpenOCD (NOT _bin_ directory).
 Specifying the path is not mandatory if you have ModusToolbox™ installed on your machine. OpenOCD from the ModusToolbox™ directory is used by default.
+
+_Example:_
+```bash
+$ cysecuretools set-ocd --name openocd --path /Users/username/tools/openocd
+```
 
 ## 2. Define a target
 Run the following command and find the name of your target in the list of supported targets.
@@ -80,14 +72,10 @@ Run the following command and find the name of your target in the list of suppor
 $ cysecuretools device-list
 ```
 This target name will be used as a `-t` option value with each command.
-If the device revision is not the latest one, use `--rev` option to specify a revision ([HW/SW compatibility](../README.md#hwsw-compatibility)).
 
 _Example_:
 ```bash
 $ cysecuretools -t CY8CKIT-064B0S2-4343W -p <POLICY> <COMMAND> [OPTIONS]
-```
-```bash
-$ cysecuretools -t cyb06xx5 --rev a1 -p <POLICY> <COMMAND> [OPTIONS]
 ```
 
 ## 3. Create a new project
@@ -410,7 +398,6 @@ Creates encrypted image for encrypted programming.
 | -i, --image           | required           | The image to encrypt. |
 | -h, --host-key-id     | required           | Host private key ID (4 - HSM, 5 - OEM). |
 | -d, --device-key-id   | required           | Device public key ID (1 - device, 12 - group). |
-| -a, --algorithm       | optional           | Asymmetric algorithm for key derivation function.   |
 | --key-length          | optional           | Derived key length. |
 | -o, --encrypted-image | required           | Output file of encrypted image for encrypted programming. |
 | --padding-value       | optional           | Value for image padding. |
@@ -675,9 +662,9 @@ __IMPORTANT:__ in case of using image encryption, make sure to specify the decry
 $ cysecuretools -t CY8CKIT-064B0S2-4343W extract-payload --image BlinkyApp_decrypted.bin --output BlinkyApp_payload.bin
 ```
 ### Step 6
-Use the tools provided by your HSM vendor to sign the extended image with the HSM. Save the signature returned by the HSM to a file. The format of the MCUboot signature is ASN.1 (binary decoded).
+Use the tools provided by your HSM vendor to sign the payload with the HSM. Save the signature returned by the HSM to a file. The format of the MCUboot signature is ASN.1 (binary decoded).
 ### Step 7
-Run the _add-signature_ command and provide the signature file created by the HSM. As an input image use the extended image created in the step #4.
+Run the _add-signature_ command and provide the signature file created by the HSM. As an input image use the image with metadata created in the step #4.
 ```bash
 $ cysecuretools -t CY8CKIT-064B0S2-4343W add-signature --image BlinkyApp_meta.bin --output BlinkyApp_signed.bin --signature ec_signature_asn.bin
 ```

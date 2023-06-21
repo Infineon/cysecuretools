@@ -40,7 +40,7 @@
 
 
 # Quick start
-## 1. Set On-Chip debugger
+## 1. Set a path to the On-Chip debugger
 ```bash
 $ cysecuretools set-ocd --name openocd --path <PATH_TO_OPENOCD_ROOT_DIRECTORY>
 ```
@@ -51,7 +51,6 @@ _Example:_
 ```bash
 $ cysecuretools set-ocd --name openocd --path /Users/username/tools/openocd
 ```
-_NOTE_: pyOCD is not currently supported for the CYW20829 device.
 
 ## 2. Define a target
 Run the following command and find the name of your target in the list of supported targets.
