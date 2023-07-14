@@ -37,7 +37,7 @@ setup(
     package_dir={package_name: 'src'},
     install_requires=[
         'setuptools==59.6.0',
-        'cryptography==36.0.1',
+        'cryptography==41.0.2',
         'click==8.0.4',
         'intelhex==2.3.0',
         'python-jose==3.3.0',
