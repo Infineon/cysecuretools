@@ -62,7 +62,10 @@ This target name will be used as a `-t` option value with each command.
 _Example_:
 ```bash
 $ cysecuretools -t cyw20829 -p <POLICY> <COMMAND> [OPTIONS]
+# or
+$ cysecuretools -t cyw89829 -p <POLICY> <COMMAND> [OPTIONS]
 ```
+**Note**: All examples are provided for the CYW20829 device. For CYW89829 devices use `-t cyw89829`.
 
 ## 3. Create a new project
 This copies the list of files required to start using the tool to the current working directory.

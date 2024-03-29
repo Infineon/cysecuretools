@@ -15,6 +15,7 @@
   "cyb06xx5": {"target": "psoc6_512k_secure", "mcu": "psoc64.cpu", "cm0": "cm0", "cm4": "cm4", "sysap": "sysap"},
 
   "cyw20829": {"target": "cyw20829", "mcu": "cyw20829", "cm33": "cm33ap", "sysap": "sysap"},
+  "cyw89829": {"target": "cyw20829", "mcu": "cyw20829", "cm33": "cm33ap", "sysap": "sysap"},
   "explorer": {"target": "cat1d_psvp", "mcu": "cat1d", "cm33": "cm33", "cm55": "cm55", "sysap": "sys"},
   "pse84": {"target": "cat1d_psvp", "mcu": "cat1d", "cm33": "cm33", "cm55": "cm55", "sysap": "sys"}
 }

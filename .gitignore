@@ -1,7 +1,0 @@
-__pycache__
-.DS_Store
-.idea
-logs
-output
-src/targets/common/mxs40v1/json/filtered.json
-build/ramapps

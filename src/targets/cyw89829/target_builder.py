@@ -1,5 +1,5 @@
 """
-Copyright 2020-2023 Cypress Semiconductor Corporation (an Infineon company)
+Copyright 2023 Cypress Semiconductor Corporation (an Infineon company)
 or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,26 +14,26 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from ..cyw20829_a0 import CYW20829A0Builder
+from ..cyw20829 import CYW20829Builder
 
 
-class CYW20829Builder(CYW20829A0Builder):
-    """ CYW20829 target builder """
+class CYW89829Builder(CYW20829Builder):
+    """ CYW89829 target builder """
 
     def get_test_packages(self):
         return {
             'testapps': {
-                'package': 'testapps_cyw20829_b0', 'flow_name': 'testapps'
+                'package': 'testapps_cyw89829', 'flow_name': 'testapps'
             },
             'testapps_si': {
-                'package': 'testapps_cyw20829_b0', 'flow_name': 'testapps_si'
+                'package': 'testapps_cyw89829', 'flow_name': 'testapps_si'
             }
         }
 
     def get_silicon_id(self):
         """Gets the target silicon ID"""
         return {
-            'id': [0xEB43],
+            'id': [0xEB47],
             'rev': [0x21],
             'family': 0x110
         }

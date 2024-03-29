@@ -7,7 +7,7 @@ This package contains security tools for creating keys, creating certificates, s
 - [Supported devices](#supported-devices)
 - [Interface and Usage](#interface-and-usage)
     - [PSoC 64](#psoc-64)
-    - [CYW20829](#cyw20829)
+    - [CYW20829/CYW89829](#cyw20829cyw89829)
     - [XMC7100/7200](#xmc71007200)
 - [Logging](#logging)
 - [Installing libusb driver](#installing-libusb-driver)
@@ -22,7 +22,6 @@ This package contains security tools for creating keys, creating certificates, s
       <td>Target/Kit</td>
       <td>Silicon Revision<sup>1</sup></td>
       <td>Silicon ID, Silicon Rev., Family ID</td>
-      <td>CySecureTools Version</td>
       <td>Secure FlashBoot Version</td>
       <td>CyBootloader Version</td>
     </tr>
@@ -38,7 +37,6 @@ This package contains security tools for creating keys, creating certificates, s
       </td>
       <td>A1</td>
       <td>0xE70D, 0x12, 0x105</td>
-      <td>4.2.0</td>
       <td>4.0.2.1842</td>
       <td>2.0.1.6441</td>
     </tr>
@@ -52,7 +50,6 @@ This package contains security tools for creating keys, creating certificates, s
       </td>
       <td>A1</td>
       <td>0xE470, 0x12, 0x102</td>
-      <td>4.2.0</td>
       <td>4.0.3.2319</td>
       <td>2.0.2.8102</td>
     </tr>
@@ -63,7 +60,6 @@ This package contains security tools for creating keys, creating certificates, s
       </td>
       <td>A1</td>
       <td>0xE4A0, 0x12, 0x02</td>
-      <td>4.2.0</td>
       <td>4.0.3.2319</td>
       <td>2.0.2.8102</td>
     </tr>
@@ -82,7 +78,6 @@ This package contains security tools for creating keys, creating certificates, s
         0xE262, 0x24, 0x100
         0xE261, 0x24, 0x100
       </td>
-      <td>4.2.0</td>
       <td>4.0.2.1842</td>
       <td>2.0.0.4041</td>
     </tr>
@@ -96,8 +91,7 @@ This package contains security tools for creating keys, creating certificates, s
       <td>Target/Kit</td>
       <td>Silicon Revision<sup>1</sup></td>
       <td>Silicon ID, Silicon Rev., Family ID</td>
-      <td>CySecureTools Version</td>
-      <td>BootROM Version</td>
+      <td>ROM Boot Version</td>
       <td>RAM Applications Version</td>
     </tr>
   </thead>
@@ -106,7 +100,6 @@ This package contains security tools for creating keys, creating certificates, s
     <td>cyw20829</td>
     <td>A0</td>
     <td>0xEB40, 0x11, 0x110</td>
-    <td>4.2.0</td>
     <td>1.0.0.7120</td>
     <td>1.0.0.2857</td>
   </tr>
@@ -114,8 +107,7 @@ This package contains security tools for creating keys, creating certificates, s
     <td>cyw20829</td>
     <td>B0</td>
     <td>0xEB43, 0x21, 0x110</td>
-    <td>4.2.0</td>
-    <td>1.2.0.8274</td>
+    <td>1.2.0.8334</td>
     <td>1.2.0.3073</td>
   </tr>
   </tbody>
@@ -123,15 +115,36 @@ This package contains security tools for creating keys, creating certificates, s
 
 <sup>1</sup> Specify `--rev` option for older revision of the silicon (e.g. `$ cysecuretools -t cyw20829 --rev a0 <COMMAND>`). Using the latest revision does not require specifying the option.
 
+## CYW89829
+<table>
+  <thead>
+    <tr>
+      <td>Target/Kit</td>
+      <td>Silicon Revision</td>
+      <td>Silicon ID, Silicon Rev., Family ID</td>
+      <td>ROM Boot Version</td>
+      <td>RAM Applications Version</td>
+    </tr>
+  </thead>
+  <tbody>
+  <tr>
+    <td>cyw89829</td>
+    <td>B0</td>
+    <td>0xEB47, 0x21, 0x110</td>
+    <td>1.2.0.8334</td>
+    <td>1.2.0.3073</td>
+  </tr>
+  </tbody>
+</table>
+
 # Prerequisites
 * General
   * Python 3.6 or later
+  * [Installed Cypress OpenOCD](https://github.com/Infineon/openocd/releases)
 * For PSoC 64 devices
-  * [Installed Cypress OpenOCD](https://github.com/cypresssemiconductorco/openocd/releases)
   * Ensure the KitProg3 programming mode is **CMSIS-DAP Bulk**
   * Ensure the power selection jumper is set to provide 2.5 V to the power supply pin related to eFuse power. This voltage level is required to blow eFuses
-* For CYW20829 devices
-  * [Installed Cypress OpenOCD](https://github.com/cypresssemiconductorco/openocd/releases)
+* For CYW20829/CYW89829 devices
   * Ensure the KitProg3 programming mode is **CMSIS-DAP Bulk**
   * Ensure the power selection jumper is set to provide 2.5 V to the power supply pin related to eFuse power. This voltage level is required to blow eFuses
 
@@ -161,7 +174,7 @@ $ cysecuretools device-list
 # Interface and Usage
 ## PSoC 64
 See [README_PSOC64.md](https://github.com/Infineon/cysecuretools/blob/master/docs/README_PSOC64.md)
-## CYW20829
+## CYW20829/CYW89829
 See [README_CYW20829.md](https://github.com/Infineon/cysecuretools/blob/master/docs/README_CYW20829.md)
 ## XMC7100/7200
 See [README_XMC7XXX.md](https://github.com/Infineon/cysecuretools/blob/master/docs/README_XMC7XXX.md)

@@ -1,5 +1,5 @@
 """
-Copyright 2022-2023 Cypress Semiconductor Corporation (an Infineon company)
+Copyright 2023 Cypress Semiconductor Corporation (an Infineon company)
 or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,6 +14,16 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-__pkg_name__ = 'CySecureTools'
-__version__ = '5.1.0'
-__pkg_short_name__ = 'C'
+from .target_builder import CYW89829Builder
+
+target_map = {
+    'cyw89829': {
+        'default': {
+            'class': CYW89829Builder,
+            'family': 'MXS40Sv2 Family',
+            'display_name': 'CYW89829',
+            'type': 'family',
+            'platform': 'mxs40sv2'
+        }
+    }
+}
