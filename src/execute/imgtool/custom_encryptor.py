@@ -1,6 +1,6 @@
 #! /usr/bin/env python3
 #
-# Copyright 2022 Cypress Semiconductor Corporation (an Infineon company)
+# Copyright 2022-2024 Cypress Semiconductor Corporation (an Infineon company)
 # or an affiliate of Cypress Semiconductor Corporation.  All rights reserved.
 #
 # SPDX-License-Identifier: Apache-2.0

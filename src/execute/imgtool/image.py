@@ -1,7 +1,7 @@
 # Copyright 2018 Nordic Semiconductor ASA
 # Copyright 2017-2020 Linaro Limited
 # Copyright 2019-2020 Arm Limited
-# Copyright 2022 Cypress Semiconductor Corporation (an Infineon company)
+# Copyright 2022-2024 Cypress Semiconductor Corporation (an Infineon company)
 # or an affiliate of Cypress Semiconductor Corporation.  All rights reserved.
 #     Changes made to the original file:
 #     [Oct 6 2021]

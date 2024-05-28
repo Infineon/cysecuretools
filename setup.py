@@ -1,5 +1,5 @@
 """
-Copyright 2019-2023 Cypress Semiconductor Corporation (an Infineon company)
+Copyright 2019-2024 Cypress Semiconductor Corporation (an Infineon company)
 or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -36,15 +36,15 @@ setup(
     packages=[package_name],
     package_dir={package_name: 'src'},
     install_requires=[
-        'setuptools==59.6.0',
+        'setuptools==69.5.1',
         'cryptography==36.0.1',
         'click==8.0.4',
         'intelhex==2.3.0',
         'python-jose==3.3.0',
-        'jsonschema>=4.0.0,<=4.4.0',
+        'jsonschema>=4.0.0,<=4.22.0',
         'cbor==1.0.0',
         'packaging==21.3',
-        'lief>=0.12.3,<=0.13.1'
+        'lief==0.14.1'
         ],
     description='Python tools for provisioning Cypress/Infineon MCUs',
     long_description=readme + '\n\n' + changelog,
@@ -52,15 +52,15 @@ setup(
     author='Cypress Semiconductor Corporation (an Infineon company)',
     url='https://github.com/Infineon/cysecuretools',
     license='Apache 2.0',
-    python_requires='>=3.6',
+    python_requires='>=3.8',
     include_package_data=True,  # include files from MANIFEST.in
     classifiers=[
         'License :: OSI Approved :: Apache Software License',
-        'Programming Language :: Python :: 3.6',
-        'Programming Language :: Python :: 3.7',
         'Programming Language :: Python :: 3.8',
         'Programming Language :: Python :: 3.9',
         'Programming Language :: Python :: 3.10',
+        'Programming Language :: Python :: 3.11',
+        'Programming Language :: Python :: 3.12',
         'Operating System :: OS Independent',
         'Topic :: Software Development :: Embedded Systems',
     ],

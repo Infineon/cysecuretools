@@ -1,17 +1,26 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## 6.0.0
+### Added
+- Support for Python 3.12
+
+### Changed
+- Extended package installation instructions
+- Extended CYW20829/CYW89829 readme with usage examples
+- Drop support for Python versions 3.6 and 3.7
+
 ## 5.1.0
 ### Added
 - Support for CYW89829 devices
 
 ## 5.0.0
+### Added
+- Support for XMC7100, XMC7200 devices
+
 ### Changed
 - Removed pyOCD support. OpenOCD is used as a default On-Chip debugger for all platforms
 - High-level API module refactoring
-
-### Added
-- Support for XMC7100, XMC7200 devices
 
 ## 4.2.0
 ### Added

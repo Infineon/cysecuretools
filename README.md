@@ -1,6 +1,7 @@
-This package contains security tools for creating keys, creating certificates, signing user applications, and provisioning Cypress MCUs.
+This package contains security tools for creating keys, creating certificates, signing user applications, and provisioning Cypress/Infineon MCUs.
 
 # Table of Contents
+- [HW/SW compatibility](#hwsw-compatibility)
 - [Prerequisites](#prerequisites)
 - [Documentation](#documentation)
 - [Installing package](#installing-package)
@@ -20,7 +21,6 @@ This package contains security tools for creating keys, creating certificates, s
   <thead>
     <tr>
       <td>Target/Kit</td>
-      <td>Silicon Revision<sup>1</sup></td>
       <td>Silicon ID, Silicon Rev., Family ID</td>
       <td>Secure FlashBoot Version</td>
       <td>CyBootloader Version</td>
@@ -35,7 +35,6 @@ This package contains security tools for creating keys, creating certificates, s
         cyb06xx5<br>
         cy8cproto&#8209;064b0s3
       </td>
-      <td>A1</td>
       <td>0xE70D, 0x12, 0x105</td>
       <td>4.0.2.1842</td>
       <td>2.0.1.6441</td>
@@ -48,7 +47,6 @@ This package contains security tools for creating keys, creating certificates, s
         cyb06xxa<br>
         cy8ckit&#8209;064b0s2&#8209;4343w
       </td>
-      <td>A1</td>
       <td>0xE470, 0x12, 0x102</td>
       <td>4.0.3.2319</td>
       <td>2.0.2.8102</td>
@@ -58,7 +56,6 @@ This package contains security tools for creating keys, creating certificates, s
         cys06xxa<br>
         cy8ckit&#8209;064s0s2&#8209;4343w
       </td>
-      <td>A1</td>
       <td>0xE4A0, 0x12, 0x02</td>
       <td>4.0.3.2319</td>
       <td>2.0.2.8102</td>
@@ -73,7 +70,6 @@ This package contains security tools for creating keys, creating certificates, s
         cy8cproto&#8209;064b0s1&#8209;ble<br>
         cy8cproto&#8209;064b0s1&#8209;ssa
       </td>
-      <td>B3</td>
       <td>
         0xE262, 0x24, 0x100
         0xE261, 0x24, 0x100
@@ -84,12 +80,11 @@ This package contains security tools for creating keys, creating certificates, s
   </tbody>
 </table>
 
-## CYW20829
+## CYW20829 / CYW89829
 <table>
   <thead>
     <tr>
       <td>Target/Kit</td>
-      <td>Silicon Revision<sup>1</sup></td>
       <td>Silicon ID, Silicon Rev., Family ID</td>
       <td>ROM Boot Version</td>
       <td>RAM Applications Version</td>
@@ -98,38 +93,12 @@ This package contains security tools for creating keys, creating certificates, s
   <tbody>
   <tr>
     <td>cyw20829</td>
-    <td>A0</td>
-    <td>0xEB40, 0x11, 0x110</td>
-    <td>1.0.0.7120</td>
-    <td>1.0.0.2857</td>
-  </tr>
-  <tr>
-    <td>cyw20829</td>
-    <td>B0</td>
     <td>0xEB43, 0x21, 0x110</td>
     <td>1.2.0.8334</td>
     <td>1.2.0.3073</td>
   </tr>
-  </tbody>
-</table>
-
-<sup>1</sup> Specify `--rev` option for older revision of the silicon (e.g. `$ cysecuretools -t cyw20829 --rev a0 <COMMAND>`). Using the latest revision does not require specifying the option.
-
-## CYW89829
-<table>
-  <thead>
-    <tr>
-      <td>Target/Kit</td>
-      <td>Silicon Revision</td>
-      <td>Silicon ID, Silicon Rev., Family ID</td>
-      <td>ROM Boot Version</td>
-      <td>RAM Applications Version</td>
-    </tr>
-  </thead>
-  <tbody>
   <tr>
     <td>cyw89829</td>
-    <td>B0</td>
     <td>0xEB47, 0x21, 0x110</td>
     <td>1.2.0.8334</td>
     <td>1.2.0.3073</td>
@@ -139,12 +108,9 @@ This package contains security tools for creating keys, creating certificates, s
 
 # Prerequisites
 * General
-  * Python 3.6 or later
-  * [Installed Cypress OpenOCD](https://github.com/Infineon/openocd/releases)
-* For PSoC 64 devices
-  * Ensure the KitProg3 programming mode is **CMSIS-DAP Bulk**
-  * Ensure the power selection jumper is set to provide 2.5 V to the power supply pin related to eFuse power. This voltage level is required to blow eFuses
-* For CYW20829/CYW89829 devices
+  * Python 3.8 - 3.12
+  * [Installed Infineon OpenOCD](https://github.com/Infineon/openocd/releases)
+* For PSoC 64 / CYW20829 / CYW89829 devices
   * Ensure the KitProg3 programming mode is **CMSIS-DAP Bulk**
   * Ensure the power selection jumper is set to provide 2.5 V to the power supply pin related to eFuse power. This voltage level is required to blow eFuses
 
@@ -154,14 +120,70 @@ This package contains security tools for creating keys, creating certificates, s
 * [Changelog](https://github.com/Infineon/cysecuretools/blob/master/CHANGELOG.md)
 
 # Installing Package
-Invoke `pip install` from the command line:
+## Windows
+The installation of ModusToolbox™ Software 3.1 includes the correct version of Python and CySecureTools 5.0.0. The latest version of CySecureTools is 6.0.0.
+To update the package from the ModusToolbox™ shell (for Windows users):
+* In the ModusToolbox™ GUI open the terminal by clicking the **Terminal** tab in the bottom pane.
+* Then, select a project in the **Project Explorer** to open a shell in the project directory.
+* Enter the following command: `$ pip install --upgrade --force-reinstall edgeprotecttools`
+
+## Linux / macOS
+Install Python 3.12 on your computer. You can download it from https://www.python.org/downloads/.
+
+Set up the appropriate environment variable(s) for your operating system.
+
+If Python 2.7 is also installed, make sure that Python312 and Python312\Scripts have higher priority in the
+PATH than CPython27.
+
+### Linux Configuration
+Most distributions of Linux should already have python2 and python3 installed. To verify that python by
+default points to python3 run:
 ```bash
-$ pip install cysecuretools
+$ python --version
 ```
+If python3 is not set as default, run the following commands. The number at the end of each command
+denotes a priority:
+```bash
+$ update-alternatives --install /usr/bin/python python /usr/bin/python2.7 1
+$ update-alternatives --install /usr/bin/python python /usr/bin/python3.12 2
+```
+
+### macOS Configuration
+By default, `python` points to `/usr/bin/python`, which is python2. To make `python` and `pip` resolve to
+python3 versions, execute the following from command line:
+```bash
+$ echo 'alias python=python3' >> ~/.bash_profile
+$ echo 'alias pip=pip3' >> ~/.bash_profile
+$ source ~/.bash_profile
+$ python --version
+Python 3.12.3
+$ pip --version
+pip 24.0 from
+/Library/Frameworks/Python.framework/Versions/3.12/lib/python3.12/site-packages/pip (python 3.12)
+```
+Note: If you use a shell other than bash, update its profile file accordingly. For example `~/.zshrc` if you use zsh instead of `~/.bash_profile`.
+
+### Installing CySecureTools Package
+Make sure that you have the latest version of pip installed, use
+the following command.
+```bash
+$ python -m pip install --upgrade pip
+```
+Run the following command in your terminal window.
+```bash
+$ python -m pip install cysecuretools
+```
+
+### Updating CySecureTools Package
 To update the already installed package:
 ```bash
 $ pip install --upgrade --force-reinstall cysecuretools
 ```
+
+Note 1: During installation, you may see errors saying that cysecuretools requires package version X, but you have package version Y which is incompatible. In most cases, these can be safely ignored.
+
+Note 2: You can use the following command to show the path to the installed package
+`python -m pip show cysecuretools`.
 
 
 # Supported devices
@@ -172,16 +194,16 @@ $ cysecuretools device-list
 
 
 # Interface and Usage
-## PSoC 64
+## PSoC 64 CLI
 See [README_PSOC64.md](https://github.com/Infineon/cysecuretools/blob/master/docs/README_PSOC64.md)
-## CYW20829/CYW89829
+## CYW20829/CYW89829 CLI
 See [README_CYW20829.md](https://github.com/Infineon/cysecuretools/blob/master/docs/README_CYW20829.md)
-## XMC7100/7200
+## XMC7100/7200 CLI
 See [README_XMC7XXX.md](https://github.com/Infineon/cysecuretools/blob/master/docs/README_XMC7XXX.md)
 
 
 # Logging
-Every time the tool is invoked, a new log file is created in the _logs_ directory of the project. By default, the console output has INFO logging severity. The log file contains the DEBUG logging severity.
+Every time the tool is invoked, a new log file is created in the _logs_ directory of the project. By default, the console output has INFO logging severity. The log file has the DEBUG logging severity.
 
 
 # Known issues

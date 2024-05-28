@@ -1,14 +1,7 @@
 include README.md
 include CHANGELOG.md
+include EULA
+include LICENSE
 include docs/*
 recursive-include src *
 global-exclude .DS_Store
-global-exclude *policy_single_stage_CM4*.json
-exclude src/targets/cyb06xxa/policy/policy_multi_CM0_CM4.json
-exclude src/targets/cyb06xxa/policy/policy_multi_CM0_CM4_smif.json
-exclude src/targets/cyb06xxa/policy/policy_single_CM0_CM4.json
-exclude src/targets/cyb06xxa/policy/policy_single_CM0_CM4_smif.json
-exclude src/targets/cys06xxa/policy/policy_multi_CM0_CM4.json
-exclude src/targets/cys06xxa/policy/policy_multi_CM0_CM4_smif.json
-exclude src/targets/cys06xxa/policy/policy_single_CM0_CM4.json
-exclude src/targets/cys06xxa/policy/policy_single_CM0_CM4_smif.json

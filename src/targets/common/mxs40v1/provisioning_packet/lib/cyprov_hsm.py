@@ -1,5 +1,6 @@
 """
-Copyright (c) 2019-2020 Cypress Semiconductor Corporation
+Copyright 2019-2024 Cypress Semiconductor Corporation (an Infineon company)
+or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -63,7 +64,7 @@ class HsmEntity(Entity):
                             sequence.append(self.der_to_pem(cert_file))
                     payload[k] = sequence
                 else:
-                    if os.path.isfile(v):
+                    if isinstance(v, str) and os.path.isfile(v):
                         payload[k] = Crypto.read_jwt(v)
                     else:
                         payload[k] = v

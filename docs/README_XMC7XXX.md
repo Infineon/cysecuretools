@@ -42,7 +42,10 @@ $ cysecuretools -t <TARGET> sign-image --image <IMAGE_PATH> --output <OUTPUT_PAT
 
 # Usage example
 ```bash
+# Generate a new RSA-2048 key pair in the PEM format
 $ cysecuretools -t xmc7200 create-key --key-type rsa2048 --output private.pem public.pem --format PEM
+
+# Sign the image
 $ cysecuretools -t xmc7200 sign-image --key-path private.pem --image example-blinky.hex --output example-blinky-signed.hex 
 ```
 
@@ -83,7 +86,11 @@ Creates keys specified in the policy file for the image signing.
 
 ### Usage example
 ```bash
+# Generate a new ECDSA-P256 key pair in the JSON Web Key format
 $ cysecuretools -t xmc7100 create-key --key-type ecdsa-p256 --output private.jwk public.jwk --format JWK
+
+# Generate a new RSA-4096 key pair in the PEM format
+$ cysecuretools -t xmc7100 create-key --key-type rsa4096 --output private.jwk public.jwk --format PEM
 ```
 
 ## Sign image
@@ -99,20 +106,24 @@ The file specified in the `--image` option will be signed and saved to the file 
 | -R, --erased-val                 |     optional      | The value that is read back from erased flash.                                                                                                                                                                                        |
 | -o, --output                     |     required      | Signed image output file.                                                                                                                                                                                                             |
 | -H, --header-size                |     optional      | Sets image header size.                                                                                                                                                                                                               |
-| -S, --slot-size                  |     optional      | Sets maximum slot size.                                                                                                                                                                                                               |
+| -S, --slot-size                  |     optional      | Sets maximum slot size. The default value is 0x20000 (=128KB).                                                                                                                                                                        |
 | --hex-addr                       |     optional      | Adjust address in hex output file.                                                                                                                                                                                                    |
 | --pad                            |     optional      | Add padding to the image trailer.                                                                                                                                                                                                     |
 | --overwrite-only                 |     optional      | Use Overwrite mode instead of Swap.                                                                                                                                                                                                   |
 | -v, --version                    |     optional      | Sets image version in the image header.                                                                                                                                                                                               |
 | -d, --dependencies               |     optional      | Add dependence on another image, format: "(<image_ID>,<image_version>), ... "                                                                                                                                                         |
 | --align [1&#124;2&#124;4&#124;8] |     optional      | Sets flash alignment. The default value is 8.                                                                                                                                                                                         |
-| --min-erase-size                 |     optional      | Sets minimum erase size. Note that this parameter is only applicable for external memory.                                                                                                                                             |
-| --protected-tlv                  |     optional      | Custom TLV that will be placed into a protected area. Add the "0x" prefix if the value should be interpreted as an integer, otherwise it will be interpreted as a string. Specify the option multiple times to add multiple TLVs      |
-| --tlv                            |     optional      | Custom TLV that will be placed into a non-protected area. Add the "0x" prefix if the value should be interpreted as an integer, otherwise it will be interpreted as a string. Specify the option multiple times to add multiple TLVs. |
+| --min-erase-size                 |     optional      | Sets minimum erase size of memory. The default value is 0x8000 (=32KB).                                                                                                                                                               |
+| --protected-tlv                  |     optional      | Custom TLV that will be placed into a protected area. Add the "0x" prefix if the value should be interpreted as an integer, otherwise it will be interpreted as a string. Specify the option multiple times to add multiple [TLVs](https://docs.mcuboot.com/design.html#protected-tlvs). |
+| --tlv                            |     optional      | Custom TLV that will be placed into a non-protected area. Add the "0x" prefix if the value should be interpreted as an integer, otherwise it will be interpreted as a string. Specify the option multiple times to add multiple [TLVs](https://docs.mcuboot.com/design.html#protected-tlvs). |
 
 ### Usage example
 ```bash
+# Sign the image with the additional protected and non-protected TLVs
 $ cysecuretools -t xmc7200 sign-image --key-path private.jwk --image example-blinky.hex --output example-blinky-signed.hex  --tlv 0xbb 0xdddddddd --tlv 0xaa 0xff --protected-tlv 0xee 0x12345678
+
+# Sign the image and pad it with zeros up to the slot size
+$ cysecuretools -t cyw20829 -p policy/policy_secure.json sign-image --image example-blinky.hex --output example-blinky-signed.hex --key-path private.pem --pad --overwrite-only --slot-size 0x10000 --header-size 0x400
 ```
 
 ## Signing the image in the CySAF format
@@ -139,7 +150,7 @@ Specify the following symbols and sections in ELF image file to be able to sign 
 
 ### Usage example
 ```bash
-$ cysecuretools -t xmc7100 sign-cysaf --image image.elf --output image_signed.elf --key-path private.pem 
+$ cysecuretools -t xmc7100 sign-cysaf --image image.elf --output image_signed.elf --key-path private.pem
 ```
 
 ## Convert bin to hex
@@ -232,9 +243,12 @@ CY_SECTION(".cy_sflash_public_key") __USED const cy_si_stc_public_key_t cy_publi
 | --endian       |     optional      | Byte order. Available values: "little", "big" (default: "little")                  |
 ### Usage example
 ```bash
+# Convert key in JWK format to PEM format
 $ cysecuretools convert-key --key-path private.json --output private.pem --fmt pem
-$ cysecuretools convert-key --key-path private.pem --output private.der --fmt der
-$ cysecuretools convert-key --key-path public.der --output public.json --fmt jwk
+
+# Represents a key as a C structure to include it into application
 $ cysecuretools convert-key --key-path public.der --output secure_boot_key.c --fmt secure_boot
+
+# Represents a key as a C array to include it into application
 $ cysecuretools convert-key --key-path public.jwk --output array_key.c --fmt c_array
 ```
