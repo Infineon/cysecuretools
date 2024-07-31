@@ -433,12 +433,18 @@ def cmd_device_info(ctx, probe_id):
               required=False, help='''Add dependence on another image, format:
               "(<image_ID>,<image_version>), ... "''')
 @click.option('--image-id', type=click.INT, help='Image ID', default=0)
+@click.option('--nonce',
+              help='A hex string or a file containing nonce used for '
+                   'encryption. If not provided, a random value will be '
+                   'generated')
+@click.option('--nonce-output', type=click.Path(),
+              help='The path to a file where to save the nonce')
 @click.pass_context
 def cmd_sign_image(ctx, image, erased_val, key_id, key_path, image_config,
                    output, signature, header_size, slot_size, encrypt, enckey,
                    app_addr, hex_addr, update_key_id, update_key_path,
                    image_format, pad, confirm, overwrite_only, min_erase_size,
-                   align, version, dependencies, image_id):
+                   align, version, dependencies, image_id, nonce, nonce_output):
     @process_handler()
     def process():
         if 'TOOL' not in ctx.obj:
@@ -477,7 +483,9 @@ def cmd_sign_image(ctx, image, erased_val, key_id, key_path, image_config,
                 align=align,
                 version=version,
                 dependencies=dependencies,
-                image_id=image_id
+                image_id=image_id,
+                nonce=nonce,
+                nonce_output=nonce_output
                 )
         return result is not None
 
@@ -594,6 +602,29 @@ def cmd_init(ctx, testapps, testapps_si):
         ctx.obj['TOOL'].init(testapps=test_pkg_type(testapps, testapps_si))
         return True
 
+    return process
+
+
+@main.command('encrypt', short_help='Encrypts data')
+@click.option('-i', '--input', 'input_file', type=click.Path(), required=True,
+              help='The binary file to encrypt')
+@click.option('-o', '--output', type=click.Path(), required=True,
+              help='Signed image output file')
+@click.option('--enckey', type=click.Path(), required=True,
+              help='The key used to encrypt the image')
+@click.option('--iv', required=True,
+              help='Initialization vector. Decimal or hexadecimal value')
+@click.option('--nonce', required=True, help='Nonce used for encryption')
+@click.option('--nonce-output', type=click.Path(),
+              help='The path to a file where to save the nonce')
+@click.pass_context
+def cmd_encrypt(ctx, input_file, output, enckey, iv, nonce, nonce_output):
+    @process_handler()
+    def process():
+        if 'TOOL' not in ctx.obj:
+            return False
+        return ctx.obj['TOOL'].encrypt(input_file, enckey, iv=iv, nonce=nonce,
+                                       output=output, nonce_output=nonce_output)
     return process
 
 

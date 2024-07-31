@@ -1,6 +1,14 @@
 # Changelog
 All notable changes to this project will be documented in this file.
 
+## 6.1.0
+### Added
+- CYW20829 `encrypt` command for pure data encryption without signing
+- `bin-dump` command to create binary file from hex string
+
+### Changed
+- Extended CYW20829 `sign-image` command with options `--nonce` and `--nonce-output` used for encryption
+
 ## 6.0.0
 ### Added
 - Support for Python 3.12

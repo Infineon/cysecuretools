@@ -13,7 +13,9 @@
     - [Reprovision device](#reprovision-device)
     - [Create provisioning data packet](#create-provisioning-data-packet)
     - [Sign image](#sign-image)
+    - [Encrypt image](#encrypt-image)
     - [Extend image](#extend-image)
+    - [Create bin](#create-bin)
     - [Convert bin to hex](#convert-bin-to-hex)
     - [Create debug certificate](#create-debug-certificate)
     - [Read die ID](#read-die-id)
@@ -342,6 +344,8 @@ Signs a user application with a key. Optionally encrypts the signed application.
 | -v, --version             | optional           | Sets image version in the image header. The default value is 0.1.|
 | -d, --dependencies        | optional           | Add dependency on another image, format: "(<image_ID>,<image_version>), ... ".|
 | --image-id                | optional           | Image ID. The value is used to update NV counter. The default value is 0.|
+| --nonce                   | optional           | A 12-bytes hex string or a file containing nonce used for encryption. If not provided, a random value will be generated. Hex string of the length less than 12 will be padded with zeros (e.g. A1 = 0000000000000000000000A1).|
+| --nonce-output            | optional           | The path to a file where to save the nonce.|
 ### Usage example
 ```bash
 # Sign the image with the "oem_priv_key_0" specified in the policy
@@ -350,13 +354,54 @@ $ cysecuretools -t cyw20829 -p policy/policy_secure.json sign-image --image imag
 # Sign the image with the "oem_priv_key_0" specified in the policy. Save the output file in the Intel hex format and set the final hex address to 0x60020000
 $ cysecuretools -t cyw20829 -p policy/policy_secure.json sign-image --image image.bin --output image_signed.hex --key-id 0 --hex-addr 0x60020000
 
-# Sign the image with the "oem_priv_key_0" specified in the policy. Pad the image with 0xFF value up to the slot size.
+# Sign the image with the "oem_priv_key_0" specified in the policy. Pad the image with 0xFF value up to the slot size
 $ cysecuretools -t cyw20829 -p policy/policy_secure.json sign-image --image image.bin --output image_signed.bin --key-id 0 --pad --overwrite-only --slot-size 0x10000 --header-size 0x400 --erased-val 0xFF
 
 # Sign the image with the "oem_priv_key_0" specified in the policy. Encrypt the image with a new random encryption key and use device public key ("--enckey" option) for the ECIES schema (https://docs.mcuboot.com/encrypted_images.html). The "--app-addr" option specifies the start address of the application to be encrypted
 $ cysecuretools -t cyw20829 -p policy/policy_secure.json sign-image --image image.bin --output image_signed_encrypted.bin --key-id 0 --encrypt --enckey keys/ec256_pub_key.pem --header-size 1024 --app-addr 0x08000200 --hex-addr 0x60020000
+
+# Sign the image of the bootrom_next_app type. Uses encryption key from the policy
+$ cysecuretools -t cyw20829 -p policy/policy_secure.json sign-image --image-format bootrom_next_app --image image.bin --key-id 0 --output image_signed_encrypted.bin --slot-size 0x20000 --encrypt --nonce 112233445566778899AABBCC --app-addr 0x08000200 --nonce-output nonce-output.bin
 ```
 Refer to [Encrypt the user application](#encrypt-the-user-application) for more details about image encryption.
+
+
+## Encrypt image
+Encrypts binary file data.
+### Command: `encrypt`
+### Parameters
+| Name           | Optional/Required | Description |
+| -------------- |:-----------------:| ------------- |
+| -i, --input    | required          | The binary file to encrypt.|
+| -o, --output   | required          | Signed image output file.|
+| --enckey       | required          | The key used to encrypt the image.|
+| --iv           | required          | Initialization vector. Decimal or hexadecimal value. Must be equal to application address.|
+| --nonce        | required          | A 12-bytes hex string or a file containing nonce used for encryption. If not provided, a random value will be generated. Hex string of the length less than 12 will be padded with zeros (e.g. A1 = 0000000000000000000000A1).
+| --nonce-output | optional          | The path to a file where to save the nonce.|
+### Usage example
+```bash
+# Encrypt image
+$ cysecuretools -t cyw20829 encrypt --input image.bin --output image_encrypted.bin --iv 0x08000200 --nonce 112233445566778899AABBCC --enckey encryption_key.bin
+```
+
+
+## Create bin
+Dumps hex string to a binary file.
+### Command: `bin-dump`
+### Parameters
+| Name         | Optional/Required | Description |
+| ------------ |:-----------------:| ----------- |
+| --data       | optional          | Hex string.|
+| --random     | optional          | Generate random binary of specified length (e.g. `--random 12` generates a random 12-byte binary file).|
+| -o, --output | required          | Output file.|
+### Usage example
+```bash
+# Dump hex string to a binary file
+$ cysecuretools bin-dump --data 0011223344556677AABBCCDDEEFF --output dump.bin
+
+# Dump random 12 bytes to a binary file
+$ cysecuretools bin-dump --random 12 --output dump.bin
+```
 
 
 ## Extend image

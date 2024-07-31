@@ -227,11 +227,19 @@ class SignToolMXS40Sv2(SignToolBase):
         if enckey:
             if 'bootrom_next_app' == image_format:
                 encryptor = EncryptorMXS40Sv2(enckey)
-                output, nonce = encryptor.encrypt_image(
-                    output, app_addr, kwargs.get('encr_path'),
-                    kwargs.get('nonce_path'))
-                logger.info('Image signed and encrypted successfully (%s, %s)',
-                            output, nonce)
+                is_enc_success, output, nonce = encryptor.encrypt_image(
+                    output,
+                    initial_counter=app_addr,
+                    output=kwargs.get('encr_path'),
+                    nonce=kwargs.get('nonce'),
+                    nonce_output=kwargs.get('nonce_output'))
+
+                if is_enc_success:
+                    logger.info(
+                        'Image signed and encrypted successfully (%s, %s)',
+                        output, nonce)
+                else:
+                    logger.error('Encryption failed')
             elif 'bootrom_ram_app' == image_format:
                 logger.warning('Encryption is not supported for image format '
                                '%s', image_format)

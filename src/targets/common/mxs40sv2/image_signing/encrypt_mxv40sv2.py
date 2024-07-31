@@ -14,12 +14,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import logging
 import os
 import struct
 
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 
 NONCE_SIZE = 12
+logger = logging.getLogger(__name__)
 
 
 class EncryptorMXS40Sv2:
@@ -65,28 +67,61 @@ class EncryptorMXS40Sv2:
         self.encryptor.finalize()
         return ciphertext, nonce
 
-    def encrypt_image(self, input_path, initial_counter=None, output_path=None,
-                      nonce_path=None):
+    def encrypt_image(self, input_file, initial_counter=None, output=None,
+                      nonce=None, nonce_output=None):
+        """Encrypts an image and saves the encrypted data and nonce
+        into files. If the output locations are not specified the output
+        files are saved in the same location as the input with the
+        prefix _encrypted and _nonce.
+        @param input_file: Binary file to encrypt
+        @param initial_counter: A value matching application address
+        @param output: Encrypted image output path
+        @param nonce: A hex string representing nonce used for encryption. If
+                      not provided, a random value will be generated
+        @param nonce_output: The path to a file where to save the nonce
         """
-        Encrypts an image each time using new random nonce.
-        Saves the nonce and the encrypted image to specified locations.
-        If the output locations are not given the output files are saved
-        in the same location as the input image with predefined names.
-        """
-        image = self._load(input_path)
+        image = self._load(input_file)
 
-        init = 0 if initial_counter is None else initial_counter
-        ciphertext, nonce = self.encrypt(image, init)
+        try:
+            nonce_val = self.nonce_value(nonce)
+        except ValueError:
+            logger.error('Non-hexadecimal number specified')
+            return False, None, None
 
-        if output_path is None:
-            output_path = '{0}_{2}{1}'.format(
-                *os.path.splitext(input_path) + ('encrypted',))
+        if nonce_val and len(nonce_val) > 12:
+            logger.error('Nonce length must be 12 bytes')
+            return False, None, None
 
-        if nonce_path is None:
-            nonce_path = '{0}_{2}{1}'.format(
-                *os.path.splitext(input_path) + ('nonce',))
+        try:
+            iv = int(str(initial_counter), 0) if initial_counter else 0
+        except ValueError:
+            logger.info('Initialization vector must be equal to '
+                        'the application base address')
+            logger.error("Invalid initialization vector value '%s'",
+                         initial_counter)
+            return False, None, None
 
-        self._save(ciphertext, output_path)
-        self._save(nonce, nonce_path)
+        ciphertext, nonce_val = self.encrypt(image, iv, nonce=nonce_val)
 
-        return output_path, nonce_path
+        if output is None:
+            output = '{0}_encrypted{1}'.format(*os.path.splitext(input_file))
+
+        if nonce_output is None:
+            nonce_output = '{0}_nonce{1}'.format(*os.path.splitext(input_file))
+
+        self._save(ciphertext, output)
+        self._save(nonce_val, nonce_output)
+
+        return True, output, nonce_output
+
+    @staticmethod
+    def nonce_value(nonce):
+        """Gets nonce bytes from hex string or file"""
+        nonce_val = None
+        if nonce:
+            if os.path.isfile(nonce):
+                with open(nonce, 'rb') as f:
+                    nonce_val = f.read()
+            else:
+                nonce_val = bytes.fromhex(nonce.zfill(24))
+        return nonce_val

@@ -30,11 +30,12 @@ from .core.signtool_base import SignToolBase
 from .core.strategy_context import ProvisioningPacketCtx
 from .core.strategy_context import ProvisioningContext
 from .core.enums import ValidationStatus, ProvisioningStatus
+from .core.key_handlers import emit_c_public
 from .execute.keygens import ec_keygen, rsa_keygen
 from .execute.image_signing.sign_tool import SignTool
 from .execute.programmer.programmer import ProgrammingTool
+from .execute import dump
 from .targets import get_target_builder, print_targets, is_mxs40v1, is_mxs40sv2
-from .core.key_handlers import emit_c_public
 
 logger = logging.getLogger(__name__)
 
@@ -458,6 +459,30 @@ class CommonAPI:
             status = context.open_rma(self.tool, self.target, cert)
             ConnectHelper.disconnect(self.tool)
         return status == ProvisioningStatus.OK
+
+    @staticmethod
+    def bin_dump(data, output):
+        """Converts a hex string to bytes and saves to a binary file
+        @param data: Hex string to dump
+        @param output: Output file
+        @return: True if success, otherwise False
+        """
+        if 'random' in data:
+            data = os.urandom(int(data.replace('random', ''), 0))
+
+        if len(data) % 2 != 0:
+            logger.error(
+                'The hex string must contain an even number of characters')
+            return False
+
+        try:
+            dump.bin_dump(data, output)
+        except ValueError:
+            logger.error('Non-hexadecimal number specified')
+            return False
+
+        logger.info("Data saved to '%s'", os.path.abspath(output))
+        return True
 
     def _init_ocd(self):
         settings = OcdSettings()

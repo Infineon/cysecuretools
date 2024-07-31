@@ -1,5 +1,5 @@
 """
-Copyright 2021-2024 Cypress Semiconductor Corporation (an Infineon company)
+Copyright 2022-2024 Cypress Semiconductor Corporation (an Infineon company)
 or an affiliate of Cypress Semiconductor Corporation. All rights reserved.
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,5 +14,20 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from .signtool_mxv40sv2 import SignToolMXS40Sv2
-from .encrypt_mxv40sv2 import EncryptorMXS40Sv2
+import logging
+
+logger = logging.getLogger(__name__)
+
+
+def bin_dump(data, output):
+    """Converts a hex string to bytes and saves to a binary file
+    @param data: Hex string to dump
+    @param output: Output file
+    """
+    if isinstance(data, bytes):
+        binary_data = data
+    else:
+        binary_data = bytes.fromhex(data)
+
+    with open(output, 'wb') as file:
+        file.write(binary_data)

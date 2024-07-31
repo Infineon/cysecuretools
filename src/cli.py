@@ -253,6 +253,34 @@ def cmd_bin2hex(_ctx, image, output, offset):
     return process
 
 
+@main.command('bin-dump', help='Creates binary file')
+@click.option('--data', help='Hex string')
+@click.option('--random', help='Generate random binary of specified length')
+@click.option('-o', '--output', type=click.Path(), required=True,
+              help='Output file')
+@click.pass_context
+def cmd_bin_dump(_ctx, data, random, output):
+    """Creates """
+    @process_handler()
+    def process():
+        validate_args()
+        bindata = data if data is not None else f'random{random}'
+        return CommonAPI.bin_dump(bindata, output)
+
+    def validate_args():
+        if data is not None and random is not None:
+            sys.stderr.write("Error: The '--data' and '--random' options "
+                             "are mutually exclusive.\n")
+            sys.exit(2)
+
+        if data is None and random is None:
+            sys.stderr.write("Error: Either '--data' or '--random' option "
+                             "must be specified.\n")
+            sys.exit(2)
+
+    return process
+
+
 @main.command('convert-key', help='Converts  key to other formats')
 @click.option('-f', '--fmt', 'fmt',
               type=click.Choice(

@@ -23,6 +23,7 @@ from .core.connect_helper import ConnectHelper
 from .core.strategy_context import ProvisioningContext
 from .core.strategy_context import ProvisioningPacketCtx
 from .execute.keygens import rsa_keygen, aes_keygen
+from .targets.common.mxs40sv2.image_signing import EncryptorMXS40Sv2
 
 logger = logging.getLogger(__name__)
 
@@ -158,3 +159,26 @@ class Mxs40sv2API(CommonAPI):
             logger.error('An error occurred while loading the application')
 
         return status == ProvisioningStatus.OK
+
+    @staticmethod
+    def encrypt(input_file, enckey, **kwargs):
+        """Encrypts input file data
+        @param input_file: Binary file to encrypt
+        @param enckey: Encryption key
+        @return: True if success, otherwise False
+        """
+        encryptor = EncryptorMXS40Sv2(enckey)
+        result, _, nonce_output = encryptor.encrypt_image(
+            input_file,
+            initial_counter=kwargs.get('iv'),
+            output=kwargs.get('output'),
+            nonce=kwargs.get('nonce'),
+            nonce_output=kwargs.get('nonce_output'))
+
+        if result:
+            logger.info('Encryption successful')
+            logger.info('Encrypted file path: %s',
+                        os.path.abspath(kwargs.get('output')))
+            logger.info('Nonce path: %s',
+                        os.path.abspath(nonce_output))
+        return result

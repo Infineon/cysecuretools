@@ -99,6 +99,7 @@ class CliCreator:
             mxs40v2_cmds.remove('read-die-id')
             mxs40v2_cmds.remove('load-and-run-app')
             mxs40v2_cmds.remove('convert-to-rma')
+            mxs40v2_cmds.remove('encrypt')
             policy = CliCreator.option_from_args(['-p', '--policy'])
             if policy is None:
                 if any(a in mxs40v2_cmds for a in sys.argv[1:]):
